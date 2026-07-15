@@ -337,7 +337,6 @@ tags
 
 ARCHITECTURE.md
 en.subject.pdf
-packages/core/pkg/
 .DS_Store
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,emacs,vim,node,jetbrains+all,visualstudiocode
