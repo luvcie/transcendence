@@ -1,4 +1,5 @@
 import {
+  Bag,
   COLS,
   Piece,
   ROWS,
@@ -15,7 +16,15 @@ const status = document.querySelector<HTMLParagraphElement>("#status")!;
 // desynchronized lets chrome skip the compositor queue, lower input latency
 const ctx = canvas.getContext("2d", { desynchronized: true })!;
 
-status.textContent = `42tris core v${version()}`;
+// letters indexed by cell id, same order as Piece
+const LETTERS = "_ZLOSIJT";
+const bag = new Bag(108);
+let queue = "";
+for (let i = 0; i < 14; i++) {
+  if (i === 7) queue += " ";
+  queue += LETTERS[bag.next()];
+}
+status.textContent = `42tris core v${version()} | seed 108 bag: ${queue}`;
 
 // indexed by cell id, order matches Piece
 const COLORS = [
