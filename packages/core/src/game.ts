@@ -1,5 +1,6 @@
 import { Bag } from "./bag";
 import { canPlace, createBoard, place } from "./board";
+import { kicksFor } from "./kicks";
 import { SPAWN_Y, spawnX, type PieceId } from "./pieces";
 
 // key state events, not move commands, so das/arr can be simulated
@@ -9,6 +10,9 @@ export const Input = {
   LeftUp: 1,
   RightDown: 2,
   RightUp: 3,
+  RotateCw: 4,
+  RotateCcw: 5,
+  Rotate180: 6,
 } as const;
 export type InputId = (typeof Input)[keyof typeof Input];
 
@@ -23,6 +27,10 @@ export class Game {
   x: number;
   y: number;
   topOut = false;
+  // spin detection at lock will need these: was the last successful
+  // action a rotation, and which kick made it fit (0 = no kick)
+  lastWasRotation = false;
+  lastKickIndex = 0;
 
   private bag: Bag;
   private gravityMs: number;
@@ -53,11 +61,39 @@ export class Game {
     if (this.topOut) return;
     if (input === Input.LeftDown) this.tryMove(-1);
     else if (input === Input.RightDown) this.tryMove(1);
+    else if (input === Input.RotateCw) this.rotate(1);
+    else if (input === Input.RotateCcw) this.rotate(3);
+    else if (input === Input.Rotate180) this.rotate(2);
   }
 
   private tryMove(dx: number): void {
     if (canPlace(this.board, this.piece, this.rot, this.x + dx, this.y)) {
       this.x += dx;
+      this.lastWasRotation = false;
+    }
+  }
+
+  private rotate(turns: number): void {
+    const to = (this.rot + turns) & 3;
+    // natural rotation first, then the kick table in order, first fit wins
+    if (canPlace(this.board, this.piece, to, this.x, this.y)) {
+      this.rot = to;
+      this.lastKickIndex = 0;
+      this.lastWasRotation = true;
+      return;
+    }
+    const table = kicksFor(this.piece, this.rot, to);
+    for (let i = 0; i < table.length; i += 2) {
+      const nx = this.x + table[i];
+      const ny = this.y + table[i + 1];
+      if (canPlace(this.board, this.piece, to, nx, ny)) {
+        this.rot = to;
+        this.x = nx;
+        this.y = ny;
+        this.lastKickIndex = i / 2 + 1;
+        this.lastWasRotation = true;
+        return;
+      }
     }
   }
 
@@ -82,6 +118,7 @@ export class Game {
   private stepDown(): void {
     if (canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) {
       this.y++;
+      this.lastWasRotation = false;
       return;
     }
     // no lock delay yet, the piece locks the moment it touches down

@@ -91,8 +91,13 @@ function render() {
 window.addEventListener("keydown", (e) => {
   // held keys repeat via das/arr inside the core later, not the browser
   if (e.repeat) return;
-  if (e.key === "ArrowLeft") game.apply(Input.LeftDown, performance.now());
-  else if (e.key === "ArrowRight") game.apply(Input.RightDown, performance.now());
+  const now = performance.now();
+  const k = e.key.toLowerCase();
+  if (k === "arrowleft") game.apply(Input.LeftDown, now);
+  else if (k === "arrowright") game.apply(Input.RightDown, now);
+  else if (k === "arrowup" || k === "x") game.apply(Input.RotateCw, now);
+  else if (k === "z" || k === "control") game.apply(Input.RotateCcw, now);
+  else if (k === "a") game.apply(Input.Rotate180, now);
 });
 window.addEventListener("keyup", (e) => {
   if (e.key === "ArrowLeft") game.apply(Input.LeftUp, performance.now());
