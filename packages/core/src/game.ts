@@ -4,6 +4,10 @@ import { SPAWN_Y, spawnX, type PieceId } from "./pieces";
 
 export class Game {
   readonly board: Uint8Array = createBoard();
+  // upcoming pieces in deal order, refilled from the bag as pieces spawn
+  readonly previews: Uint8Array;
+  // pieces dealt so far, current one included
+  dealt = 0;
   piece: PieceId;
   rot = 0;
   x: number;
@@ -15,12 +19,23 @@ export class Game {
   private lastNow = -1;
   private fallAcc = 0;
 
-  constructor(seed: number, gravityMs = 500) {
+  constructor(seed: number, gravityMs = 500, previewCount = 5) {
     this.bag = new Bag(seed);
     this.gravityMs = gravityMs;
-    this.piece = this.bag.next();
+    this.previews = new Uint8Array(previewCount);
+    for (let i = 0; i < previewCount; i++) this.previews[i] = this.bag.next();
+    this.piece = this.takeNext();
     this.x = spawnX(this.piece);
     this.y = SPAWN_Y;
+  }
+
+  private takeNext(): PieceId {
+    const next = this.previews[0] as PieceId;
+    // shift left in place, no allocation
+    this.previews.copyWithin(0, 1);
+    this.previews[this.previews.length - 1] = this.bag.next();
+    this.dealt++;
+    return next;
   }
 
   // time always comes in from outside, the core never reads a clock
@@ -52,7 +67,7 @@ export class Game {
   }
 
   private spawn(): void {
-    this.piece = this.bag.next();
+    this.piece = this.takeNext();
     this.rot = 0;
     this.x = spawnX(this.piece);
     this.y = SPAWN_Y;

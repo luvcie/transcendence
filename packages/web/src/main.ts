@@ -1,5 +1,4 @@
 import {
-  Bag,
   COLS,
   Game,
   MINOS,
@@ -29,17 +28,25 @@ const COLORS = [
 ];
 
 const SEED = 108;
-let game = new Game(SEED);
+const PREVIEWS = 14;
+let game = new Game(SEED, 500, PREVIEWS);
 
-// same seed as the game, so these letters are the exact pieces it will deal
 const LETTERS = "_ZLOSIJT";
-const preview = new Bag(SEED);
-let bags = "";
-for (let i = 0; i < 14; i++) {
-  if (i === 7) bags += " ";
-  bags += LETTERS[preview.next()];
+let lastStatus = "";
+
+function updateStatus() {
+  let next = "";
+  for (let i = 0; i < game.previews.length; i++) {
+    // dealt + i is the deal number of this preview, every 7th starts a bag
+    if ((game.dealt + i) % 7 === 0) next += " ";
+    next += LETTERS[game.previews[i]];
+  }
+  const text = `42tris core v${version()} | seed ${SEED} | next:${next}`;
+  if (text !== lastStatus) {
+    lastStatus = text;
+    status.textContent = text;
+  }
 }
-status.textContent = `42tris core v${version()} | seed ${SEED} | ${bags}`;
 
 const cell = canvas.width / COLS;
 const hidden = ROWS - VISIBLE_ROWS;
@@ -82,7 +89,8 @@ function render() {
 function frame(now: number) {
   game.tick(now);
   // same seed on purpose, the exact same run loops forever, that's determinism
-  if (game.topOut) game = new Game(SEED);
+  if (game.topOut) game = new Game(SEED, 500, PREVIEWS);
+  updateStatus();
   render();
   requestAnimationFrame(frame);
 }
