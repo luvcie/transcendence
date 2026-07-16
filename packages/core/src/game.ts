@@ -2,6 +2,16 @@ import { Bag } from "./bag";
 import { canPlace, createBoard, place } from "./board";
 import { SPAWN_Y, spawnX, type PieceId } from "./pieces";
 
+// key state events, not move commands, so das/arr can be simulated
+// inside the core later without changing this api
+export const Input = {
+  LeftDown: 0,
+  LeftUp: 1,
+  RightDown: 2,
+  RightUp: 3,
+} as const;
+export type InputId = (typeof Input)[keyof typeof Input];
+
 export class Game {
   readonly board: Uint8Array = createBoard();
   // upcoming pieces in deal order, refilled from the bag as pieces spawn
@@ -36,6 +46,19 @@ export class Game {
     this.previews[this.previews.length - 1] = this.bag.next();
     this.dealt++;
     return next;
+  }
+
+  // the timestamp is unused until das/arr, it's part of the api on purpose
+  apply(input: InputId, _nowMs: number): void {
+    if (this.topOut) return;
+    if (input === Input.LeftDown) this.tryMove(-1);
+    else if (input === Input.RightDown) this.tryMove(1);
+  }
+
+  private tryMove(dx: number): void {
+    if (canPlace(this.board, this.piece, this.rot, this.x + dx, this.y)) {
+      this.x += dx;
+    }
   }
 
   // time always comes in from outside, the core never reads a clock

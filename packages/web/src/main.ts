@@ -1,6 +1,7 @@
 import {
   COLS,
   Game,
+  Input,
   MINOS,
   ROWS,
   VISIBLE_ROWS,
@@ -85,6 +86,18 @@ function render() {
     ctx.stroke();
   }
 }
+
+// inputs go straight to the game on the event, never wait for a frame
+window.addEventListener("keydown", (e) => {
+  // held keys repeat via das/arr inside the core later, not the browser
+  if (e.repeat) return;
+  if (e.key === "ArrowLeft") game.apply(Input.LeftDown, performance.now());
+  else if (e.key === "ArrowRight") game.apply(Input.RightDown, performance.now());
+});
+window.addEventListener("keyup", (e) => {
+  if (e.key === "ArrowLeft") game.apply(Input.LeftUp, performance.now());
+  else if (e.key === "ArrowRight") game.apply(Input.RightUp, performance.now());
+});
 
 function frame(now: number) {
   game.tick(now);
