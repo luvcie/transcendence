@@ -47,10 +47,12 @@ const COLORS = [
   "#6b7280", // garbage
 ];
 
-const SEED = 108;
 const PREVIEWS = 5;
+const READY_MS = 250;
 let handling = loadHandling();
-let game = new Game(SEED, 500, PREVIEWS, handling);
+let seed: number;
+let game: Game;
+restart();
 setupHandling(handling, value => {
   handling = value;
   game.setHandling(value);
@@ -81,7 +83,14 @@ function backToPause() {
 }
 
 function restart() {
-  game = new Game(SEED, 500, PREVIEWS, handling);
+  const random = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(random);
+  } while (random[0] === seed);
+  seed = random[0];
+  game = new Game(seed, 500, PREVIEWS, handling, READY_MS);
+  game.tick(performance.now());
+  status.textContent = `42tris core v${version()} | seed ${seed}`;
   pressed.clear();
 }
 
@@ -105,7 +114,6 @@ document.addEventListener("visibilitychange", () => {
 });
 
 const LETTERS = "_ZLOSIJT";
-status.textContent = `42tris core v${version()} | seed ${SEED}`;
 
 const cell = canvas.width / COLS;
 const hidden = ROWS - VISIBLE_ROWS;
@@ -137,7 +145,7 @@ function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: nu
 
 function render() {
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-  holdButton.disabled = game.holdUsed || game.paused || game.topOut;
+  holdButton.disabled = game.holdUsed || game.paused || game.topOut || game.starting;
   holdCanvas.setAttribute("aria-label", game.held === null ? "Hold empty" : `Held piece ${LETTERS[game.held]}`);
   if (game.held !== null) drawPreview(holdCtx, game.held, 0);
 
@@ -159,12 +167,14 @@ function render() {
     }
   }
 
-  const m = MINOS[game.piece][game.rot];
-  ctx.fillStyle = COLORS[game.piece];
-  for (let i = 0; i < 8; i += 2) {
-    const px = game.x + m[i];
-    const py = game.y + m[i + 1] - hidden;
-    if (py >= 0) ctx.fillRect(px * cell, py * cell, cell, cell);
+  if (!game.starting) {
+    const m = MINOS[game.piece][game.rot];
+    ctx.fillStyle = COLORS[game.piece];
+    for (let i = 0; i < 8; i += 2) {
+      const px = game.x + m[i];
+      const py = game.y + m[i + 1] - hidden;
+      if (py >= 0) ctx.fillRect(px * cell, py * cell, cell, cell);
+    }
   }
 
   ctx.strokeStyle = "#333";
@@ -202,6 +212,7 @@ window.addEventListener("keydown", (e) => {
     restart();
     return;
   }
+  if (game.starting) return;
   const alreadyHeld = [...pressed.values()].includes(action);
   pressed.set(e.code, action);
   const binding = ACTIONS[action];

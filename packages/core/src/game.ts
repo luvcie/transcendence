@@ -49,18 +49,24 @@ export class Game {
   private moveAt = Infinity;
   private softHeld = false;
   private softAt = Infinity;
+  private readyMs: number;
   paused = false;
 
-  constructor(seed: number, gravityMs = 500, previewCount = 5, handling: Handling = DEFAULT_HANDLING) {
+  constructor(seed: number, gravityMs = 500, previewCount = 5, handling: Handling = DEFAULT_HANDLING, readyMs = 0) {
     validateHandling(handling);
     this.handling = { ...handling };
     this.bag = new Bag(seed);
     this.gravityMs = gravityMs;
+    this.readyMs = readyMs;
     this.previews = new Uint8Array(previewCount);
     for (let i = 0; i < previewCount; i++) this.previews[i] = this.bag.next();
-    this.piece = this.takeNext();
+    this.piece = this.starting ? this.previews[0] as PieceId : this.takeNext();
     this.x = spawnX(this.piece);
     this.y = SPAWN_Y;
+  }
+
+  get starting(): boolean {
+    return this.readyMs > 0;
   }
 
   private takeNext(): PieceId {
@@ -75,7 +81,7 @@ export class Game {
   apply(input: InputId, nowMs: number): void {
     if (this.paused || this.topOut) return;
     this.tick(nowMs);
-    if (this.topOut) return;
+    if (this.topOut || this.starting) return;
     if (input === Input.LeftDown || input === Input.RightDown) {
       const left = input === Input.LeftDown;
       if (left ? this.leftHeld : this.rightHeld) return;
@@ -218,6 +224,14 @@ export class Game {
     if (this.lastNow < 0) {
       this.lastNow = nowMs;
       return;
+    }
+    if (nowMs <= this.lastNow) return;
+    if (this.starting) {
+      const elapsed = Math.min(nowMs - this.lastNow, this.readyMs);
+      this.readyMs -= elapsed;
+      this.lastNow += elapsed;
+      if (this.starting) return;
+      this.spawn();
     }
     // Advance to input/gravity deadlines, independent of render frame rate.
     while (this.lastNow < nowMs && !this.topOut) {
