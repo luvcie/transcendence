@@ -2,6 +2,7 @@ import {
   COLS,
   Game,
   Input,
+  Piece,
   MINOS,
   ROWS,
   VISIBLE_ROWS,
@@ -147,7 +148,7 @@ function refreshHud() {
     let spin = "";
     if (result.spin !== "none") {
       spin = `${LETTERS[result.piece]}-spin`;
-      if (result.spin === "mini") spin += " mini";
+      if (result.piece === Piece.T && result.spin === "mini") spin += " mini";
     }
     const placement = [spin, clear].filter(Boolean).join(" ");
     if (placement) labels.push(placement);
