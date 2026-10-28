@@ -14,16 +14,53 @@
         color: #eee;
         font-family: monospace;
       }
-      canvas {
-        border: 1px solid #444;
-      }
+      canvas { border: 1px solid #444; max-width: 100%; height: auto; }
+      main { padding: 16px; }
+      #status { overflow-wrap: anywhere; max-width: 600px; }
+      .controls, .hint { color: #aaa; font-size: 12px; line-height: 1.6; }
+      button, input { font: inherit; }
+      button { background: #252525; color: #eee; border: 1px solid #666; padding: 10px 16px; cursor: pointer; }
+      button:hover { background: #383838; }
+      :focus-visible { outline: 2px solid #22d3ee; outline-offset: 3px; }
+      dialog { background: #181818; color: #eee; border: 1px solid #666; padding: 24px; width: min(560px, calc(100vw - 64px)); max-height: 85vh; overflow-y: auto; }
+      dialog::backdrop { background: #000b; }
+      h1 { font-size: 22px; margin: 0 0 20px; }
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+      .setting { border-top: 1px solid #383838; padding: 14px 0; }
+      .setting label { display: block; margin-bottom: 6px; }
+      .setting .inputs { display: flex; align-items: center; gap: 12px; }
+      input[type=range] { flex: 1; min-width: 60px; accent-color: #22d3ee; }
+      input[type=number] { width: 70px; background: #111; border: 1px solid #666; color: #eee; padding: 6px; }
+      output { display: block; color: #22d3ee; margin-top: 6px; }
+      .setting p { margin: 6px 0 0; }
+      #storage-note { color: #eab308; }
+
     </style>
   </head>
   <body>
-    <div>
-      <p id="status">loading wasm...</p>
-      <canvas id="board" width="300" height="600"></canvas>
-    </div>
+    <main>
+      <p id="status">Loading…</p>
+      <canvas id="board" width="300" height="600" aria-label="Tetris playfield"></canvas>
+      <p class="controls">← → Move · ↓ Soft drop · Space Hard drop<br>↑ / X Clockwise · Z / Ctrl Counterclockwise · &lt; 180° · Esc Pause</p>
+      <button id="pause-button">Pause / Esc</button>
+    </main>
+    <dialog id="pause-dialog" aria-labelledby="pause-title">
+      <h1 id="pause-title">Paused</h1>
+      <div class="actions">
+        <button id="resume-button" autofocus>Resume</button>
+        <button id="settings-button">Settings</button>
+      </div>
+    </dialog>
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <h1 id="settings-title">Handling</h1>
+      <p class="hint">1 F = 16.67 ms. Tune to 0.01 F, or type a value such as 4.8.</p>
+      <div id="handling-controls"></div>
+      <p id="storage-note" class="hint" role="status">Changes are saved on this device.</p>
+      <div class="actions">
+        <button id="reset-handling">Reset defaults</button>
+        <button id="settings-back">Back</button>
+      </div>
+    </dialog>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

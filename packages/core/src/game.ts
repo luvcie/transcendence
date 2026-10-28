@@ -1,10 +1,10 @@
 import { Bag } from "./bag";
 import { canPlace, createBoard, place } from "./board";
 import { kicksFor } from "./kicks";
+import { DEFAULT_HANDLING, FRAME_MS, validateHandling, type Handling } from "./handling";
 import { SPAWN_Y, spawnX, type PieceId } from "./pieces";
 
-// key state events, not move commands, so das/arr can be simulated
-// inside the core later without changing this api
+// Key state events let the core own repeat timing.
 export const Input = {
   LeftDown: 0,
   LeftUp: 1,
@@ -14,6 +14,8 @@ export const Input = {
   RotateCcw: 5,
   Rotate180: 6,
   HardDrop: 7,
+  SoftDropDown: 8,
+  SoftDropUp: 9,
 } as const;
 export type InputId = (typeof Input)[keyof typeof Input];
 
@@ -37,8 +39,18 @@ export class Game {
   private gravityMs: number;
   private lastNow = -1;
   private fallAcc = 0;
+  private handling: Handling;
+  private leftHeld = false;
+  private rightHeld = false;
+  private direction = 0;
+  private moveAt = Infinity;
+  private softHeld = false;
+  private softAt = Infinity;
+  paused = false;
 
-  constructor(seed: number, gravityMs = 500, previewCount = 5) {
+  constructor(seed: number, gravityMs = 500, previewCount = 5, handling: Handling = DEFAULT_HANDLING) {
+    validateHandling(handling);
+    this.handling = { ...handling };
     this.bag = new Bag(seed);
     this.gravityMs = gravityMs;
     this.previews = new Uint8Array(previewCount);
@@ -57,31 +69,111 @@ export class Game {
     return next;
   }
 
-  // the timestamp is unused until das/arr, it's part of the api on purpose
-  apply(input: InputId, _nowMs: number): void {
+  apply(input: InputId, nowMs: number): void {
+    if (this.paused || this.topOut) return;
+    this.tick(nowMs);
     if (this.topOut) return;
-    if (input === Input.LeftDown) this.tryMove(-1);
-    else if (input === Input.RightDown) this.tryMove(1);
+    if (input === Input.LeftDown || input === Input.RightDown) {
+      const left = input === Input.LeftDown;
+      if (left ? this.leftHeld : this.rightHeld) return;
+      if (left) this.leftHeld = true;
+      else this.rightHeld = true;
+      this.direction = left ? -1 : 1;
+      // Techmino charges DAS immediately if the manual move hits a wall.
+      this.moveAt = nowMs + (this.tryMove(this.direction) ? this.handling.das * FRAME_MS : 0);
+      this.repeatMove(nowMs);
+    } else if (input === Input.LeftUp || input === Input.RightUp) {
+      const left = input === Input.LeftUp;
+      if (left) this.leftHeld = false;
+      else this.rightHeld = false;
+      if (this.direction === (left ? -1 : 1)) {
+        this.direction = this.leftHeld ? -1 : this.rightHeld ? 1 : 0;
+        this.moveAt = this.direction ? nowMs + this.handling.das * FRAME_MS : Infinity;
+      }
+    } else if (input === Input.SoftDropDown) {
+      if (this.softHeld) return;
+      this.softHeld = true;
+      this.softAt = nowMs + this.handling.sddas * FRAME_MS;
+      // Techmino takes two steps on press when SD DAS is zero.
+      this.fallOne();
+      if (this.handling.sddas === 0) {
+        if (this.handling.sdarr === 0) this.dropToSurface();
+        else this.fallOne();
+      }
+    } else if (input === Input.SoftDropUp) {
+      this.softHeld = false;
+      this.softAt = Infinity;
+    }
     else if (input === Input.RotateCw) this.rotate(1);
     else if (input === Input.RotateCcw) this.rotate(3);
     else if (input === Input.Rotate180) this.rotate(2);
     else if (input === Input.HardDrop) this.hardDrop();
+    this.instantSoftDrop();
   }
 
   private hardDrop(): void {
-    while (canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) {
-      this.y++;
-      this.lastWasRotation = false;
-    }
+    this.dropToSurface();
     place(this.board, this.piece, this.rot, this.x, this.y);
     this.spawn();
   }
 
-  private tryMove(dx: number): void {
+  private tryMove(dx: number): boolean {
     if (canPlace(this.board, this.piece, this.rot, this.x + dx, this.y)) {
       this.x += dx;
       this.lastWasRotation = false;
+      this.instantSoftDrop();
+      return true;
     }
+    return false;
+  }
+
+  private repeatMove(nowMs: number): void {
+    if (!this.direction || nowMs < this.moveAt) return;
+    if (this.handling.arr === 0) {
+      while (this.tryMove(this.direction)) { /* move to the wall */ }
+      this.moveAt = Infinity;
+    } else {
+      const moved = this.tryMove(this.direction);
+      // Blocked repeats stay charged, retrying on the next logical frame.
+      this.moveAt = nowMs + (moved ? this.handling.arr : 1) * FRAME_MS;
+    }
+  }
+
+  private fallOne(): boolean {
+    if (!canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) return false;
+    this.y++;
+    this.lastWasRotation = false;
+    return true;
+  }
+
+  private dropToSurface(): void {
+    while (this.fallOne()) { /* soft drop never locks */ }
+  }
+
+  private instantSoftDrop(): void {
+    if (this.softHeld && this.handling.sdarr === 0 && this.lastNow >= this.softAt) {
+      this.dropToSurface();
+    }
+  }
+
+  setHandling(handling: Handling): void {
+    validateHandling(handling);
+    this.handling = { ...handling };
+    this.releaseInputs();
+  }
+
+  private releaseInputs(): void {
+    this.leftHeld = this.rightHeld = this.softHeld = false;
+    this.direction = 0;
+    this.moveAt = this.softAt = Infinity;
+  }
+
+  setPaused(paused: boolean, nowMs: number): void {
+    if (paused === this.paused) return;
+    if (paused) this.tick(nowMs);
+    this.paused = paused;
+    this.lastNow = nowMs;
+    this.releaseInputs();
   }
 
   private rotate(turns: number): void {
@@ -110,28 +202,37 @@ export class Game {
 
   // time always comes in from outside, the core never reads a clock
   tick(nowMs: number): void {
-    if (this.topOut) return;
+    if (this.topOut || this.paused) return;
     if (this.lastNow < 0) {
       this.lastNow = nowMs;
       return;
     }
-    const dt = nowMs - this.lastNow;
-    if (dt <= 0) return;
-    this.lastNow = nowMs;
-    this.fallAcc += dt;
-    while (this.fallAcc >= this.gravityMs) {
-      this.fallAcc -= this.gravityMs;
-      this.stepDown();
-      if (this.topOut) return;
+    // Advance to input/gravity deadlines, independent of render frame rate.
+    while (this.lastNow < nowMs && !this.topOut) {
+      this.instantSoftDrop();
+      const airborne = canPlace(this.board, this.piece, this.rot, this.x, this.y + 1);
+      const soft = this.softHeld && this.lastNow >= this.softAt && this.handling.sdarr > 0;
+      // Techmino adds soft-drop speed to gravity; interpolate it for fractional F.
+      const speed = soft && airborne ? 1 + this.gravityMs / (this.handling.sdarr * FRAME_MS) : 1;
+      const gravityAt = this.lastNow + (this.gravityMs - this.fallAcc) / speed;
+      const next = Math.min(nowMs, this.moveAt, this.softAt > this.lastNow ? this.softAt : Infinity, gravityAt);
+      this.fallAcc += (next - this.lastNow) * speed;
+      this.lastNow = next;
+      this.repeatMove(next);
+      this.instantSoftDrop();
+      if (next >= gravityAt) {
+        this.fallAcc = 0;
+        this.stepDown();
+      }
+      // Zero ARR remains charged after reaching a wall, including across spawns.
+      if (this.direction && this.handling.arr === 0 && this.moveAt === Infinity) {
+        while (this.tryMove(this.direction)) { /* keep charged */ }
+      }
     }
   }
 
   private stepDown(): void {
-    if (canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) {
-      this.y++;
-      this.lastWasRotation = false;
-      return;
-    }
+    if (this.fallOne()) return;
     // no lock delay yet, the piece locks the moment it touches down
     place(this.board, this.piece, this.rot, this.x, this.y);
     this.spawn();
@@ -142,6 +243,8 @@ export class Game {
     this.rot = 0;
     this.x = spawnX(this.piece);
     this.y = SPAWN_Y;
+    this.lastWasRotation = false;
+    this.lastKickIndex = 0;
     // a fresh piece starts its fall timer from zero, otherwise a big
     // frame gap would slam it several rows down the moment it spawns
     this.fallAcc = 0;

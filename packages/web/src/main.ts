@@ -8,6 +8,7 @@ import {
   cellAt,
   version,
 } from "@42tris/core";
+import { loadHandling, setupHandling } from "./settings";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#board")!;
 const status = document.querySelector<HTMLParagraphElement>("#status")!;
@@ -30,7 +31,48 @@ const COLORS = [
 
 const SEED = 108;
 const PREVIEWS = 14;
-let game = new Game(SEED, 500, PREVIEWS);
+let handling = loadHandling();
+let game = new Game(SEED, 500, PREVIEWS, handling);
+setupHandling(handling, value => {
+  handling = value;
+  game.setHandling(value);
+});
+
+const pauseDialog = document.querySelector<HTMLDialogElement>("#pause-dialog")!;
+const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dialog")!;
+
+function pause() {
+  if (game.paused) return;
+  game.setPaused(true, performance.now());
+  pauseDialog.showModal();
+}
+
+function resume() {
+  settingsDialog.close();
+  pauseDialog.close();
+  game.setPaused(false, performance.now());
+  document.querySelector<HTMLButtonElement>("#pause-button")!.blur();
+}
+
+function backToPause() {
+  settingsDialog.close();
+  pauseDialog.showModal();
+}
+
+document.querySelector("#pause-button")!.addEventListener("click", pause);
+document.querySelector("#resume-button")!.addEventListener("click", resume);
+document.querySelector("#settings-button")!.addEventListener("click", () => {
+  pauseDialog.close();
+  settingsDialog.showModal();
+});
+document.querySelector("#settings-back")!.addEventListener("click", backToPause);
+for (const dialog of [pauseDialog, settingsDialog]) {
+  dialog.addEventListener("cancel", e => e.preventDefault());
+}
+window.addEventListener("blur", pause);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) pause();
+});
 
 const LETTERS = "_ZLOSIJT";
 let lastStatus = "";
@@ -89,8 +131,17 @@ function render() {
 
 // inputs go straight to the game on the event, never wait for a frame
 window.addEventListener("keydown", (e) => {
-  if (e.key === " ") e.preventDefault();
-  // held keys repeat via das/arr inside the core later, not the browser
+  if (e.key === "Escape") {
+    e.preventDefault();
+    if (e.repeat) return;
+    if (settingsDialog.open) backToPause();
+    else if (game.paused) resume();
+    else pause();
+    return;
+  }
+  if (game.paused) return;
+  if (e.key === " " || e.key.startsWith("Arrow")) e.preventDefault();
+  // Held keys repeat inside the core, not through browser key repeat.
   if (e.repeat) return;
   const now = performance.now();
   const k = e.key.toLowerCase();
@@ -100,16 +151,18 @@ window.addEventListener("keydown", (e) => {
   else if (k === "z" || k === "control") game.apply(Input.RotateCcw, now);
   else if (k === "<") game.apply(Input.Rotate180, now);
   else if (k === " ") game.apply(Input.HardDrop, now);
+  else if (k === "arrowdown") game.apply(Input.SoftDropDown, now);
 });
 window.addEventListener("keyup", (e) => {
   if (e.key === "ArrowLeft") game.apply(Input.LeftUp, performance.now());
   else if (e.key === "ArrowRight") game.apply(Input.RightUp, performance.now());
+  else if (e.key === "ArrowDown") game.apply(Input.SoftDropUp, performance.now());
 });
 
 function frame(now: number) {
   game.tick(now);
   // same seed on purpose, the exact same run loops forever, that's determinism
-  if (game.topOut) game = new Game(SEED, 500, PREVIEWS);
+  if (game.topOut && !game.paused) game = new Game(SEED, 500, PREVIEWS, handling);
   updateStatus();
   render();
   requestAnimationFrame(frame);
