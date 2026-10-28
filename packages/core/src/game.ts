@@ -19,6 +19,7 @@ export const Input = {
   Hold: 10,
 } as const;
 export type InputId = (typeof Input)[keyof typeof Input];
+export const LOCK_DELAY_MS = 1000;
 
 export class Game {
   readonly board: Uint8Array = createBoard();
@@ -42,6 +43,7 @@ export class Game {
   private gravityMs: number;
   private lastNow = -1;
   private fallAcc = 0;
+  private lockElapsed = 0;
   private handling: Handling;
   private leftHeld = false;
   private rightHeld = false;
@@ -131,6 +133,10 @@ export class Game {
 
   private hardDrop(): void {
     this.dropToSurface();
+    this.lock();
+  }
+
+  private lock(): void {
     place(this.board, this.piece, this.rot, this.x, this.y);
     this.spawn();
   }
@@ -139,6 +145,7 @@ export class Game {
     if (canPlace(this.board, this.piece, this.rot, this.x + dx, this.y)) {
       this.x += dx;
       this.lastWasRotation = false;
+      this.refreshLock();
       this.instantSoftDrop();
       return true;
     }
@@ -161,7 +168,16 @@ export class Game {
     if (!canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) return false;
     this.y++;
     this.lastWasRotation = false;
+    this.refreshLock();
     return true;
+  }
+
+  private refreshLock(): void {
+    // Techmino's easyFresh restores both timers after a successful action.
+    if (this.lockElapsed > 0) {
+      this.lockElapsed = 0;
+      this.fallAcc = 0;
+    }
   }
 
   private dropToSurface(): void {
@@ -201,6 +217,7 @@ export class Game {
       this.rot = to;
       this.lastKickIndex = 0;
       this.lastWasRotation = true;
+      this.refreshLock();
       return;
     }
     const table = kicksFor(this.piece, this.rot, to);
@@ -213,6 +230,7 @@ export class Game {
         this.y = ny;
         this.lastKickIndex = i / 2 + 1;
         this.lastWasRotation = true;
+        this.refreshLock();
         return;
       }
     }
@@ -240,28 +258,24 @@ export class Game {
       const soft = this.softHeld && this.lastNow >= this.softAt && this.handling.sdarr > 0;
       // Techmino adds soft-drop speed to gravity; interpolate it for fractional F.
       const speed = soft && airborne ? 1 + this.gravityMs / (this.handling.sdarr * FRAME_MS) : 1;
-      const gravityAt = this.lastNow + (this.gravityMs - this.fallAcc) / speed;
-      const next = Math.min(nowMs, this.moveAt, this.softAt > this.lastNow ? this.softAt : Infinity, gravityAt);
-      this.fallAcc += (next - this.lastNow) * speed;
+      const gravityAt = airborne ? this.lastNow + (this.gravityMs - this.fallAcc) / speed : Infinity;
+      const lockAt = airborne ? Infinity : this.lastNow + LOCK_DELAY_MS - this.lockElapsed;
+      const next = Math.min(nowMs, this.moveAt, this.softAt > this.lastNow ? this.softAt : Infinity, gravityAt, lockAt);
+      if (airborne) this.fallAcc += (next - this.lastNow) * speed;
+      else this.lockElapsed += next - this.lastNow;
       this.lastNow = next;
       this.repeatMove(next);
       this.instantSoftDrop();
       if (next >= gravityAt) {
         this.fallAcc = 0;
-        this.stepDown();
+        this.fallOne();
       }
+      if (this.lockElapsed >= LOCK_DELAY_MS && !canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) this.lock();
       // Zero ARR remains charged after reaching a wall, including across spawns.
       if (this.direction && this.handling.arr === 0 && this.moveAt === Infinity) {
         while (this.tryMove(this.direction)) { /* keep charged */ }
       }
     }
-  }
-
-  private stepDown(): void {
-    if (this.fallOne()) return;
-    // no lock delay yet, the piece locks the moment it touches down
-    place(this.board, this.piece, this.rot, this.x, this.y);
-    this.spawn();
   }
 
   private spawn(piece = this.takeNext()): void {
@@ -272,9 +286,8 @@ export class Game {
     this.y = SPAWN_Y;
     this.lastWasRotation = false;
     this.lastKickIndex = 0;
-    // a fresh piece starts its fall timer from zero, otherwise a big
-    // frame gap would slam it several rows down the moment it spawns
     this.fallAcc = 0;
+    this.lockElapsed = 0;
     if (!canPlace(this.board, this.piece, this.rot, this.x, this.y)) {
       this.topOut = true;
     }

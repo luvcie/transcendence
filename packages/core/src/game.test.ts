@@ -15,7 +15,7 @@ test("piece falls one row per gravity step", () => {
 test("piece locks at the bottom and the next one spawns", () => {
   const g = new Game(1, 1);
   g.tick(0);
-  g.tick(100);
+  g.tick(1100);
   let filled = 0;
   for (const cell of g.board) if (cell !== 0) filled++;
   expect(filled).toBeGreaterThanOrEqual(4);

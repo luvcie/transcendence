@@ -63,7 +63,7 @@ test("swapping hold resets position, rotation and gravity without consuming prev
 test("gravity locking also makes hold available again", () => {
   const g = new Game(108, 1);
   g.apply(Input.Hold, 0);
-  for (let t = 1; g.dealt === 2 && t < 100; t++) g.tick(t);
+  for (let t = 1; g.dealt === 2 && t < 1100; t++) g.tick(t);
   expect(g.dealt).toBe(3);
   expect(g.holdUsed).toBe(false);
 });

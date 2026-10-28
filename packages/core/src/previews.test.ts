@@ -15,8 +15,8 @@ test("the next preview becomes the piece after a lock", () => {
   const g = new Game(1, 1, 5);
   const expected = g.previews[0];
   g.tick(0);
-  // gravity is 1ms so 25 steps is enough to reach the floor and lock
-  g.tick(25);
+  // Allow time to reach the floor, then the one-second lock delay.
+  g.tick(1025);
   expect(g.piece).toBe(expected);
   expect(g.dealt).toBe(2);
 });
