@@ -14,13 +14,29 @@
         color: #eee;
         font-family: monospace;
       }
-      canvas { border: 1px solid #444; max-width: 100%; height: auto; }
-      main { padding: 16px; }
+      canvas { display: block; width: 100%; height: auto; outline: 1px solid #444; }
+      main { padding: 16px; width: min(624px, calc(100vw - 32px)); }
       #status { overflow-wrap: anywhere; max-width: 600px; }
       .controls, .hint { color: #aaa; font-size: 12px; line-height: 1.6; }
       button, input { font: inherit; }
       button { background: #252525; color: #eee; border: 1px solid #666; padding: 10px 16px; cursor: pointer; }
       button:hover { background: #383838; }
+      button:disabled { opacity: .5; cursor: default; }
+      .playfield { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: start; gap: 12px; }
+      .preview-panel { min-width: 0; }
+      .preview-panel p { margin: 0; padding: 2px 4px; background: #eee; color: #111; text-transform: uppercase; }
+      #board { min-width: 0; }
+      #hold-button { width: 100%; margin-top: 8px; }
+      #controls { max-width: 540px; }
+      h2 { font-size: 16px; margin-top: 28px; }
+      .keybind-row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #383838; }
+      .keybind-slot { display: flex; min-width: 0; }
+      .keybind-slot button { padding: 8px; overflow-wrap: anywhere; }
+      .keybind-slot button:first-child { flex: 1; min-width: 0; }
+      @media (max-width: 480px) {
+        .keybind-row { grid-template-columns: 1fr 1fr; }
+        .keybind-row > span { grid-column: 1 / -1; }
+      }
       :focus-visible { outline: 2px solid #22d3ee; outline-offset: 3px; }
       dialog { background: #181818; color: #eee; border: 1px solid #666; padding: 24px; width: min(560px, calc(100vw - 64px)); max-height: 85vh; overflow-y: auto; }
       dialog::backdrop { background: #000b; }
@@ -40,8 +56,19 @@
   <body>
     <main>
       <p id="status">Loading…</p>
-      <canvas id="board" width="300" height="600" aria-label="Tetris playfield"></canvas>
-      <p class="controls">← → Move · ↓ Soft drop · Space Hard drop<br>↑ / X Clockwise · Z / Ctrl Counterclockwise · &lt; 180° · Esc Pause</p>
+      <div class="playfield">
+        <aside class="preview-panel">
+          <p>Hold</p>
+          <canvas id="hold-preview" width="150" height="90" aria-label="Hold empty"></canvas>
+          <button id="hold-button">Hold</button>
+        </aside>
+        <canvas id="board" width="300" height="600" aria-label="42tris playfield"></canvas>
+        <aside class="preview-panel">
+          <p>Next</p>
+          <canvas id="next-preview" width="150" height="450" aria-label="Next pieces"></canvas>
+        </aside>
+      </div>
+      <p id="controls" class="controls"></p>
       <button id="pause-button">Pause / Esc</button>
     </main>
     <dialog id="pause-dialog" aria-labelledby="pause-title">
@@ -52,12 +79,20 @@
       </div>
     </dialog>
     <dialog id="settings-dialog" aria-labelledby="settings-title">
-      <h1 id="settings-title">Handling</h1>
+      <h1 id="settings-title">Settings</h1>
+      <h2>Handling</h2>
       <p class="hint">1 F = 16.67 ms. Tune to 0.01 F, or type a value such as 4.8.</p>
       <div id="handling-controls"></div>
       <p id="storage-note" class="hint" role="status">Changes are saved on this device.</p>
       <div class="actions">
-        <button id="reset-handling">Reset defaults</button>
+        <button id="reset-handling">Reset handling</button>
+      </div>
+      <h2>Keybinds</h2>
+      <p class="hint">Click a key, then press its replacement. Two keys per action. Esc always pauses or goes back, and cancels key assignment.</p>
+      <div id="keybind-controls"></div>
+      <p id="keybind-note" class="hint" role="status">Keybinds are saved on this device.</p>
+      <div class="actions">
+        <button id="reset-keybinds">Reset keybinds</button>
         <button id="settings-back">Back</button>
       </div>
     </dialog>

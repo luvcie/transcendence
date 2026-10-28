@@ -16,6 +16,7 @@ export const Input = {
   HardDrop: 7,
   SoftDropDown: 8,
   SoftDropUp: 9,
+  Hold: 10,
 } as const;
 export type InputId = (typeof Input)[keyof typeof Input];
 
@@ -30,6 +31,8 @@ export class Game {
   x: number;
   y: number;
   topOut = false;
+  held: PieceId | null = null;
+  holdUsed = false;
   // spin detection at lock will need these: was the last successful
   // action a rotation, and which kick made it fit (0 = no kick)
   lastWasRotation = false;
@@ -108,7 +111,16 @@ export class Game {
     else if (input === Input.RotateCcw) this.rotate(3);
     else if (input === Input.Rotate180) this.rotate(2);
     else if (input === Input.HardDrop) this.hardDrop();
+    else if (input === Input.Hold) this.hold();
     this.instantSoftDrop();
+  }
+
+  private hold(): void {
+    if (this.holdUsed) return;
+    const next = this.held;
+    this.held = this.piece;
+    this.spawn(next ?? this.takeNext());
+    this.holdUsed = true;
   }
 
   private hardDrop(): void {
@@ -151,7 +163,7 @@ export class Game {
   }
 
   private instantSoftDrop(): void {
-    if (this.softHeld && this.handling.sdarr === 0 && this.lastNow >= this.softAt) {
+    if (!this.topOut && this.softHeld && this.handling.sdarr === 0 && this.lastNow >= this.softAt) {
       this.dropToSurface();
     }
   }
@@ -238,8 +250,9 @@ export class Game {
     this.spawn();
   }
 
-  private spawn(): void {
-    this.piece = this.takeNext();
+  private spawn(piece = this.takeNext()): void {
+    this.piece = piece;
+    this.holdUsed = false;
     this.rot = 0;
     this.x = spawnX(this.piece);
     this.y = SPAWN_Y;

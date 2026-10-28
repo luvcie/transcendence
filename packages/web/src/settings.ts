@@ -22,7 +22,7 @@ export function setupHandling(handling: Handling, onChange: (value: Handling) =>
   const rows: { key: keyof Handling; label: string; help: string }[] = [
     { key: "das", label: "DAS", help: "Delay before a held direction starts repeating." },
     { key: "arr", label: "ARR", help: "Time between sideways moves. 0 F moves to the wall." },
-    { key: "sddas", label: "Soft-drop DAS", help: "Delay before held Down Arrow starts repeating." },
+    { key: "sddas", label: "Soft-drop DAS", help: "Delay before the held soft-drop key starts repeating." },
     { key: "sdarr", label: "Soft-drop ARR", help: "Soft-drop interval. 0 F drops instantly to the surface." },
   ];
   const refresh: (() => void)[] = [];

@@ -7,11 +7,29 @@ import {
   VISIBLE_ROWS,
   cellAt,
   version,
+  type PieceId,
 } from "@42tris/core";
 import { loadHandling, setupHandling } from "./settings";
+import { ACTIONS, actionForKey, actionNames, keyLabel, type Action } from "./keybinds";
+import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#board")!;
 const status = document.querySelector<HTMLParagraphElement>("#status")!;
+const holdCanvas = document.querySelector<HTMLCanvasElement>("#hold-preview")!;
+const holdCtx = holdCanvas.getContext("2d")!;
+const nextCanvas = document.querySelector<HTMLCanvasElement>("#next-preview")!;
+const nextCtx = nextCanvas.getContext("2d")!;
+const holdButton = document.querySelector<HTMLButtonElement>("#hold-button")!;
+const pressed = new Map<string, Action>();
+const bindings = loadKeybinds();
+const cancelKeyCapture = setupKeybinds(bindings, updateControls);
+
+function updateControls() {
+  document.querySelector("#controls")!.textContent = actionNames.map(action =>
+    `${bindings[action].filter(Boolean).map(keyLabel).join(" / ") || "Unbound"}: ${ACTIONS[action].label}`
+  ).join(" · ");
+}
+updateControls();
 
 // desynchronized lets chrome skip the compositor queue, lower input latency
 const ctx = canvas.getContext("2d", { desynchronized: true })!;
@@ -30,7 +48,7 @@ const COLORS = [
 ];
 
 const SEED = 108;
-const PREVIEWS = 14;
+const PREVIEWS = 5;
 let handling = loadHandling();
 let game = new Game(SEED, 500, PREVIEWS, handling);
 setupHandling(handling, value => {
@@ -44,10 +62,12 @@ const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dial
 function pause() {
   if (game.paused) return;
   game.setPaused(true, performance.now());
+  pressed.clear();
   pauseDialog.showModal();
 }
 
 function resume() {
+  cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.close();
   game.setPaused(false, performance.now());
@@ -55,8 +75,14 @@ function resume() {
 }
 
 function backToPause() {
+  cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.showModal();
+}
+
+function restart() {
+  game = new Game(SEED, 500, PREVIEWS, handling);
+  pressed.clear();
 }
 
 document.querySelector("#pause-button")!.addEventListener("click", pause);
@@ -66,6 +92,10 @@ document.querySelector("#settings-button")!.addEventListener("click", () => {
   settingsDialog.showModal();
 });
 document.querySelector("#settings-back")!.addEventListener("click", backToPause);
+holdButton.addEventListener("click", () => {
+  game.apply(Input.Hold, performance.now());
+  holdButton.blur();
+});
 for (const dialog of [pauseDialog, settingsDialog]) {
   dialog.addEventListener("cancel", e => e.preventDefault());
 }
@@ -75,26 +105,49 @@ document.addEventListener("visibilitychange", () => {
 });
 
 const LETTERS = "_ZLOSIJT";
-let lastStatus = "";
-
-function updateStatus() {
-  let next = "";
-  for (let i = 0; i < game.previews.length; i++) {
-    // dealt + i is the deal number of this preview, every 7th starts a bag
-    if ((game.dealt + i) % 7 === 0) next += " ";
-    next += LETTERS[game.previews[i]];
-  }
-  const text = `42tris core v${version()} | seed ${SEED} | next:${next}`;
-  if (text !== lastStatus) {
-    lastStatus = text;
-    status.textContent = text;
-  }
-}
+status.textContent = `42tris core v${version()} | seed ${SEED}`;
 
 const cell = canvas.width / COLS;
 const hidden = ROWS - VISIBLE_ROWS;
 
+function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: number) {
+  const minos = MINOS[piece][0];
+  let minX = 4;
+  let maxX = 0;
+  let minY = 4;
+  let maxY = 0;
+  for (let i = 0; i < 8; i += 2) {
+    minX = Math.min(minX, minos[i]);
+    maxX = Math.max(maxX, minos[i]);
+    minY = Math.min(minY, minos[i + 1]);
+    maxY = Math.max(maxY, minos[i + 1]);
+  }
+  const slotHeight = cell * 3;
+  const offsetX = (context.canvas.width - (maxX - minX + 1) * cell) / 2;
+  const offsetY = slot * slotHeight + (slotHeight - (maxY - minY + 1) * cell) / 2;
+  context.fillStyle = COLORS[piece];
+  context.strokeStyle = "#333";
+  for (let i = 0; i < 8; i += 2) {
+    const x = offsetX + (minos[i] - minX) * cell;
+    const y = offsetY + (minos[i + 1] - minY) * cell;
+    context.fillRect(x, y, cell, cell);
+    context.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+  }
+}
+
 function render() {
+  holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+  holdButton.disabled = game.holdUsed || game.paused || game.topOut;
+  holdCanvas.setAttribute("aria-label", game.held === null ? "Hold empty" : `Held piece ${LETTERS[game.held]}`);
+  if (game.held !== null) drawPreview(holdCtx, game.held, 0);
+
+  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+  let nextLabel = "Next pieces:";
+  for (let i = 0; i < game.previews.length; i++) {
+    drawPreview(nextCtx, game.previews[i] as PieceId, i);
+    nextLabel += ` ${LETTERS[game.previews[i]]}`;
+  }
+  nextCanvas.setAttribute("aria-label", nextLabel);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   for (let y = 0; y < VISIBLE_ROWS; y++) {
@@ -131,7 +184,8 @@ function render() {
 
 // inputs go straight to the game on the event, never wait for a frame
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
+  const action = actionForKey(bindings, e.key);
+  if (e.key === "Escape" || (action === "pause" && !settingsDialog.open)) {
     e.preventDefault();
     if (e.repeat) return;
     if (settingsDialog.open) backToPause();
@@ -140,30 +194,31 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (game.paused) return;
-  if (e.key === " " || e.key.startsWith("Arrow")) e.preventDefault();
+  if (!action || action === "pause") return;
+  e.preventDefault();
   // Held keys repeat inside the core, not through browser key repeat.
-  if (e.repeat) return;
-  const now = performance.now();
-  const k = e.key.toLowerCase();
-  if (k === "arrowleft") game.apply(Input.LeftDown, now);
-  else if (k === "arrowright") game.apply(Input.RightDown, now);
-  else if (k === "arrowup" || k === "x") game.apply(Input.RotateCw, now);
-  else if (k === "z" || k === "control") game.apply(Input.RotateCcw, now);
-  else if (k === "<") game.apply(Input.Rotate180, now);
-  else if (k === " ") game.apply(Input.HardDrop, now);
-  else if (k === "arrowdown") game.apply(Input.SoftDropDown, now);
+  if (e.repeat || e.isComposing || pressed.has(e.code)) return;
+  if (action === "restart") {
+    restart();
+    return;
+  }
+  const alreadyHeld = [...pressed.values()].includes(action);
+  pressed.set(e.code, action);
+  const binding = ACTIONS[action];
+  if (!("up" in binding) || !alreadyHeld) game.apply(binding.down, performance.now());
 });
 window.addEventListener("keyup", (e) => {
-  if (e.key === "ArrowLeft") game.apply(Input.LeftUp, performance.now());
-  else if (e.key === "ArrowRight") game.apply(Input.RightUp, performance.now());
-  else if (e.key === "ArrowDown") game.apply(Input.SoftDropUp, performance.now());
+  // Use the physical key recorded on keydown, even if Shift changed its symbol.
+  const action = pressed.get(e.code);
+  pressed.delete(e.code);
+  if (!action || [...pressed.values()].includes(action)) return;
+  const binding = ACTIONS[action];
+  if ("up" in binding) game.apply(binding.up, performance.now());
 });
 
 function frame(now: number) {
   game.tick(now);
-  // same seed on purpose, the exact same run loops forever, that's determinism
-  if (game.topOut && !game.paused) game = new Game(SEED, 500, PREVIEWS, handling);
-  updateStatus();
+  if (game.topOut && !game.paused) restart();
   render();
   requestAnimationFrame(frame);
 }
