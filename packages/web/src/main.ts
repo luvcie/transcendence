@@ -89,6 +89,7 @@ function render() {
 
 // inputs go straight to the game on the event, never wait for a frame
 window.addEventListener("keydown", (e) => {
+  if (e.key === " ") e.preventDefault();
   // held keys repeat via das/arr inside the core later, not the browser
   if (e.repeat) return;
   const now = performance.now();
@@ -97,7 +98,8 @@ window.addEventListener("keydown", (e) => {
   else if (k === "arrowright") game.apply(Input.RightDown, now);
   else if (k === "arrowup" || k === "x") game.apply(Input.RotateCw, now);
   else if (k === "z" || k === "control") game.apply(Input.RotateCcw, now);
-  else if (k === "a") game.apply(Input.Rotate180, now);
+  else if (k === "<") game.apply(Input.Rotate180, now);
+  else if (k === " ") game.apply(Input.HardDrop, now);
 });
 window.addEventListener("keyup", (e) => {
   if (e.key === "ArrowLeft") game.apply(Input.LeftUp, performance.now());

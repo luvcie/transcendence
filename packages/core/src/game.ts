@@ -13,6 +13,7 @@ export const Input = {
   RotateCw: 4,
   RotateCcw: 5,
   Rotate180: 6,
+  HardDrop: 7,
 } as const;
 export type InputId = (typeof Input)[keyof typeof Input];
 
@@ -64,6 +65,16 @@ export class Game {
     else if (input === Input.RotateCw) this.rotate(1);
     else if (input === Input.RotateCcw) this.rotate(3);
     else if (input === Input.Rotate180) this.rotate(2);
+    else if (input === Input.HardDrop) this.hardDrop();
+  }
+
+  private hardDrop(): void {
+    while (canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) {
+      this.y++;
+      this.lastWasRotation = false;
+    }
+    place(this.board, this.piece, this.rot, this.x, this.y);
+    this.spawn();
   }
 
   private tryMove(dx: number): void {
