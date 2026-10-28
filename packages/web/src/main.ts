@@ -6,10 +6,11 @@ import {
   ROWS,
   VISIBLE_ROWS,
   cellAt,
+  canPlace,
   version,
   type PieceId,
 } from "@42tris/core";
-import { loadHandling, setupHandling } from "./settings";
+import { loadHandling, setupHandling, setupGhost } from "./settings";
 import { ACTIONS, actionForKey, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 
@@ -23,6 +24,7 @@ const holdButton = document.querySelector<HTMLButtonElement>("#hold-button")!;
 const pressed = new Map<string, Action>();
 const bindings = loadKeybinds();
 const cancelKeyCapture = setupKeybinds(bindings, updateControls);
+let showGhost = setupGhost(enabled => { showGhost = enabled; });
 
 function updateControls() {
   document.querySelector("#controls")!.textContent = actionNames.map(action =>
@@ -143,6 +145,16 @@ function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: nu
   }
 }
 
+function drawActivePiece(y: number) {
+  const minos = MINOS[game.piece][game.rot];
+  ctx.fillStyle = COLORS[game.piece];
+  for (let i = 0; i < 8; i += 2) {
+    const px = game.x + minos[i];
+    const py = y + minos[i + 1] - hidden;
+    if (py >= 0) ctx.fillRect(px * cell, py * cell, cell, cell);
+  }
+}
+
 function render() {
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
   holdButton.disabled = game.holdUsed || game.paused || game.topOut || game.starting;
@@ -168,13 +180,16 @@ function render() {
   }
 
   if (!game.starting) {
-    const m = MINOS[game.piece][game.rot];
-    ctx.fillStyle = COLORS[game.piece];
-    for (let i = 0; i < 8; i += 2) {
-      const px = game.x + m[i];
-      const py = game.y + m[i + 1] - hidden;
-      if (py >= 0) ctx.fillRect(px * cell, py * cell, cell, cell);
+    if (showGhost && !game.topOut) {
+      let landingY = game.y;
+      while (canPlace(game.board, game.piece, game.rot, game.x, landingY + 1)) landingY++;
+      if (landingY !== game.y) {
+        ctx.globalAlpha = 0.25;
+        drawActivePiece(landingY);
+        ctx.globalAlpha = 1;
+      }
     }
+    drawActivePiece(game.y);
   }
 
   ctx.strokeStyle = "#333";

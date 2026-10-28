@@ -46,6 +46,7 @@
       .setting label { display: block; margin-bottom: 6px; }
       .setting .inputs { display: flex; align-items: center; gap: 12px; }
       input[type=range] { flex: 1; min-width: 60px; accent-color: #22d3ee; }
+      input[type=checkbox] { accent-color: #22d3ee; }
       input[type=number] { width: 70px; background: #111; border: 1px solid #666; color: #eee; padding: 6px; }
       output { display: block; color: #22d3ee; margin-top: 6px; }
       .setting p { margin: 6px 0 0; }
@@ -80,6 +81,10 @@
     </dialog>
     <dialog id="settings-dialog" aria-labelledby="settings-title">
       <h1 id="settings-title">Settings</h1>
+      <h2>Display</h2>
+      <label><input id="ghost-preview" type="checkbox" checked aria-describedby="ghost-help"> Ghost piece</label>
+      <p id="ghost-help" class="hint">Show a translucent piece where a hard drop would land.</p>
+      <p id="display-note" class="hint" role="status">Display settings are saved on this device.</p>
       <h2>Handling</h2>
       <p class="hint">1 F = 16.67 ms. Tune to 0.01 F, or type a value such as 4.8.</p>
       <div id="handling-controls"></div>

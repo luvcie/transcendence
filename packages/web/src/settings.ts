@@ -3,6 +3,26 @@ import { DEFAULT_HANDLING, FRAME_MS, HANDLING_MAX, validateHandling, type Handli
 const storageKey = "42tris.handling";
 const note = document.querySelector<HTMLParagraphElement>("#storage-note")!;
 
+export function setupGhost(onChange: (enabled: boolean) => void): boolean {
+  const toggle = document.querySelector<HTMLInputElement>("#ghost-preview")!;
+  const note = document.querySelector<HTMLParagraphElement>("#display-note")!;
+  try {
+    toggle.checked = localStorage.getItem("42tris.ghost") !== "false";
+  } catch {
+    note.textContent = "Saved display settings could not be loaded. Using defaults.";
+  }
+  toggle.addEventListener("change", () => {
+    onChange(toggle.checked);
+    try {
+      localStorage.setItem("42tris.ghost", String(toggle.checked));
+      note.textContent = "Display settings saved on this device.";
+    } catch {
+      note.textContent = "Display settings apply for this session; browser storage is unavailable.";
+    }
+  });
+  return toggle.checked;
+}
+
 export function loadHandling(): Handling {
   try {
     const saved = localStorage.getItem(storageKey);
