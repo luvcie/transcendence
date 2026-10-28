@@ -11,7 +11,7 @@ import {
   type PieceId,
   type InputId,
 } from "@42tris/core";
-import { loadHandling, setupHandling, setupGhost } from "./settings";
+import { loadHandling, setupHandling, setupGhost, setupZen } from "./settings";
 import { ACTIONS, actionForKey, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 
@@ -27,11 +27,17 @@ const comboCount = document.querySelector("#combo-count")!;
 const b2bCount = document.querySelector("#b2b-count")!;
 const surgeCount = document.querySelector("#surge-count")!;
 const clearResult = document.querySelector("#clear-result")!;
+const zenStatus = document.querySelector<HTMLParagraphElement>("#zen-status")!;
 const LETTERS = "_ZLOSIJT";
 const pressed = new Map<string, Action>();
 const bindings = loadKeybinds();
 const cancelKeyCapture = setupKeybinds(bindings, updateControls);
 let showGhost = setupGhost(enabled => { showGhost = enabled; });
+let zen = setupZen(enabled => {
+  zen = enabled;
+  game.setZen(enabled);
+  refreshHud();
+});
 
 function updateControls() {
   document.querySelector("#controls")!.textContent = actionNames.map(action =>
@@ -99,6 +105,7 @@ function restart() {
   } while (random[0] === seed);
   seed = random[0];
   game = new Game(seed, 500, PREVIEWS, handling, READY_MS);
+  game.setZen(zen);
   game.tick(performance.now());
   refreshHud();
   status.textContent = `42tris core v${version()} | seed ${seed}`;
@@ -149,6 +156,8 @@ function refreshHud() {
     if (attack) labels.push(`Attack ${attack}`);
   }
   clearResult.textContent = labels.join(" · ");
+  zenStatus.hidden = !game.zen;
+  zenStatus.textContent = `${game.topOut ? "Top out. " : ""}Zen · Ctrl+Z to undo (${game.undoCount} available)${game.topOut ? " or restart." : ""}`;
 }
 
 function consumeEvents() {
@@ -251,6 +260,16 @@ function render() {
 }
 
 window.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "z") {
+    if (game.zen && !game.paused && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+      e.preventDefault();
+      if (!e.repeat && !e.isComposing && game.undo(performance.now())) {
+        pressed.clear();
+        consumeEvents();
+      }
+    }
+    return;
+  }
   const action = actionForKey(bindings, e.key);
   if (e.key === "Escape" || (action === "pause" && !settingsDialog.open)) {
     e.preventDefault();
@@ -287,7 +306,7 @@ window.addEventListener("keyup", (e) => {
 function frame(now: number) {
   game.tick(now);
   consumeEvents();
-  if (game.topOut && !game.paused) restart();
+  if (game.topOut && !game.paused && !game.zen) restart();
   render();
   requestAnimationFrame(frame);
 }

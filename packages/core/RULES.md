@@ -48,3 +48,19 @@ The attack counter measures generated lines, before any future cancellation.
 an established B2B chain from no chain, even though both display B2B 0. Event values
 are immutable and sequence numbers increase throughout a game instance's lifetime.
 A future match controller supplies player identity and handles attack routing.
+
+## Zen checkpoints
+
+`setZen(true)` starts history at the current position, or the first spawn if still
+in the opening preview. Each completed placement records its starting turn, before
+hold or movement. `undo(nowMs)` discards the current turn and restores the previous
+one, including the board, bag/RNG, queue, hold, rotation eligibility, timers and
+clear counters. History retains the last 1,000 placements. Disabling Zen or creating
+a new game discards it.
+
+Undo keeps current handling and pause settings, releases held inputs, and rebases
+the restored timer progress to `nowMs`. It drops pending events from the abandoned
+state and emits `restored`, without emitting old attacks again. The browser also
+clears its pressed-key map. Normal mode automatically restarts after top-out, while
+Zen keeps the board available for undo. Zen's local history is not a competitive
+rollback or wire protocol.

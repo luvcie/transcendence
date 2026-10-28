@@ -9,6 +9,7 @@ const inputs: [number, InputId][] = [
 ];
 function play(step: number, sdarr: number) {
   const g = new Game(108, 500, 5, { ...DEFAULT_HANDLING, das: 4.8, arr: 0.6, sdarr });
+  g.setZen(true);
   const events: GameEvent[] = [];
   let last = 0;
   for (const [at, input] of inputs) {
@@ -50,12 +51,17 @@ test("one tick may enqueue multiple locks, including the tick nested in apply", 
   expect(g.drainEvents()).toEqual([]);
 });
 
-test("two players do not share counters or attack events", () => {
+test("two players do not share counters, attack events or undo history", () => {
   const a = new Game(108);
   const b = new Game(108);
+  a.setZen(true);
   a.apply(Input.HardDrop, 0);
   expect(b.stats.pieces).toBe(0);
+  expect(b.undoCount).toBe(0);
   expect(b.board.every(cell => cell === 0)).toBe(true);
   expect(b.drainEvents()).toEqual([]);
   expect(a.drainEvents()).toHaveLength(1);
+  a.undo(0);
+  expect(a.drainEvents()).toHaveLength(1);
+  expect(b.drainEvents()).toEqual([]);
 });

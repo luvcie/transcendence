@@ -94,3 +94,23 @@ export function setupHandling(handling: Handling, onChange: (value: Handling) =>
     save();
   });
 }
+
+export function setupZen(onChange: (enabled: boolean) => void): boolean {
+  const toggle = document.querySelector<HTMLInputElement>("#zen-mode")!;
+  const note = document.querySelector<HTMLParagraphElement>("#zen-note")!;
+  try {
+    toggle.checked = localStorage.getItem("42tris.zen") === "true";
+  } catch {
+    note.textContent = "Saved Zen preference could not be loaded. Using the default.";
+  }
+  toggle.addEventListener("change", () => {
+    onChange(toggle.checked);
+    try {
+      localStorage.setItem("42tris.zen", String(toggle.checked));
+      note.textContent = "Zen preference saved on this device.";
+    } catch {
+      note.textContent = "Zen applies for this session; browser storage is unavailable.";
+    }
+  });
+  return toggle.checked;
+}

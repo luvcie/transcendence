@@ -1,6 +1,12 @@
 import { Rng } from "./rng";
 import type { PieceId } from "./pieces";
 
+export interface BagState {
+  readonly rng: number;
+  readonly pieces: Uint8Array;
+  readonly index: number;
+}
+
 // 7 bag randomizer: every run of 7 pieces is a shuffle of all 7,
 // so droughts are bounded (at most 12 pieces between two of a kind)
 export class Bag {
@@ -10,6 +16,16 @@ export class Bag {
 
   constructor(seed: number) {
     this.rng = new Rng(seed);
+  }
+
+  save(): BagState {
+    return { rng: this.rng.save(), pieces: this.pieces.slice(), index: this.index };
+  }
+
+  restore(state: BagState): void {
+    this.rng.restore(state.rng);
+    this.pieces.set(state.pieces);
+    this.index = state.index;
   }
 
   next(): PieceId {

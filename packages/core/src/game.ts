@@ -22,6 +22,8 @@ export const Input = {
 export type InputId = (typeof Input)[keyof typeof Input];
 export const LOCK_DELAY_MS = 1000;
 
+export const UNDO_LIMIT = 1000;
+
 export interface LockResult {
   readonly type: "lock";
   readonly sequence: number;
@@ -34,13 +36,16 @@ export interface LockResult {
   readonly attacks: readonly Attack[];
 }
 
-export type GameEvent = LockResult;
+export type GameEvent = LockResult | Readonly<{ type: "restored"; sequence: number; atMs: number }>;
 
 export class Game {
   readonly rulesVersion = RULES_VERSION;
   private lastResult: LockResult | null = null;
   private events: GameEvent[] = [];
   private sequence = 0;
+  private zenEnabled = false;
+  private history: ReturnType<Game["capture"]>[] = [];
+  private turn: ReturnType<Game["capture"]> | null = null;
 
   readonly board: Uint8Array = createBoard();
   // upcoming pieces in deal order, refilled from the bag as pieces spawn
@@ -89,11 +94,52 @@ export class Game {
 
   get stats(): ClearStats { return this.lastResult?.stats ?? INITIAL_STATS; }
   get lastClear(): LockResult | null { return this.lastResult; }
+  get zen(): boolean { return this.zenEnabled; }
+  get undoCount(): number { return this.history.length; }
 
   drainEvents(): GameEvent[] {
     const events = this.events;
     this.events = [];
     return events;
+  }
+
+  setZen(enabled: boolean): void {
+    if (enabled === this.zenEnabled) return;
+    if (enabled && !this.starting && !this.topOut && this.observedNow >= 0) this.advanceTo(this.observedNow);
+    this.zenEnabled = enabled;
+    this.history = [];
+    this.turn = enabled && !this.starting && !this.topOut ? this.capture() : null;
+  }
+
+  undo(nowMs: number): boolean {
+    if (!this.zenEnabled || !this.history.length) return false;
+    const checkpoint = this.history.pop()!;
+    this.board.set(checkpoint.board);
+    this.previews.set(checkpoint.previews);
+    this.bag.restore(checkpoint.bag);
+    Object.assign(this, checkpoint.state);
+    this.lastNow = this.observedNow = nowMs;
+    this.releaseInputs();
+    this.turn = checkpoint;
+    this.events = [Object.freeze({ type: "restored", sequence: ++this.sequence, atMs: nowMs })];
+    return true;
+  }
+
+  private capture() {
+    return {
+      board: this.board.slice(), previews: this.previews.slice(), bag: this.bag.save(),
+      state: {
+        piece: this.piece, rot: this.rot, x: this.x, y: this.y, dealt: this.dealt,
+        held: this.held, holdUsed: this.holdUsed, topOut: this.topOut,
+        lastWasRotation: this.lastWasRotation, lastKickIndex: this.lastKickIndex,
+        fallAcc: this.fallAcc, lockElapsed: this.lockElapsed, readyMs: this.readyMs,
+        lastResult: this.lastResult,
+      },
+    };
+  }
+
+  private beginTurn(): void {
+    this.turn = this.zenEnabled && !this.topOut ? this.capture() : null;
   }
 
   get starting(): boolean {
@@ -166,6 +212,10 @@ export class Game {
   }
 
   private lock(): void {
+    if (this.turn) {
+      if (this.history.length === UNDO_LIMIT) this.history.shift();
+      this.history.push(this.turn);
+    }
     const spin = classifySpin(this.board, this.piece, this.rot, this.x, this.y, this.lastWasRotation, this.lastKickIndex);
     place(this.board, this.piece, this.rot, this.x, this.y);
     const { rows, garbage } = clearRows(this.board);
@@ -178,6 +228,7 @@ export class Game {
     this.lastResult = result;
     this.events.push(result);
     this.spawn();
+    this.beginTurn();
   }
 
   private tryMove(dx: number): boolean {
@@ -312,6 +363,7 @@ export class Game {
       this.lastNow += elapsed;
       if (this.starting) return;
       this.spawn();
+      this.beginTurn();
     }
     while (this.lastNow < nowMs && !this.topOut) {
       this.instantSoftDrop();

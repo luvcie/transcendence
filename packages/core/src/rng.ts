@@ -7,6 +7,14 @@ export class Rng {
     this.state = seed | 0;
   }
 
+  save(): number {
+    return this.state;
+  }
+
+  restore(state: number): void {
+    this.state = state;
+  }
+
   next(): number {
     this.state = (this.state + 0x9e3779b9) | 0;
     let z = this.state;

@@ -81,6 +81,7 @@
         <div><dt>Surge</dt><dd id="surge-count">0</dd></div>
       </dl>
       <p id="clear-result" role="status"></p>
+      <p id="zen-status" class="hint" hidden></p>
       <p id="controls" class="controls"></p>
       <button id="pause-button">Pause / Esc</button>
     </main>
@@ -93,6 +94,10 @@
     </dialog>
     <dialog id="settings-dialog" aria-labelledby="settings-title">
       <h1 id="settings-title">Settings</h1>
+      <h2>Practice</h2>
+      <label><input id="zen-mode" type="checkbox" aria-describedby="zen-help"> Zen</label>
+      <p id="zen-help" class="hint">Ctrl+Z undoes one placed piece, including its hold and clears. Keeps the last 1,000 placements while enabled. Disabling Zen clears undo history.</p>
+      <p id="zen-note" class="hint" role="status">Zen preference is saved on this device.</p>
       <h2>Display</h2>
       <label><input id="ghost-preview" type="checkbox" checked aria-describedby="ghost-help"> Ghost piece</label>
       <p id="ghost-help" class="hint">Show a translucent piece where a hard drop would land.</p>

@@ -158,9 +158,14 @@ test("quarter-turn and 180 fifth-test kicks upgrade an otherwise mini T-spin", (
 test("a T-spin double is classified before its corner rows are removed", () => {
   const g = new Game(108);
   tDouble(g);
+  g.setZen(true);
   g.apply(Input.RotateCw, 0);
   expect(g.rot).toBe(2);
   g.apply(Input.HardDrop, 0);
+  expect(g.lastClear).toMatchObject({ spin: "full", rows: [38, 39], attacks: [{ kind: "normal", lines: 4 }] });
+  g.undo(100);
+  g.apply(Input.RotateCw, 100);
+  g.apply(Input.HardDrop, 100);
   expect(g.lastClear).toMatchObject({ spin: "full", rows: [38, 39], attacks: [{ kind: "normal", lines: 4 }] });
 });
 
