@@ -1,5 +1,6 @@
 import { Bag } from "./bag";
-import { canPlace, createBoard, place } from "./board";
+import { classifySpin, INITIAL_STATS, resolveClear, RULES_VERSION, type Attack, type ClearStats, type Spin } from "./rules";
+import { canPlace, clearRows, createBoard, place } from "./board";
 import { kicksFor } from "./kicks";
 import { DEFAULT_HANDLING, FRAME_MS, validateHandling, type Handling } from "./handling";
 import { SPAWN_Y, spawnX, type PieceId } from "./pieces";
@@ -21,7 +22,26 @@ export const Input = {
 export type InputId = (typeof Input)[keyof typeof Input];
 export const LOCK_DELAY_MS = 1000;
 
+export interface LockResult {
+  readonly type: "lock";
+  readonly sequence: number;
+  readonly atMs: number;
+  readonly piece: PieceId;
+  readonly rows: readonly number[];
+  readonly spin: Spin;
+  readonly allClear: boolean;
+  readonly stats: ClearStats;
+  readonly attacks: readonly Attack[];
+}
+
+export type GameEvent = LockResult;
+
 export class Game {
+  readonly rulesVersion = RULES_VERSION;
+  private lastResult: LockResult | null = null;
+  private events: GameEvent[] = [];
+  private sequence = 0;
+
   readonly board: Uint8Array = createBoard();
   // upcoming pieces in deal order, refilled from the bag as pieces spawn
   readonly previews: Uint8Array;
@@ -34,14 +54,14 @@ export class Game {
   topOut = false;
   held: PieceId | null = null;
   holdUsed = false;
-  // spin detection at lock will need these: was the last successful
-  // action a rotation, and which kick made it fit (0 = no kick)
+  // Rotation eligibility survives failed actions. Kick 0 means no kick.
   lastWasRotation = false;
   lastKickIndex = 0;
 
   private bag: Bag;
   private gravityMs: number;
   private lastNow = -1;
+  private observedNow = -1;
   private fallAcc = 0;
   private lockElapsed = 0;
   private handling: Handling;
@@ -67,13 +87,21 @@ export class Game {
     this.y = SPAWN_Y;
   }
 
+  get stats(): ClearStats { return this.lastResult?.stats ?? INITIAL_STATS; }
+  get lastClear(): LockResult | null { return this.lastResult; }
+
+  drainEvents(): GameEvent[] {
+    const events = this.events;
+    this.events = [];
+    return events;
+  }
+
   get starting(): boolean {
     return this.readyMs > 0;
   }
 
   private takeNext(): PieceId {
     const next = this.previews[0] as PieceId;
-    // shift left in place, no allocation
     this.previews.copyWithin(0, 1);
     this.previews[this.previews.length - 1] = this.bag.next();
     this.dealt++;
@@ -84,6 +112,7 @@ export class Game {
     if (this.paused || this.topOut) return;
     this.tick(nowMs);
     if (this.topOut || this.starting) return;
+    this.advanceTo(nowMs);
     if (input === Input.LeftDown || input === Input.RightDown) {
       const left = input === Input.LeftDown;
       if (left ? this.leftHeld : this.rightHeld) return;
@@ -137,7 +166,17 @@ export class Game {
   }
 
   private lock(): void {
+    const spin = classifySpin(this.board, this.piece, this.rot, this.x, this.y, this.lastWasRotation, this.lastKickIndex);
     place(this.board, this.piece, this.rot, this.x, this.y);
+    const { rows, garbage } = clearRows(this.board);
+    const allClear = rows.length > 0 && this.board.every(cell => cell === 0);
+    const { stats, attacks } = resolveClear(this.stats, { lines: rows.length, spin, allClear, garbage });
+    const result: LockResult = Object.freeze({
+      type: "lock", sequence: ++this.sequence, atMs: this.lastNow, piece: this.piece,
+      rows: Object.freeze(rows), spin, allClear, stats, attacks,
+    });
+    this.lastResult = result;
+    this.events.push(result);
     this.spawn();
   }
 
@@ -155,12 +194,18 @@ export class Game {
   private repeatMove(nowMs: number): void {
     if (!this.direction || nowMs < this.moveAt) return;
     if (this.handling.arr === 0) {
-      while (this.tryMove(this.direction)) { /* move to the wall */ }
+      while (this.tryMove(this.direction)) {}
       this.moveAt = Infinity;
     } else {
       const moved = this.tryMove(this.direction);
       // Blocked repeats stay charged, retrying on the next logical frame.
       this.moveAt = nowMs + (moved ? this.handling.arr : 1) * FRAME_MS;
+    }
+  }
+
+  private repeatChargedMove(): void {
+    if (this.direction && this.handling.arr === 0 && this.moveAt === Infinity) {
+      while (this.tryMove(this.direction)) { /* keep charged across spawns */ }
     }
   }
 
@@ -181,7 +226,7 @@ export class Game {
   }
 
   private dropToSurface(): void {
-    while (this.fallOne()) { /* soft drop never locks */ }
+    while (this.fallOne()) {}
   }
 
   private instantSoftDrop(): void {
@@ -192,6 +237,7 @@ export class Game {
 
   setHandling(handling: Handling): void {
     validateHandling(handling);
+    if (this.observedNow >= 0 && !this.starting && !this.topOut) this.advanceTo(this.observedNow);
     this.handling = { ...handling };
     this.releaseInputs();
   }
@@ -204,15 +250,17 @@ export class Game {
 
   setPaused(paused: boolean, nowMs: number): void {
     if (paused === this.paused) return;
-    if (paused) this.tick(nowMs);
+    if (paused) {
+      this.tick(nowMs);
+      if (!this.starting && !this.topOut) this.advanceTo(nowMs);
+    }
     this.paused = paused;
-    this.lastNow = nowMs;
+    this.lastNow = this.observedNow = nowMs;
     this.releaseInputs();
   }
 
   private rotate(turns: number): void {
     const to = (this.rot + turns) & 3;
-    // natural rotation first, then the kick table in order, first fit wins
     if (canPlace(this.board, this.piece, to, this.x, this.y)) {
       this.rot = to;
       this.lastKickIndex = 0;
@@ -236,9 +284,23 @@ export class Game {
     }
   }
 
-  // time always comes in from outside, the core never reads a clock
+  private fallSpeed(): number {
+    return this.softHeld && this.lastNow >= this.softAt && this.handling.sdarr > 0
+      ? 1 + this.gravityMs / (this.handling.sdarr * FRAME_MS) : 1;
+  }
+
+  private advanceTo(nowMs: number): void {
+    if (canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) {
+      this.fallAcc += (nowMs - this.lastNow) * this.fallSpeed();
+    } else {
+      this.lockElapsed += nowMs - this.lastNow;
+    }
+    this.lastNow = nowMs;
+  }
+
   tick(nowMs: number): void {
     if (this.topOut || this.paused) return;
+    this.observedNow = nowMs;
     if (this.lastNow < 0) {
       this.lastNow = nowMs;
       return;
@@ -251,19 +313,17 @@ export class Game {
       if (this.starting) return;
       this.spawn();
     }
-    // Advance to input/gravity deadlines, independent of render frame rate.
     while (this.lastNow < nowMs && !this.topOut) {
       this.instantSoftDrop();
+      this.repeatChargedMove();
       const airborne = canPlace(this.board, this.piece, this.rot, this.x, this.y + 1);
-      const soft = this.softHeld && this.lastNow >= this.softAt && this.handling.sdarr > 0;
-      // Techmino adds soft-drop speed to gravity; interpolate it for fractional F.
-      const speed = soft && airborne ? 1 + this.gravityMs / (this.handling.sdarr * FRAME_MS) : 1;
+      const speed = this.fallSpeed();
       const gravityAt = airborne ? this.lastNow + (this.gravityMs - this.fallAcc) / speed : Infinity;
       const lockAt = airborne ? Infinity : this.lastNow + LOCK_DELAY_MS - this.lockElapsed;
-      const next = Math.min(nowMs, this.moveAt, this.softAt > this.lastNow ? this.softAt : Infinity, gravityAt, lockAt);
-      if (airborne) this.fallAcc += (next - this.lastNow) * speed;
-      else this.lockElapsed += next - this.lastNow;
-      this.lastNow = next;
+      const next = Math.min(this.moveAt, this.softAt > this.lastNow ? this.softAt : Infinity, gravityAt, lockAt);
+      // Render-only ticks must not accumulate rounding error in the simulation clock.
+      if (next > nowMs) return;
+      this.advanceTo(next);
       this.repeatMove(next);
       this.instantSoftDrop();
       if (next >= gravityAt) {
@@ -271,10 +331,7 @@ export class Game {
         this.fallOne();
       }
       if (this.lockElapsed >= LOCK_DELAY_MS && !canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) this.lock();
-      // Zero ARR remains charged after reaching a wall, including across spawns.
-      if (this.direction && this.handling.arr === 0 && this.moveAt === Infinity) {
-        while (this.tryMove(this.direction)) { /* keep charged */ }
-      }
+      this.repeatChargedMove();
     }
   }
 

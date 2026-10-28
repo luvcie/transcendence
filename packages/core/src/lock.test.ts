@@ -59,7 +59,8 @@ test("failed rotation does not refresh the lock timer", () => {
   g.piece = Piece.I;
   g.x = 3;
   g.apply(Input.SoftDropDown, 0);
-  g.board.fill(8);
+  g.board.fill(8, 34 * COLS);
+  for (let y = 34; y < ROWS; y++) g.board[y * COLS] = 0;
   // A one-row tunnel fits the horizontal I but none of its vertical kicks.
   for (let x = 3; x < 7; x++) g.board[(ROWS - 1) * COLS + x] = 0;
   g.apply(Input.RotateCw, 900);

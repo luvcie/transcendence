@@ -4,6 +4,7 @@ export * from "./rng";
 export * from "./bag";
 export * from "./game";
 export * from "./handling";
+export * from "./rules";
 
 export function version(): string {
   return "0.1.0";

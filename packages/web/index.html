@@ -28,6 +28,11 @@
       #board { min-width: 0; }
       #hold-button { width: 100%; margin-top: 8px; }
       #controls { max-width: 540px; }
+      #game-stats { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 16px 0 8px; }
+      #game-stats div { display: flex; gap: 8px; }
+      #game-stats dt { color: #aaa; }
+      #game-stats dd { margin: 0; }
+      #clear-result { min-height: 1.5em; margin: 8px 0; }
       h2 { font-size: 16px; margin-top: 28px; }
       .keybind-row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #383838; }
       .keybind-slot { display: flex; min-width: 0; }
@@ -69,6 +74,13 @@
           <canvas id="next-preview" width="150" height="450" aria-label="Next pieces"></canvas>
         </aside>
       </div>
+      <dl id="game-stats" aria-label="Game statistics">
+        <div><dt>Lines</dt><dd id="line-count">0</dd></div>
+        <div><dt>Combo</dt><dd id="combo-count">0</dd></div>
+        <div><dt>B2B</dt><dd id="b2b-count">—</dd></div>
+        <div><dt>Surge</dt><dd id="surge-count">0</dd></div>
+      </dl>
+      <p id="clear-result" role="status"></p>
       <p id="controls" class="controls"></p>
       <button id="pause-button">Pause / Esc</button>
     </main>

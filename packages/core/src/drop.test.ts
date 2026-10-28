@@ -26,6 +26,7 @@ test("hard drop locks at the floor and advances the queue once", () => {
 test("hard drop stops above a stack without overwriting it", () => {
   const g = new Game(108);
   g.board.fill(8, (ROWS - 5) * COLS);
+  for (let y = ROWS - 5; y < ROWS; y++) g.board[y * COLS + 9] = 0;
   const expected = g.board.slice();
   let y = g.y;
   while (canPlace(expected, g.piece, g.rot, g.x, y + 1)) y++;

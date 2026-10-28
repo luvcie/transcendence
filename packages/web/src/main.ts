@@ -9,6 +9,7 @@ import {
   canPlace,
   version,
   type PieceId,
+  type InputId,
 } from "@42tris/core";
 import { loadHandling, setupHandling, setupGhost } from "./settings";
 import { ACTIONS, actionForKey, actionNames, keyLabel, type Action } from "./keybinds";
@@ -21,6 +22,12 @@ const holdCtx = holdCanvas.getContext("2d")!;
 const nextCanvas = document.querySelector<HTMLCanvasElement>("#next-preview")!;
 const nextCtx = nextCanvas.getContext("2d")!;
 const holdButton = document.querySelector<HTMLButtonElement>("#hold-button")!;
+const lineCount = document.querySelector("#line-count")!;
+const comboCount = document.querySelector("#combo-count")!;
+const b2bCount = document.querySelector("#b2b-count")!;
+const surgeCount = document.querySelector("#surge-count")!;
+const clearResult = document.querySelector("#clear-result")!;
+const LETTERS = "_ZLOSIJT";
 const pressed = new Map<string, Action>();
 const bindings = loadKeybinds();
 const cancelKeyCapture = setupKeybinds(bindings, updateControls);
@@ -66,6 +73,7 @@ const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dial
 function pause() {
   if (game.paused) return;
   game.setPaused(true, performance.now());
+  consumeEvents();
   pressed.clear();
   pauseDialog.showModal();
 }
@@ -92,6 +100,7 @@ function restart() {
   seed = random[0];
   game = new Game(seed, 500, PREVIEWS, handling, READY_MS);
   game.tick(performance.now());
+  refreshHud();
   status.textContent = `42tris core v${version()} | seed ${seed}`;
   pressed.clear();
 }
@@ -104,7 +113,7 @@ document.querySelector("#settings-button")!.addEventListener("click", () => {
 });
 document.querySelector("#settings-back")!.addEventListener("click", backToPause);
 holdButton.addEventListener("click", () => {
-  game.apply(Input.Hold, performance.now());
+  applyInput(Input.Hold);
   holdButton.blur();
 });
 for (const dialog of [pauseDialog, settingsDialog]) {
@@ -115,7 +124,41 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) pause();
 });
 
-const LETTERS = "_ZLOSIJT";
+function refreshHud() {
+  const { lines, combo, chainLength, b2b, surge } = game.stats;
+  lineCount.textContent = String(lines);
+  comboCount.textContent = String(Math.max(0, combo));
+  b2bCount.textContent = chainLength === 0 ? "—" : b2b === 0 ? "Ready" : String(b2b);
+  b2bCount.setAttribute("title", chainLength === 0
+    ? "Clear a Quad, spin or all clear to start B2B."
+    : b2b === 0 ? "Chain started. The next qualifying clear earns the B2B bonus." : `${b2b} back-to-back clears.`);
+  surgeCount.textContent = String(surge);
+  const result = game.lastClear;
+  const labels: string[] = [];
+  if (result) {
+    const clear = ["", "Single", "Double", "Triple", "Quad"][result.rows.length];
+    let spin = "";
+    if (result.spin !== "none") {
+      spin = `${LETTERS[result.piece]}-spin`;
+      if (result.spin === "mini") spin += " mini";
+    }
+    const placement = [spin, clear].filter(Boolean).join(" ");
+    if (placement) labels.push(placement);
+    if (result.allClear) labels.push("All clear");
+    const attack = result.attacks.reduce((sum, packet) => sum + packet.lines, 0);
+    if (attack) labels.push(`Attack ${attack}`);
+  }
+  clearResult.textContent = labels.join(" · ");
+}
+
+function consumeEvents() {
+  if (game.drainEvents().length || game.topOut) refreshHud();
+}
+
+function applyInput(input: InputId) {
+  game.apply(input, performance.now());
+  consumeEvents();
+}
 
 const cell = canvas.width / COLS;
 const hidden = ROWS - VISIBLE_ROWS;
@@ -207,7 +250,6 @@ function render() {
   }
 }
 
-// inputs go straight to the game on the event, never wait for a frame
 window.addEventListener("keydown", (e) => {
   const action = actionForKey(bindings, e.key);
   if (e.key === "Escape" || (action === "pause" && !settingsDialog.open)) {
@@ -231,7 +273,7 @@ window.addEventListener("keydown", (e) => {
   const alreadyHeld = [...pressed.values()].includes(action);
   pressed.set(e.code, action);
   const binding = ACTIONS[action];
-  if (!("up" in binding) || !alreadyHeld) game.apply(binding.down, performance.now());
+  if (!("up" in binding) || !alreadyHeld) applyInput(binding.down);
 });
 window.addEventListener("keyup", (e) => {
   // Use the physical key recorded on keydown, even if Shift changed its symbol.
@@ -239,11 +281,12 @@ window.addEventListener("keyup", (e) => {
   pressed.delete(e.code);
   if (!action || [...pressed.values()].includes(action)) return;
   const binding = ACTIONS[action];
-  if ("up" in binding) game.apply(binding.up, performance.now());
+  if ("up" in binding) applyInput(binding.up);
 });
 
 function frame(now: number) {
   game.tick(now);
+  consumeEvents();
   if (game.topOut && !game.paused) restart();
   render();
   requestAnimationFrame(frame);

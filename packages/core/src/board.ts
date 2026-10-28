@@ -1,4 +1,4 @@
-import { MINOS, type PieceId } from "./pieces";
+import { GARBAGE, MINOS, type PieceId } from "./pieces";
 
 export const COLS = 10;
 // top 20 rows are a hidden buffer above the visible field
@@ -41,4 +41,23 @@ export function place(
   for (let i = 0; i < 8; i += 2) {
     board[(y + m[i + 1]) * COLS + (x + m[i])] = piece;
   }
+}
+
+export function clearRows(board: Uint8Array): { rows: number[]; garbage: boolean } {
+  const rows: number[] = [];
+  let garbage = false;
+  let target = ROWS - 1;
+  for (let y = ROWS - 1; y >= 0; y--) {
+    const start = y * COLS;
+    const row = board.subarray(start, start + COLS);
+    if (row.every(cell => cell !== 0)) {
+      rows.push(y);
+      garbage ||= row.includes(GARBAGE);
+    } else {
+      if (target !== y) board.copyWithin(target * COLS, start, start + COLS);
+      target--;
+    }
+  }
+  board.fill(0, 0, (target + 1) * COLS);
+  return { rows: rows.reverse(), garbage };
 }
