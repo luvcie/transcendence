@@ -14,7 +14,7 @@
         color: #eee;
         font-family: monospace;
       }
-      canvas { display: block; width: 100%; height: auto; outline: 1px solid #444; }
+      .playfield canvas { display: block; width: 100%; height: auto; outline: 1px solid #444; }
       main { padding: 16px; width: min(624px, calc(100vw - 32px)); }
       #status { overflow-wrap: anywhere; max-width: 600px; }
       .controls, .hint { color: #aaa; font-size: 12px; line-height: 1.6; }
@@ -56,6 +56,20 @@
       output { display: block; color: #22d3ee; margin-top: 6px; }
       .setting p { margin: 6px 0 0; }
       #storage-note { color: #eab308; }
+      [hidden] { display: none !important; }
+      [role=tablist] { display: flex; gap: 8px; }
+      [role=tab][aria-selected=true] { border-color: #22d3ee; color: #22d3ee; }
+      .skin-option { border-top: 1px solid #383838; padding: 14px 0; }
+      .skin-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+      .skin-head h3 { flex: 1; min-width: 140px; font-size: 14px; margin: 0; }
+      .skin-head button { padding: 6px 8px; }
+      .skin-preview { display: flex; flex-wrap: wrap; margin-top: 8px; }
+      .skin-preview canvas { display: block; width: 36px; height: 36px; }
+      #settings-skins a { color: #22d3ee; }
+      #skin-form { margin: 20px 0; }
+      #skin-form label { display: block; margin-bottom: 8px; }
+      .skin-input { display: flex; gap: 8px; }
+      #custom-skin { min-width: 0; flex: 1; background: #111; color: #eee; border: 1px solid #666; padding: 6px; }
 
     </style>
   </head>
@@ -94,6 +108,11 @@
     </dialog>
     <dialog id="settings-dialog" aria-labelledby="settings-title">
       <h1 id="settings-title">Settings</h1>
+      <div role="tablist" aria-label="Settings sections">
+        <button id="tab-general" role="tab" aria-selected="true" aria-controls="settings-general">General</button>
+        <button id="tab-skins" role="tab" aria-selected="false" aria-controls="settings-skins" tabindex="-1">Skins</button>
+      </div>
+      <section id="settings-general" role="tabpanel" aria-labelledby="tab-general" tabindex="0">
       <h2>Practice</h2>
       <label><input id="zen-mode" type="checkbox" aria-describedby="zen-help"> Zen</label>
       <p id="zen-help" class="hint">Ctrl+Z undoes one placed piece, including its hold and clears. Keeps the last 1,000 placements while enabled. Disabling Zen clears undo history.</p>
@@ -115,6 +134,23 @@
       <p id="keybind-note" class="hint" role="status">Keybinds are saved on this device.</p>
       <div class="actions">
         <button id="reset-keybinds">Reset keybinds</button>
+      </div>
+      </section>
+      <section id="settings-skins" role="tabpanel" aria-labelledby="tab-skins" tabindex="0" hidden>
+        <h2>Skins</h2>
+        <p id="skin-credit" class="hint"></p>
+        <form id="skin-form" novalidate>
+          <label for="custom-skin">Custom skin image link</label>
+          <div class="skin-input">
+            <input id="custom-skin" type="url" maxlength="512" placeholder="https://…/skin.png" aria-describedby="skin-help" autocomplete="off" spellcheck="false">
+            <button type="submit">Add and use</button>
+          </div>
+          <p id="skin-help" class="hint">Up to 12 HTTPS images. Nine equal square columns; Z, L, O, S, I, J, T use columns 2–8 (zero-based). Ghosts remain flat and translucent.</p>
+        </form>
+        <p id="skin-note" class="hint" role="status"></p>
+        <div id="skin-list"></div>
+      </section>
+      <div class="actions">
         <button id="settings-back">Back</button>
       </div>
     </dialog>

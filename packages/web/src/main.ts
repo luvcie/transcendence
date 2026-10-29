@@ -15,6 +15,9 @@ import {
 import { loadHandling, setupHandling, setupGhost, setupZen } from "./settings";
 import { ACTIONS, actionForKey, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
+import { SkinState } from "./skin-state";
+import { setupSettingsTabs, setupSkins } from "./skin-settings";
+import { drawPiecePreview, drawTile, joinedAbove } from "./tile-renderer";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#board")!;
 const status = document.querySelector<HTMLParagraphElement>("#status")!;
@@ -33,6 +36,9 @@ const LETTERS = "_ZLOSIJT";
 const pressed = new Map<string, Action>();
 const bindings = loadKeybinds();
 const cancelKeyCapture = setupKeybinds(bindings, updateControls);
+const skins = new SkinState(() => localStorage);
+void skins.select(skins.preferences.active, false);
+setupSettingsTabs(cancelKeyCapture, setupSkins(skins));
 let showGhost = setupGhost(enabled => { showGhost = enabled; });
 let zen = setupZen(enabled => {
   zen = enabled;
@@ -49,19 +55,6 @@ updateControls();
 
 // desynchronized lets chrome skip the compositor queue, lower input latency
 const ctx = canvas.getContext("2d", { desynchronized: true })!;
-
-// indexed by cell id, order matches Piece
-const COLORS = [
-  "",
-  "#ef4444", // z
-  "#f97316", // l
-  "#eab308", // o
-  "#22c55e", // s
-  "#22d3ee", // i
-  "#3b82f6", // j
-  "#a855f7", // t
-  "#6b7280", // garbage
-];
 
 const PREVIEWS = 5;
 const READY_MS = 250;
@@ -174,37 +167,15 @@ const cell = canvas.width / COLS;
 const hidden = ROWS - VISIBLE_ROWS;
 
 function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: number) {
-  const minos = MINOS[piece][0];
-  let minX = 4;
-  let maxX = 0;
-  let minY = 4;
-  let maxY = 0;
-  for (let i = 0; i < 8; i += 2) {
-    minX = Math.min(minX, minos[i]);
-    maxX = Math.max(maxX, minos[i]);
-    minY = Math.min(minY, minos[i + 1]);
-    maxY = Math.max(maxY, minos[i + 1]);
-  }
-  const slotHeight = cell * 3;
-  const offsetX = (context.canvas.width - (maxX - minX + 1) * cell) / 2;
-  const offsetY = slot * slotHeight + (slotHeight - (maxY - minY + 1) * cell) / 2;
-  context.fillStyle = COLORS[piece];
-  context.strokeStyle = "#333";
-  for (let i = 0; i < 8; i += 2) {
-    const x = offsetX + (minos[i] - minX) * cell;
-    const y = offsetY + (minos[i + 1] - minY) * cell;
-    context.fillRect(x, y, cell, cell);
-    context.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
-  }
+  drawPiecePreview(context, piece, cell, context.canvas.width, cell * 3, slot * cell * 3, skins.loaded);
 }
 
-function drawActivePiece(y: number) {
+function drawActivePiece(y: number, ghost = false) {
   const minos = MINOS[game.piece][game.rot];
-  ctx.fillStyle = COLORS[game.piece];
   for (let i = 0; i < 8; i += 2) {
     const px = game.x + minos[i];
     const py = y + minos[i + 1] - hidden;
-    if (py >= 0) ctx.fillRect(px * cell, py * cell, cell, cell);
+    if (py >= 0) drawTile(ctx, game.piece, px * cell, py * cell, cell, skins.loaded, joinedAbove(minos, i), ghost);
   }
 }
 
@@ -227,8 +198,7 @@ function render() {
     for (let x = 0; x < COLS; x++) {
       const id = cellAt(game.board, x, y + hidden);
       if (id === 0) continue;
-      ctx.fillStyle = COLORS[id];
-      ctx.fillRect(x * cell, y * cell, cell, cell);
+      drawTile(ctx, id, x * cell, y * cell, cell, skins.loaded, cellAt(game.board, x, y + hidden - 1) === id);
     }
   }
 
@@ -238,7 +208,7 @@ function render() {
       while (canPlace(game.board, game.piece, game.rot, game.x, landingY + 1)) landingY++;
       if (landingY !== game.y) {
         ctx.globalAlpha = 0.25;
-        drawActivePiece(landingY);
+        drawActivePiece(landingY, true);
         ctx.globalAlpha = 1;
       }
     }
