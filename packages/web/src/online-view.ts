@@ -1,4 +1,4 @@
-import { finesseAccuracy, INITIAL_FINESSE, type Handling } from "@42tris/core";
+import { finesseAccuracy, FRAME_MS, INITIAL_FINESSE, type Handling } from "@42tris/core";
 import { createClient } from "@42tris/protocol/client";
 import type { RoomOptions, ServerMessage } from "@42tris/protocol";
 import { Session } from "./session";
@@ -7,6 +7,7 @@ import { drawPiecePreview } from "./tile-renderer";
 import type { PieceId } from "@42tris/core";
 import type { SkinState } from "./skin-state";
 import { onlineView, type AppView } from "./app-view";
+import { formatTime } from "./singleplayer";
 
 export function mountOnline(root: HTMLElement, options: {
   clearKeys(): void; handling(): Handling; local(): void; skins: SkinState;
@@ -33,7 +34,7 @@ export function mountOnline(root: HTMLElement, options: {
     <div class="connection-actions"><button data-retry>Retry connection</button><button data-guest hidden>Join as another guest</button></div>
     <section data-room hidden aria-label="Current room">
       <div class="room-bar">
-        <div class="room-identity"><h2 data-code></h2><p data-phase role="status"></p></div>
+        <div class="room-identity"><h2 data-code></h2><p data-phase role="status"></p><span data-round-time></span></div>
         <div class="actions"><button data-copy>Copy invite</button><button data-details>Room details</button>
           <button data-reset hidden>Reset my board</button><button data-attacks hidden>Toggle attacks</button>
           <button data-ready class="primary">Ready</button><button data-leave>Leave room</button></div>
@@ -52,14 +53,13 @@ export function mountOnline(root: HTMLElement, options: {
         <section class="online-panel">
           <h2 data-options-title>Create a room</h2><p data-settings hidden></p>
           <form data-options>
-            <div class="option-fields"><label class="input-label">First to <input name="firstTo" type="number" min="1" max="100" value="3" required></label>
+            <div class="option-fields"><label class="input-label">First to <input name="firstTo" type="number" min="1" max="100" value="1" required></label>
               <label class="input-label">Max players <input name="maxPlayers" type="number" min="2" max="8" value="4" required></label>
               <label class="input-label">Board width <select name="width">${[12, 11, 10, 9, 8, 7, 6, 5, 4].map(width => `<option value="${width}"${width === 10 ? " selected" : ""}>${width} wide</option>`).join("")}</select></label></div>
             <div class="option-toggles"><label><input name="practice" type="checkbox"> Practice (no scoring)</label>
               <label><input name="attacks" type="checkbox" checked disabled> Attacks enabled</label></div>
             <button data-create class="primary">Create room</button><button data-configure hidden>Save room settings</button>
           </form>
-          <p class="hint">Handling is fixed for each set. Online play continues while settings are open.</p>
         </section>
       </div>
     </div>
@@ -100,7 +100,7 @@ export function mountOnline(root: HTMLElement, options: {
   click("[data-retry]", () => session.retry());
   click("[data-guest]", () => session.anotherGuest());
   const leave = (local = false) => {
-    if (session.room && ["playing", "paused", "countdown", "preparing"].includes(session.room.phase)
+    if (session.room && ["playing", "paused", "countdown", "preparing", "roundResult"].includes(session.room.phase)
       && !confirm(session.room.options.mode === "competitive" ? "Leave this set? This counts as a forfeit." : "Leave this practice session?")) return;
     session.release();
     if (session.room) {
@@ -204,13 +204,17 @@ export function mountOnline(root: HTMLElement, options: {
       return;
     }
     text("[data-code]", `Room ${room.code}`);
+    const cp = session.checkpoint;
     const phaseLabels = {
       waiting: "Ready up to start", preparing: "Preparing all boards…", countdown: "Starting in",
       playing: room.options.mode === "practice" ? "Practice · no scoring" : `Round ${session.checkpoint?.state?.round ?? 1} · first to ${room.options.firstTo}`,
-      paused: "Match paused · waiting for reconnection", roundResult: "Ready up for the next round", setResult: "Ready up for a rematch",
+      paused: "Match paused · waiting for reconnection", roundResult: "Next round in", setResult: "Ready up for a rematch",
     };
     let phase = phaseLabels[room.phase];
-    if (room.phase === "countdown" && room.startsAt !== null) phase += ` ${Math.max(0, Math.ceil((room.startsAt - session.serverNow()) / 1000))}…`;
+    const roundTime = room.phase === "playing" && room.options.mode === "competitive" && cp?.room.phase === "playing" && cp.state
+      ? `Round time ${formatTime(cp.state.frame * FRAME_MS)}` : "";
+    text("[data-round-time]", roundTime);
+    if ((room.phase === "countdown" || room.phase === "roundResult") && room.startsAt !== null) phase += ` ${Math.max(1, Math.ceil((room.startsAt - session.serverNow()) / 1000))}…`;
     const missing = room.players.filter(p => !p.connected && p.deadline !== null);
     if (missing.length) phase += ` · Waiting for ${missing.map(p => `${p.name}: ${Math.max(0, Math.ceil((p.deadline! - session.serverNow()) / 1000))}s`).join(", ")}`;
     if (!session.connected) phase += " · Connection lost; boards frozen";
@@ -247,13 +251,12 @@ export function mountOnline(root: HTMLElement, options: {
       field("attacks").disabled = !field("practice").checked;
     }
     const ready = element<HTMLButtonElement>("[data-ready]");
-    ready.hidden = !["waiting", "roundResult", "setResult"].includes(room.phase);
+    ready.hidden = !["waiting", "setResult"].includes(room.phase);
     ready.disabled = !session.connected || !!room.players.find(p => p.playerId === session.playerId)?.withdrawn;
-    text("[data-ready]", room.players.find(p => p.playerId === session.playerId)?.ready ? "Unready" : room.phase === "roundResult" ? "Ready for next round" : room.phase === "setResult" ? "Ready for rematch" : "Ready");
+    text("[data-ready]", room.players.find(p => p.playerId === session.playerId)?.ready ? "Unready" : room.phase === "setResult" ? "Ready for rematch" : "Ready");
     element("[data-reset]").hidden = room.options.mode !== "practice" || room.phase !== "playing";
     element("[data-attacks]").hidden = room.options.mode !== "practice" || room.phase !== "playing" || room.ownerId !== session.playerId;
     for (const selector of ["[data-reset]", "[data-attacks]", "[data-leave]"]) element<HTMLButtonElement>(selector).disabled = !session.connected;
-    const cp = session.checkpoint;
     if (!cp) { clearMatch(); return; }
     const redraw = cp.serverSequence !== lastCheckpoint || options.skins.loaded !== lastSkin;
     lastCheckpoint = cp.serverSequence;
@@ -271,14 +274,19 @@ export function mountOnline(root: HTMLElement, options: {
     setGarbage(localMeter, garbage);
     const result = [...cp.events].reverse().find(({ event }) => event.round === state.round && (event.type === "setEnd" || event.type === "roundEnd"))?.event;
     const playerName = (id: string) => room.players.find(p => p.playerId === id)?.name ?? id;
-    text("[data-result]", ["roundResult", "setResult"].includes(room.phase)
+    let resultText = ["roundResult", "setResult"].includes(room.phase)
       ? result && (result.type === "setEnd" || result.type === "roundEnd")
         ? `${result.type === "setEnd" ? "Set" : "Round"}: ${result.winner ? `${playerName(result.winner)} wins` : result.reason === "aborted" ? "aborted; no winner" : "draw"} · ${result.reason === "firstTo" ? `first to ${room.options.firstTo}` : result.reason === "survivor" ? "last player standing" : result.reason}`
-        : `${room.phase === "setResult" ? "Set" : "Round"} finished.` : "");
+        : `${room.phase === "setResult" ? "Set" : "Round"} finished.` : "";
+    const durations = room.phase === "roundResult" ? cp.roundDurations.filter(round => round.round === state.round)
+      : room.phase === "setResult" ? cp.roundDurations : [];
+    if (durations.length) resultText += ` · ${durations.map(round => `Round ${round.round}: ${formatTime(round.durationMs)}`).join(" · ")}`;
+    text("[data-result]", resultText);
     const scores = state.roster.map((id, i) => {
       const finesse = state.players[i].game.lastResult?.finesse ?? INITIAL_FINESSE;
+      const pieces = state.players[i].game.lastResult?.stats.pieces ?? 0;
       const accuracy = finesseAccuracy(finesse);
-      return `${playerName(id)}${id === session.playerId ? " (you)" : ""}: ${state.scores[i]} · Finesse ${accuracy === null ? "—" : `${accuracy.toFixed(1)}%`}, ${finesse.faults} faults / ${finesse.evaluated} evaluated${room.players.find(p => p.playerId === id)?.ready ? " · Ready" : ""}`;
+      return `${playerName(id)}${id === session.playerId ? " (you)" : ""}: ${state.scores[i]} · Finesse ${accuracy === null ? "—" : `${accuracy.toFixed(1)}%`} · ${finesse.faults} ${finesse.faults === 1 ? "fault" : "faults"} · ${pieces} ${pieces === 1 ? "piece" : "pieces"} placed${room.players.find(p => p.playerId === id)?.ready ? " · Ready" : ""}`;
     });
     const scoreKey = JSON.stringify(scores);
     if (element("[data-scores]").getAttribute("data-score-key") !== scoreKey) {

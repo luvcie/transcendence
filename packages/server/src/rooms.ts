@@ -56,9 +56,11 @@ export interface Room {
   pausedAt: number | null;
   pausedTotal: number;
   frozenTime: number;
+  roundCountdownRemaining: number | null;
   order: number;
   eventSequence: number;
   events: Checkpoint["events"];
+  roundDurations: Checkpoint["roundDurations"];
   touchedAt: number;
   emptyAt: number | null;
 }
@@ -120,8 +122,7 @@ export class Rooms {
     }
     if (command.type === "resync") { this.checkpoint(room, seat); return; }
     if (command.type === "ready") {
-      if (!["waiting", "roundResult", "setResult"].includes(room.phase)) { this.error(peer, "WRONG_PHASE"); return; }
-      if (room.phase === "roundResult" && !room.match?.activePlayers.includes(seat.id)) { this.error(peer, "WRONG_PHASE"); return; }
+      if (!["waiting", "setResult"].includes(room.phase)) { this.error(peer, "WRONG_PHASE"); return; }
       seat.ready = command.ready;
       seat.handling = { ...command.handling };
       room.touchedAt = this.now();
@@ -200,7 +201,7 @@ export class Rooms {
       const room = seat.room;
       room.emptyAt = null;
       this.changed(room);
-      if (room.phase === "paused" && this.eligible(room).every(s => s.peer)) this.prepare(room, true);
+      if (room.phase === "paused" && this.eligible(room).every(s => s.peer)) this.resume(room);
       this.broadcastCheckpoint(room);
     }
   }
@@ -221,7 +222,7 @@ export class Rooms {
     do { code = Array.from(crypto.getRandomValues(new Uint8Array(6)), n => CODE_ALPHABET[n % 32]).join(""); } while (this.rooms.has(code));
     const room: Room = { code, ownerId: seat.id, options: { ...command.options, maxPlayers: command.options.maxPlayers ?? 4, width: command.options.width ?? 10 }, seats: [seat], revision: 0,
       phase: "waiting", matchId: null, preparationId: 0, startsAt: null, prepareDeadline: null, origin: null,
-      pausedAt: null, pausedTotal: 0, frozenTime: 0, order: 0, eventSequence: 0, events: [], touchedAt: this.now(), emptyAt: null };
+      pausedAt: null, pausedTotal: 0, frozenTime: 0, roundCountdownRemaining: null, order: 0, eventSequence: 0, events: [], roundDurations: [], touchedAt: this.now(), emptyAt: null };
     seat.room = room;
     seat.ready = false;
     seat.lastCreate = { requestId: command.requestId, code, options: optionsKey };
@@ -252,22 +253,18 @@ export class Rooms {
 
   private prepare(room: Room, resume: boolean): void {
     if (!resume) {
-      if (room.match && !room.match.complete && room.match.ended) {
-        let nextSeed = seed();
-        while (nextSeed === room.match.seed) nextSeed = seed();
-        room.match.nextRound(nextSeed);
-      } else {
-        const seats = room.seats;
-        room.match = new Match({ players: seats.map(s => s.id), seed: seed(), firstTo: room.options.firstTo, width: room.options.width, mode: room.options.mode,
-          attacksEnabled: room.options.attacksEnabled, handlingByPlayer: Object.fromEntries(seats.map(s => [s.id, s.handling])) });
-        room.matchId = opaque();
-        room.events = [];
-        room.eventSequence = 0;
-      }
+      const seats = room.seats;
+      room.match = new Match({ players: seats.map(s => s.id), seed: seed(), firstTo: room.options.firstTo, width: room.options.width, mode: room.options.mode,
+        attacksEnabled: room.options.attacksEnabled, handlingByPlayer: Object.fromEntries(seats.map(s => [s.id, s.handling])) });
+      room.matchId = opaque();
+      room.events = [];
+      room.roundDurations = [];
+      room.eventSequence = 0;
       room.origin = null;
       room.pausedTotal = 0;
       room.pausedAt = null;
       room.frozenTime = 0;
+      room.roundCountdownRemaining = null;
     }
     for (const s of room.seats) { s.ready = false; s.prepared = false; this.invalidate(s); }
     room.phase = "preparing";
@@ -345,13 +342,14 @@ export class Rooms {
     seat.deadline = this.now() + 40_000;
     const room = seat.room;
     if (!room) return;
-    if (["playing", "countdown", "preparing"].includes(room.phase)) this.pause(room);
+    if (["playing", "countdown", "preparing", "roundResult"].includes(room.phase) && this.eligible(room).includes(seat)) this.pause(room);
     if (!room.seats.some(s => s.peer)) room.emptyAt = this.now();
     this.changed(room);
     this.broadcastCheckpoint(room);
   }
 
   private pause(room: Room): void {
+    if (room.phase === "roundResult" && room.startsAt !== null) room.roundCountdownRemaining = Math.max(0, room.startsAt - this.now());
     room.frozenTime = this.simulationNow(room);
     room.pausedAt ??= this.now();
     room.phase = "paused";
@@ -359,6 +357,15 @@ export class Rooms {
     room.prepareDeadline = null;
     for (const s of room.seats) this.invalidate(s);
     this.collect(room);
+  }
+
+  private resume(room: Room): void {
+    if (room.roundCountdownRemaining === null) { this.prepare(room, true); return; }
+    room.phase = "roundResult";
+    room.startsAt = this.now() + room.roundCountdownRemaining;
+    room.roundCountdownRemaining = null;
+    room.pausedAt = null;
+    this.changed(room);
   }
 
   private remove(seat: Seat, deferPublish = false, allowForfeit = !seat.room?.match?.complete): void {
@@ -377,6 +384,7 @@ export class Rooms {
         room.pausedTotal = 0;
         room.frozenTime = 0;
         room.events = [];
+        room.roundDurations = [];
         room.startsAt = null;
         room.prepareDeadline = null;
         for (const s of room.seats) { s.ready = false; this.invalidate(s); }
@@ -400,13 +408,15 @@ export class Rooms {
   private result(room: Room): void {
     if (!room.match?.ended) return;
     const phase = room.match.complete ? "setResult" : "roundResult";
-    if (room.phase === phase) return;
+    if (room.phase === phase || phase === "roundResult" && room.phase === "paused" && room.roundCountdownRemaining !== null) return;
     room.frozenTime = room.match.frame * FRAME_MS;
     room.phase = phase;
-    room.startsAt = null;
+    room.startsAt = phase === "roundResult" ? this.now() + 3000 : null;
+    room.roundCountdownRemaining = null;
     room.prepareDeadline = null;
     room.touchedAt = this.now();
     for (const s of room.seats) { s.ready = false; this.invalidate(s); }
+    if (phase === "roundResult" && this.eligible(room).some(s => !s.peer)) this.pause(room);
     this.collect(room);
     this.changed(room);
   }
@@ -432,7 +442,7 @@ export class Rooms {
         this.changed(room);
         this.broadcastCheckpoint(room);
       }
-      if (room.phase === "paused" && this.eligible(room).length && this.eligible(room).every(s => s.peer)) this.prepare(room, true);
+      if (room.phase === "paused" && this.eligible(room).length && this.eligible(room).every(s => s.peer)) this.resume(room);
       if (room.phase === "preparing" && room.prepareDeadline !== null && now >= room.prepareDeadline) {
         for (const s of this.eligible(room)) if (!s.prepared && s.peer) { const peer = s.peer; peer.close(1008, "PREPARE_TIMEOUT"); this.disconnect(peer.id); }
       }
@@ -441,6 +451,21 @@ export class Rooms {
         else if (room.pausedAt !== null) { room.pausedTotal += room.startsAt - room.pausedAt; room.pausedAt = null; }
         room.phase = "playing";
         room.startsAt = null;
+        this.changed(room);
+      }
+      if (room.phase === "roundResult" && room.startsAt !== null && now >= room.startsAt && room.match && !room.match.complete && room.match.ended) {
+        let nextSeed = seed();
+        while (nextSeed === room.match.seed) nextSeed = seed();
+        room.match.nextRound(nextSeed);
+        room.origin = room.startsAt;
+        room.pausedTotal = 0;
+        room.pausedAt = null;
+        room.frozenTime = 0;
+        room.startsAt = null;
+        room.phase = "playing";
+        for (const s of room.seats) this.invalidate(s);
+        this.collect(room);
+        this.broadcastCheckpoint(room);
         this.changed(room);
       }
       if (room.phase === "playing" && room.match) {
@@ -461,7 +486,10 @@ export class Rooms {
   }
 
   private collect(room: Room): void {
-    for (const event of room.match?.drainEvents() ?? []) room.events.push({ sequence: ++room.eventSequence, event });
+    for (const event of room.match?.drainEvents() ?? []) {
+      room.events.push({ sequence: ++room.eventSequence, event });
+      if (event.type === "roundEnd") room.roundDurations.push({ round: event.round, durationMs: event.atMs });
+    }
     if (room.events.length > 256) room.events.splice(0, room.events.length - 256);
   }
 
@@ -488,7 +516,7 @@ export class Rooms {
         nextSeq: seat.nextSeq, resolvedThroughSeq: pendingAccepted.length ? Math.min(...pendingAccepted.map(i => i.seq)) - 1 : seat.nextSeq - 1,
         pendingAccepted, rejections: [...seat.rejections] },
       clock: { currentTargetFrame: Math.floor(simulationNow / FRAME_MS), simulationNow, origin: room.origin, pausedTotal: room.pausedTotal,
-        commitDelayMs: 100, frozen: room.phase !== "playing" }, events: [...room.events] }, true);
+        commitDelayMs: 100, frozen: room.phase !== "playing" }, roundDurations: room.roundDurations.map(duration => ({ ...duration })), events: [...room.events] }, true);
   }
 
   broadcastCheckpoint(room: Room): void { for (const s of room.seats) this.checkpoint(room, s); }

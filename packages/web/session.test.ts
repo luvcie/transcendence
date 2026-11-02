@@ -16,7 +16,7 @@ function checkpoint(): Checkpoint {
       phase: "playing", matchId: "match", preparationId: 1, startsAt: null, prepareDeadline: null,
       players: ["a", "b"].map(playerId => ({ playerId, name: playerId, connected: true, ready: true, prepared: true, deadline: null, withdrawn: false })) },
     owner: { generation: 0, epoch: 0, nextSeq: 1, resolvedThroughSeq: 0, pendingAccepted: [], rejections: [] },
-    clock: { currentTargetFrame: 0, simulationNow: 0, origin: 0, pausedTotal: 0, commitDelayMs: 100, frozen: false }, events: [] };
+    clock: { currentTargetFrame: 0, simulationNow: 0, origin: 0, pausedTotal: 0, commitDelayMs: 100, frozen: false }, roundDurations: [], events: [] };
 }
 function harness() {
   let now = 0, clears = 0;

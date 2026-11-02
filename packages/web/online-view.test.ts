@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { DEFAULT_HANDLING } from "@42tris/core";
+import { DEFAULT_HANDLING, Input } from "@42tris/core";
 import { Match } from "@42tris/match";
 import type { Checkpoint, ClientCommand, RoomPhase } from "@42tris/protocol";
 import { mountAppView } from "./src/app-view";
@@ -83,7 +83,7 @@ function harness(invite?: string) {
       phase: "playing", matchId: "match", preparationId: 1, startsAt: null, prepareDeadline: null,
       players: ["a", "b"].map(playerId => ({ playerId, name: playerId, connected: true, ready: true, prepared: true, deadline: null, withdrawn: false })) },
     owner: { generation: 0, epoch: 0, nextSeq: 1, resolvedThroughSeq: 0, pendingAccepted: [], rejections: [] },
-    clock: { currentTargetFrame: 0, simulationNow: 0, origin: 0, pausedTotal: 0, commitDelayMs: 100, frozen: false }, events: [],
+    clock: { currentTargetFrame: 0, simulationNow: 0, origin: 0, pausedTotal: 0, commitDelayMs: 100, frozen: false }, roundDurations: [], events: [],
   };
   const render = () => {
     view.update();
@@ -215,27 +215,65 @@ test.each(["preparing", "countdown", "playing", "paused", "roundResult", "setRes
     expect(node("#game-view").hidden).toBe(false);
     expect(node("[data-management-home]").hidden).toBe(true);
     expect(node("[data-details]").hidden).toBe(false);
-    expect(node("[data-ready]").hidden).toBe(!["roundResult", "setResult"].includes(phase));
+    expect(node("[data-ready]").hidden).toBe(phase !== "setResult");
     expect(node("[data-round-summary]").hidden).toBe(!["roundResult", "setResult"].includes(phase));
     expect(node("[data-options]").hidden).toBe(phase !== "setResult");
     h.view.destroy();
   },
 );
 
-test("round and set results retain scores and send explicit next-round/rematch readiness", () => {
+test("round and set results retain scores and only rematches offer readiness", () => {
   const h = harness();
   const node = (selector: string) => h.document.querySelector(selector);
   for (const [index, phase] of (["roundResult", "setResult"] as const).entries()) {
-    h.session.receive({ ...h.cp, serverSequence: index + 2, room: { ...h.cp.room, phase, players: h.cp.room.players.map(p => ({ ...p, ready: false })) },
+    h.session.receive({ ...h.cp, serverSequence: index + 2, room: { ...h.cp.room, phase, startsAt: phase === "roundResult" ? 3000 : null, players: h.cp.room.players.map(p => ({ ...p, ready: false })) },
       events: [{ sequence: 1, event: { type: phase === "roundResult" ? "roundEnd" : "setEnd", round: h.cp.state!.round,
         winner: "b", atMs: 0, reason: "forfeit", complete: phase === "setResult" } }] });
     h.view.update();
     expect(node("[data-result]").textContent).toContain("b wins");
-    expect(node("[data-scores]").children.map(c => c.textContent)).toEqual(["a (you): 0 · Finesse —, 0 faults / 0 evaluated", "b: 0 · Finesse —, 0 faults / 0 evaluated"]);
-    expect(node("[data-ready]").textContent).toBe(phase === "roundResult" ? "Ready for next round" : "Ready for rematch");
-    node("[data-ready]").dispatchEvent(new Event("click"));
-    expect(h.sent.at(-1)).toEqual({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+    expect(node("[data-scores]").children.map(c => c.textContent)).toEqual(["a (you): 0 · Finesse — · 0 faults · 0 pieces placed", "b: 0 · Finesse — · 0 faults · 0 pieces placed"]);
+    if (phase === "roundResult") {
+      expect(node("[data-phase]").textContent).toBe("Next round in 3…");
+      expect(node("[data-ready]").hidden).toBe(true);
+      expect(h.sent.some(c => c.type === "ready")).toBe(false);
+    } else {
+      expect(node("[data-ready]").textContent).toBe("Ready for rematch");
+      node("[data-ready]").dispatchEvent(new Event("click"));
+      expect(h.sent.at(-1)).toEqual({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+    }
   }
+  h.view.destroy();
+});
+
+test("multiplayer results use placed pieces independently of finesse evaluations and show round durations", () => {
+  const h = harness();
+  const match = new Match({ players: ["a", "b"], seed: 123 });
+  match.submit({ player: "a", frame: 0, subframe: 0, order: 0, input: Input.HardDrop });
+  match.advanceToFrame(1);
+  const state = match.saveState();
+  const result = state.players[0].game.lastResult!;
+  result.stats.pieces = 52;
+  result.finesse = { evaluated: 48, faults: 1, points: 237 };
+  h.session.receive({ ...h.cp, state, room: { ...h.cp.room, phase: "setResult", options: { ...h.cp.room.options, mode: "competitive" } },
+    roundDurations: [{ round: 1, durationMs: 84385 }, { round: 2, durationMs: 2500 }] });
+  h.view.update();
+  expect(h.document.querySelector("[data-scores]").children[0].textContent).toContain("Finesse 98.8% · 1 fault · 52 pieces placed");
+  expect(h.document.querySelector("[data-result]").textContent).toContain("Round 1: 1:24.385 · Round 2: 0:02.500");
+  h.view.destroy();
+});
+
+test("competitive timer displays committed simulation time only while playing", () => {
+  const h = harness();
+  const state = structuredClone(h.cp.state!);
+  state.frame = 60;
+  const room = { ...h.cp.room, options: { ...h.cp.room.options, mode: "competitive" as const } };
+  h.session.receive({ ...h.cp, state, room });
+  h.view.update();
+  expect(h.document.querySelector("[data-round-time]").textContent).toBe("Round time 0:01.000");
+  h.session.receive({ ...h.cp, serverSequence: 2, state, room: { ...room, phase: "roundResult", startsAt: 3000 }, roundDurations: [{ round: 1, durationMs: 1000 }] });
+  h.view.update();
+  expect(h.document.querySelector("[data-result]").textContent).toContain("Round 1: 0:01.000");
+  expect(h.document.querySelector("[data-round-time]").textContent).toBe("");
   h.view.destroy();
 });
 
@@ -274,7 +312,7 @@ test("socket loss shows reconnection without clearing boards; leave waits for ac
   expect(node("[data-opponents]").children[0]).toBe(opponent);
   expect(node("[data-phase]").textContent).toContain("Connection lost");
   h.session.start();
-  h.session.receive({ type: "welcome", guestSessionId: "a", playerId: "a", resumeToken: "token", name: "A", room: { ...h.cp.room, phase: "roundResult" }, generation: 1, serverNow: 0 });
+  h.session.receive({ type: "welcome", guestSessionId: "a", playerId: "a", resumeToken: "token", name: "A", room: { ...h.cp.room, phase: "setResult" }, generation: 1, serverNow: 0 });
   h.view.update();
   h.view.local();
   expect(h.returnedLocal).toBe(false);

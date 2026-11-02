@@ -16,7 +16,7 @@ const titles: Record<AppView, string> = {
 };
 
 export function onlineView(room: RoomState | null, connected = true): AppView {
-  if (!connected && room && ["preparing", "countdown", "playing"].includes(room.phase)) return "paused";
+  if (!connected && room && ["preparing", "countdown", "playing", "roundResult"].includes(room.phase)) return "paused";
   return room?.phase ?? "lobby";
 }
 

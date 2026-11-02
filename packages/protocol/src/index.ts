@@ -59,6 +59,7 @@ export interface Checkpoint {
   state: MatchState | null;
   owner: InputAck;
   clock: { currentTargetFrame: number; simulationNow: number; origin: number | null; pausedTotal: number; commitDelayMs: 100; frozen: boolean };
+  roundDurations: { round: number; durationMs: number }[];
   events: { sequence: number; event: MatchEvent }[];
 }
 export type ServerMessage =
@@ -87,6 +88,7 @@ export const ServerMessageSchema = t.Unsafe<ServerMessage>(t.Union([
     owner: object({ generation: integer(), epoch: integer(), nextSeq: integer(1), resolvedThroughSeq: integer(),
       pendingAccepted: t.Array(object({ ...InputItemSchema.properties, order: integer() })), rejections: t.Array(object({ seq: integer(1), code: t.String() })) }),
     clock: object({ currentTargetFrame: integer(), simulationNow: t.Number(), origin: nullableTime, pausedTotal: t.Number(), commitDelayMs: t.Literal(100), frozen: t.Boolean() }),
+    roundDurations: t.Array(object({ round: integer(1), durationMs: t.Number({ minimum: 0 }) })),
     events: t.Array(object({ sequence: integer(1), event: matchEvent })),
   }),
   object({ type: t.Literal("roomState"), room: RoomStateSchema, serverNow: t.Number(), requestId: t.Optional(t.String()) }),

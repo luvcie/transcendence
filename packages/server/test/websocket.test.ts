@@ -114,6 +114,38 @@ test("real Elysia sockets: create, join, prepare, inputs, pause/resume, FT resul
   expect((await a.wait("pong", m => m.nonce === "clock")).nonce).toBe("clock");
 });
 
+test("sockets receive the same automatic next round after the result countdown", async () => {
+  const s = await server();
+  const a = await client(s.url);
+  const b = await client(s.url);
+  a.send({ type: "create", requestId: "automatic-round", options: { firstTo: 2, mode: "competitive", attacksEnabled: true } });
+  const created = await a.wait("roomState");
+  b.send({ type: "join", code: created.room.code });
+  await b.wait("roomState");
+  for (const c of [a, b]) c.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+  const prep = await a.wait("checkpoint", m => m.room.phase === "preparing");
+  for (const c of [a, b]) c.send({ type: "prepared", matchId: prep.matchId!, preparationId: prep.room.preparationId });
+  await a.wait("roomState", m => m.room.phase === "countdown");
+  s.advance(3000);
+  let snapshot = await b.checkpoint();
+  for (let i = 0; i < 25 && snapshot.room.phase === "playing"; i++) {
+    b.send({ type: "inputBatch", matchId: snapshot.matchId!, generation: snapshot.owner.generation, epoch: snapshot.owner.epoch,
+      items: [{ seq: snapshot.owner.nextSeq, frame: snapshot.clock.currentTargetFrame, subframe: 0.25, input: Input.HardDrop }] });
+    await b.checkpoint();
+    s.advance(120);
+    snapshot = await b.checkpoint();
+  }
+  expect(snapshot.room.phase).toBe("roundResult");
+  expect((await a.checkpoint()).room.startsAt).toBe(snapshot.room.startsAt);
+  s.advance(2999);
+  expect((await a.checkpoint()).state!.round).toBe(1);
+  s.advance(1);
+  const [first, second] = await Promise.all([a.checkpoint(), b.checkpoint()]);
+  expect([first.room.phase, second.room.phase]).toEqual(["playing", "playing"]);
+  expect([first.state!.round, second.state!.round]).toEqual([2, 2]);
+  expect(first.state).toEqual(second.state);
+});
+
 test("resync waits past snapshots already queued on the socket", async () => {
   const s = await server();
   const a = await client(s.url);

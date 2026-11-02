@@ -116,7 +116,11 @@ describe("room authority", () => {
 
   test("prepared acknowledgement gates countdown; input order, duplicate, rejection and gap dispositions", () => {
     const f = fixture();
-    for (const c of f.clients) c.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+    f.a.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+    f.advance(5000);
+    expect(f.room.phase).toBe("waiting");
+    expect(f.room.match).toBeUndefined();
+    f.clients[1].send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
     expect(f.room.phase).toBe("preparing");
     f.advance(1000);
     expect(f.room.match!.frame).toBe(0);
@@ -283,7 +287,7 @@ describe("room authority", () => {
     expect(messages.at(-1)).toMatchObject({ type: "pong", nonce: "ok" });
   });
 
-  test("next-round readiness preserves Match, score and frozen handling; rematch replaces Match", () => {
+  test("rounds start automatically after three seconds; rematch still requires readiness", () => {
     const f = fixture(2, "competitive", 2);
     f.start();
     const match = f.room.match!;
@@ -300,18 +304,109 @@ describe("room authority", () => {
     expect(f.room.phase).toBe("roundResult");
     expect(match.scores[f.a.welcome!.playerId]).toBe(1);
     const oldSeed = match.seed;
-    for (const c of f.clients) c.send({ type: "ready", ready: true, handling: { ...DEFAULT_HANDLING, arr: 0 } });
-    f.prepared();
+    const deadline = f.room.startsAt!;
+    const old = f.a.checkpoint();
+    const stale: ClientCommand = { type: "inputBatch", matchId: old.matchId!, generation: old.owner.generation, epoch: old.owner.epoch,
+      items: [{ seq: old.owner.nextSeq, frame: 0, subframe: 0, input: Input.HardDrop }] };
+    f.a.send(stale);
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "WRONG_PHASE" });
+    f.a.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "WRONG_PHASE" });
+    expect(deadline - old.serverNow).toBe(3000);
+    f.advance(1000);
+    expect(deadline - f.a.checkpoint().serverNow).toBe(2000);
+    f.advance(1999);
+    expect(f.room.phase).toBe("roundResult");
+    expect(match.round).toBe(1);
+    f.advance(1);
     expect(f.room.match).toBe(match);
+    expect(match.round).toBe(2);
+    expect(f.clients.map(c => c.checkpoint().room.phase)).toEqual(["playing", "playing"]);
+    expect(f.clients.map(c => c.checkpoint().state!.round)).toEqual([2, 2]);
+    f.a.send(stale);
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "STALE_INPUT" });
+    f.advance(0);
     expect(match.round).toBe(2);
     expect(match.seed).not.toBe(oldSeed);
     expect(match.handlingByPlayer[b.welcome!.playerId]).toEqual(DEFAULT_HANDLING);
     loseRound();
     expect(f.room.phase).toBe("setResult");
     expect(match.scores[f.a.welcome!.playerId]).toBe(2);
+    expect(f.a.checkpoint().roundDurations.map(result => result.round)).toEqual([1, 2]);
+    f.advance(5000);
+    expect(match.round).toBe(2);
+    expect(f.room.phase).toBe("setResult");
     f.start();
     expect(f.room.match).not.toBe(match);
     expect(f.room.match!.scores[f.a.welcome!.playerId]).toBe(0);
+    expect(f.a.checkpoint().roundDurations).toEqual([]);
+  });
+
+  test("eight-player countdown freezes across whole-room disconnect and resumes on reconnect", () => {
+    const f = fixture(8, "competitive", 2, 12);
+    f.start();
+    for (const c of f.clients.slice(1)) {
+      const cp = c.checkpoint();
+      for (let i = 0; i < 25 && f.room.phase === "playing"; i++) {
+        const current = c.checkpoint();
+        c.send({ type: "inputBatch", matchId: cp.matchId!, generation: current.owner.generation, epoch: current.owner.epoch,
+          items: [{ seq: current.owner.nextSeq, frame: current.clock.currentTargetFrame, subframe: 0, input: Input.HardDrop }] });
+        f.advance(120);
+        const state = f.room.match!.saveState();
+        if (state.players[state.roster.indexOf(c.welcome!.playerId)].eliminated) break;
+      }
+    }
+    expect(f.room.phase).toBe("roundResult");
+    f.advance(1000);
+    for (const c of [...f.clients]) f.rooms.disconnect(c.peer.id);
+    expect(f.room.phase).toBe("paused");
+    f.advance(5000);
+    const resumed = f.clients.slice(0, 8).map(c => f.client(c.welcome!.resumeToken));
+    expect(f.room.phase).toBe("roundResult");
+    expect(resumed.at(-1)!.checkpoint().room.startsAt! - resumed.at(-1)!.checkpoint().serverNow).toBe(2000);
+    f.advance(1999);
+    expect(f.room.match!.round).toBe(1);
+    f.advance(1);
+    expect(resumed.map(c => c.checkpoint().state!.round)).toEqual(Array(8).fill(2));
+    expect(f.room.match!.width).toBe(12);
+  });
+
+  test("round durations use simulation frames, exclude pauses and countdowns, and survive reconnects", () => {
+    const f = fixture(2, "competitive", 2);
+    for (const c of f.clients) c.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+    expect(f.a.checkpoint().state!.frame).toBe(0);
+    f.prepared();
+    expect(f.a.checkpoint().state!.frame).toBe(0);
+    f.advance(1100);
+    const beforePause = f.a.checkpoint().state!.frame;
+    expect(beforePause).toBe(Math.floor(1000 / FRAME_MS));
+    const b = f.clients[1];
+    f.rooms.disconnect(b.peer.id);
+    f.advance(10_000);
+    expect(f.a.checkpoint().state!.frame).toBe(beforePause);
+    const resumed = f.client(b.welcome!.resumeToken);
+    expect(resumed.checkpoint().state!.frame).toBe(beforePause);
+    f.prepared();
+    expect(resumed.checkpoint().state!.frame).toBe(beforePause);
+    for (let i = 0; i < 25 && f.room.phase === "playing"; i++) {
+      const cp = resumed.checkpoint();
+      resumed.send({ type: "inputBatch", matchId: cp.matchId!, generation: cp.owner.generation, epoch: cp.owner.epoch,
+        items: [{ seq: cp.owner.nextSeq, frame: cp.clock.currentTargetFrame, subframe: 0, input: Input.HardDrop }] });
+      f.advance(120);
+    }
+    const finished = f.a.checkpoint();
+    expect(finished.room.phase).toBe("roundResult");
+    const roundEnd = finished.events.find(e => e.event.type === "roundEnd")!.event;
+    expect(finished.roundDurations).toEqual([{ round: 1, durationMs: roundEnd.atMs }]);
+    expect(roundEnd.atMs).toBeCloseTo(finished.state!.frame * FRAME_MS);
+    expect(roundEnd.atMs).toBeLessThan(10_000);
+    f.advance(2999);
+    expect(f.a.checkpoint().roundDurations).toEqual(finished.roundDurations);
+    f.advance(1);
+    const next = resumed.checkpoint();
+    expect(next.state!.round).toBe(2);
+    expect(next.state!.frame).toBe(0);
+    expect(next.roundDurations).toEqual(finished.roundDurations);
   });
 
   test("eight active sets limit allows a ninth lobby without allocating its Match", () => {

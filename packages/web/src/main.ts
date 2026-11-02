@@ -215,7 +215,7 @@ async function enterHome() {
 async function chooseMode(mode: SingleplayerMode) {
   if (online) {
     const room = online.session.room;
-    if (room && !["playing", "paused", "countdown", "preparing"].includes(room.phase)
+    if (room && !["playing", "paused", "countdown", "preparing", "roundResult"].includes(room.phase)
       && !confirm(`Leave your online room and start ${SINGLEPLAYER_MODES[mode].name}?`)) return;
     pendingMode = mode;
     online.local();

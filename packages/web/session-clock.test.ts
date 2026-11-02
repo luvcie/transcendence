@@ -31,7 +31,7 @@ test("session input and render ticks sample the current injected clock", () => {
     },
     owner: { generation: 0, epoch: 0, nextSeq: 1, resolvedThroughSeq: 0, pendingAccepted: [], rejections: [] },
     clock: { currentTargetFrame: 0, simulationNow: 0, origin: 0, pausedTotal: 0, commitDelayMs: 100, frozen: false },
-    events: [],
+    roundDurations: [], events: [],
   };
   session.receive(checkpoint);
   now = 100;
