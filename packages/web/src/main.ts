@@ -20,6 +20,8 @@ import { renderOnlineWaiting } from "./waiting-view";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
 import { initialView, mountAppView, onlineView } from "./app-view";
 import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary, type SingleplayerMode } from "./singleplayer";
+import type { SprintRecorder } from "@42tris/replay";
+import { abandonSprintRecording, startSprintRecording } from "./sprint-recording";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
@@ -78,7 +80,7 @@ widthSelect.addEventListener("change", () => {
 });
 let handling = loadHandling();
 let seed: number | undefined;
-let solo: Singleplayer | null = null;
+let solo: Singleplayer | SprintRecorder | null = null;
 let pendingMode: SingleplayerMode | null = null;
 let display: GameDisplay | null = null;
 setupHandling(handling, value => {
@@ -149,7 +151,13 @@ function launchMode(mode: SingleplayerMode) {
   const random = new Uint32Array(1);
   do { crypto.getRandomValues(random); } while (random[0] === seed);
   seed = random[0];
-  solo = new Singleplayer(mode, seed, performance.now(), handling, Number(widthSelect.value));
+  const now = performance.now();
+  if (mode === "sprint") {
+    solo = startSprintRecording(seed, now, handling);
+  } else {
+    abandonSprintRecording();
+    solo = new Singleplayer(mode, seed, now, handling, Number(widthSelect.value));
+  }
   display = solo.game;
   atHome = false;
   resultPanel.hidden = true;
@@ -201,6 +209,7 @@ function closeMenus() {
 
 async function enterHome() {
   if (!await abandonSolo()) return;
+  abandonSprintRecording();
   closeMenus();
   online?.closeDetails();
   online?.session.release();
@@ -231,6 +240,7 @@ async function chooseMode(mode: SingleplayerMode) {
 
 async function enterOnline() {
   if (!await abandonSolo()) return;
+  abandonSprintRecording();
   closeMenus();
   sprintClock.hidden = true;
   solo = null;

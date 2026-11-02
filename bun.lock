@@ -65,6 +65,7 @@
         "@42tris/core": "workspace:*",
         "@42tris/match": "workspace:*",
         "@42tris/protocol": "workspace:*",
+        "@42tris/replay": "workspace:*",
       },
       "devDependencies": {
         "typescript": "^5.6.0",

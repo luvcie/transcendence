@@ -1,6 +1,7 @@
 export * from "./match-driver";
 export * from "./solo-driver";
 export * from "./sprint-driver";
+export * from "./sprint-recorder";
 export * from "./verify";
 export * from "./canonical";
 export * from "./format";

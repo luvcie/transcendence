@@ -1,9 +1,9 @@
 # Replay work in progress
 
 This package implements the R1-A replay format, bounded decoding, corruption
-checks and R1-B Sprint reconstruction/result verification. Deterministic execution
-lives in the drivers. Recording integration and other mode verification are not
-implemented yet.
+checks, R1-B Sprint reconstruction/result verification and R2 Sprint recording.
+Deterministic execution lives in the drivers. Recording for other modes, export UI
+and playback are not implemented yet.
 
 ## Format and decoding
 
@@ -72,6 +72,33 @@ checkpoint while `hasPendingAdvance` is true. Practice is rejected.
 Discard a driver after an execution exception; partially executed operations are not
 rolled back.
 
+## Sprint recording
+
+`SprintRecorder` owns a live `Singleplayer` controller, delegates `tick`, `apply`,
+`setHandling` and `setPaused` to it, and appends the exact controller observation in
+call order. Sprint ignores the pause flag but still observes the controller clock, so
+that call is journaled as a tick. The recorder records the constructor's
+initialization tick, so the first gameplay press still starts the clock exactly as it
+does in live play. It does not drain events or run a second simulation.
+
+A terminal result captures a detached `GameState` and `SingleplayerReplayState`
+synchronously, then asynchronously seals the payload with `sealReplay`, checks the
+byte limit, decodes it with `decodeReplayJson` and executes it through
+`verifySprintReplayExecution`. `finish()` resolves with the decoded, verified replay
+or `null`; `completion` resolves at the same time for lifecycle consumers. `replay`
+and `json` expose the sealed artifact. Terminal finalization is idempotent and
+ignores later operations. `abandon()` discards only an unfinished attempt.
+
+Operation, duration and approximate byte budgets are enforced while recording. When
+a budget is reached, recording fails explicitly (`error` carries the `ReplayError`)
+and the live controller keeps running; no truncated journal is exposed. The default
+budgets come from `DEFAULT_REPLAY_LIMITS` and can be lowered per recorder.
+
+`packages/web/src/sprint-recording.ts` owns the browser lifecycle: Sprint launch
+starts a recorder, restart and leaving abandon the unfinished one, and
+`lastSprintRecording()` exposes the last successfully verified attempt for the
+playback milestone. Zen and multiplayer never create a recorder.
+
 ## Terminal verification
 
 `verifySprintReplayExecution(replay)` executes a decoded Sprint replay, reconstructs
@@ -95,4 +122,5 @@ origin. Check envelope integrity separately with `verifyReplayIntegrity` or
 - Add optional bounded metadata and annotation fields when their consumers exist.
   Match countdowns and disconnect waits remain presentation annotations outside this
   simulation driver.
-- Local recording, export and playback UI remain separate milestones.
+- Export UI, playback and recording for modes other than Sprint remain separate
+  milestones.
