@@ -14,7 +14,7 @@ function checkpoint(): Checkpoint {
   return { type: "checkpoint", serverSequence: 1, serverNow: 0, matchId: "match", state: match.saveState(),
     room: { code: "ABCDEF", revision: 1, ownerId: "a", options: { firstTo: 3, maxPlayers: 4, mode: "competitive", attacksEnabled: true },
       phase: "playing", matchId: "match", preparationId: 1, startsAt: null, prepareDeadline: null,
-      players: ["a", "b"].map(playerId => ({ playerId, name: playerId, connected: true, ready: true, prepared: true, deadline: null, withdrawn: false })) },
+      players: ["a", "b"].map(playerId => ({ playerId, name: playerId, skin: "classic", connected: true, ready: true, prepared: true, deadline: null, withdrawn: false })) },
     owner: { generation: 0, epoch: 0, nextSeq: 1, resolvedThroughSeq: 0, pendingAccepted: [], rejections: [] },
     clock: { currentTargetFrame: 0, simulationNow: 0, origin: 0, pausedTotal: 0, commitDelayMs: 100, frozen: false }, roundDurations: [], events: [] };
 }
@@ -230,6 +230,24 @@ describe("owner session", () => {
     const batches = h.sent.filter(c => c.type === "inputBatch");
     expect(batches).toHaveLength(2);
     expect(batches[0]).toEqual(batches[1]);
+  });
+  test("shares the selected skin on hello and when the local selection changes", () => {
+    let skin = "four";
+    const sent: ClientCommand[] = [];
+    const sockets: Parameters<SessionOptions["connect"]>[0][] = [];
+    const session = new Session({ now: () => 0, storage: storage(), profile: storage(), clearKeys() {}, skin: () => skin,
+      connect(callbacks) { sockets.push(callbacks); return { send: command => { sent.push(command); }, close() {} }; } });
+    session.start();
+    sockets[0].open();
+    expect(sent[0]).toMatchObject({ type: "hello", skin: "four" });
+    session.receive({ type: "welcome", guestSessionId: "a", playerId: "a", resumeToken: "token", name: "A", room: null, generation: 0, serverNow: 0 });
+    session.tick();
+    expect(sent.filter(command => command.type === "skin")).toHaveLength(0);
+    skin = "tetrio";
+    session.tick();
+    expect(sent.filter(command => command.type === "skin")).toEqual([{ type: "skin", skin: "tetrio" }]);
+    session.tick();
+    expect(sent.filter(command => command.type === "skin")).toHaveLength(1);
   });
   test("a lost sequence cannot cause an endless retransmission loop", () => {
     const h = harness();

@@ -328,6 +328,12 @@
       </section>
       <section id="settings-skins" role="tabpanel" aria-labelledby="tab-skins" tabindex="0" hidden>
         <h2>Skins</h2>
+        <label for="multiplayer-skins">Multiplayer boards</label>
+        <select id="multiplayer-skins" aria-describedby="multiplayer-skins-help">
+          <option value="player" selected>Show each player's skin</option>
+          <option value="local">Use my skin for all boards</option>
+        </select>
+        <p id="multiplayer-skins-help" class="hint">This choice affects your view only and is saved on this device.</p>
         <p id="skin-credit" class="hint"></p>
         <form id="skin-form" novalidate>
           <label for="custom-skin">Custom skin image link</label>

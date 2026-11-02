@@ -24,6 +24,7 @@ interface Seat {
   id: string;
   token: string;
   name: string;
+  skin: string;
   profileId?: string;
   peer?: Peer;
   room?: Room;
@@ -106,6 +107,11 @@ export class Rooms {
       else peer.send({ type: "welcome", guestSessionId: seat.id, playerId: seat.id, resumeToken: seat.token, name: seat.name, room: null, generation: seat.generation, serverNow: this.now() });
       return;
     }
+    if (command.type === "skin") {
+      seat.skin = command.skin;
+      if (seat.room) this.changed(seat.room);
+      return;
+    }
     const room = seat.room;
     if (!room) { this.error(peer, "NOT_IN_ROOM"); return; }
     if (command.type === "configure") {
@@ -184,12 +190,14 @@ export class Rooms {
       seat = existing;
     } else {
       if (this.sessions.size >= 256) { this.error(peer, "CAPACITY"); return; }
-      seat = { id: opaque(), token: opaque() + opaque(), name: command.name.trim() || "Guest", profileId: command.guestProfileId,
+      seat = { id: opaque(), token: opaque() + opaque(), name: command.name.trim() || "Guest", skin: "classic", profileId: command.guestProfileId,
         ready: false, prepared: false, handling: { ...DEFAULT_HANDLING }, deadline: null, lastSeen: now,
         generation: 0, nextSeq: 1, pending: new Map(), history: new Map(), rejections: [], inputs: new Bucket(240, 64, now) };
       this.sessions.set(seat.token, seat);
     }
     seat.name = command.name.trim() || "Guest";
+    // Cosmetic only: a reconnect may refresh the skin, while older clients keep the stored one.
+    seat.skin = command.skin ?? seat.skin;
     seat.peer = peer;
     seat.deadline = null;
     seat.lastSeen = now;
@@ -496,7 +504,7 @@ export class Rooms {
   view(room: Room): RoomState {
     return { code: room.code, revision: room.revision, ownerId: room.ownerId, options: { ...room.options }, phase: room.phase,
       matchId: room.matchId, preparationId: room.preparationId, startsAt: room.startsAt, prepareDeadline: room.prepareDeadline,
-      players: room.seats.map(s => ({ playerId: s.id, name: s.name, connected: !!s.peer, ready: s.ready, prepared: s.prepared,
+      players: room.seats.map(s => ({ playerId: s.id, name: s.name, skin: s.skin, connected: !!s.peer, ready: s.ready, prepared: s.prepared,
         deadline: s.deadline, withdrawn: !!room.match?.roster.includes(s.id) && !room.match.activePlayers.includes(s.id) })) };
   }
 

@@ -17,13 +17,13 @@ function fixture(count = 2, mode: "competitive" | "practice" = "competitive", fi
   let now = 0;
   const rooms = new Rooms(() => now);
   const clients: TestClient[] = [];
-  function client(token?: string): TestClient {
+  function client(token?: string, skin?: string): TestClient {
     const messages: ServerMessage[] = [];
     const closed: number[] = [];
     const peer: Peer = { id: crypto.randomUUID(), send: m => messages.push(m), close: code => { closed.push(code); } };
     rooms.connect(peer);
     const send = (command: ClientCommand) => rooms.receive(peer.id, command);
-    send({ type: "hello", name: "Guest", guestProfileId: "same-profile", ...(token ? { resumeToken: token } : {}) });
+    send({ type: "hello", name: "Guest", guestProfileId: "same-profile", ...(token ? { resumeToken: token } : {}), ...(skin ? { skin } : {}) });
     const welcome = messages.find(m => m.type === "welcome");
     const checkpoint = () => { send({ type: "resync" }); return [...messages].reverse().find(m => m.type === "checkpoint") as Checkpoint; };
     const c = { peer, send, messages, closed, welcome, checkpoint };
@@ -505,6 +505,55 @@ describe("room authority", () => {
     f.rooms.receive(peer.id, { type: "hello", name: "New Name", guestProfileId: "same-profile", resumeToken: f.a.welcome!.resumeToken });
     expect(messages.find(m => m.type === "welcome")).toMatchObject({ name: "New Name", playerId: f.a.welcome!.playerId });
     expect(f.rooms.view(f.room).players.find(p => p.playerId === f.a.welcome!.playerId)?.name).toBe("New Name");
+  });
+
+  test("per-player skins are validated, broadcast by stable id, and survive reconnect and replacement", () => {
+    const f = fixture(2);
+    const [a, b] = f.clients;
+    const aId = a.welcome!.playerId, bId = b.welcome!.playerId;
+    a.send({ type: "skin", skin: "tetrio" });
+    b.send({ type: "skin", skin: "four" });
+    expect(f.rooms.view(f.room).players.map(player => [player.playerId, player.skin]))
+      .toEqual([[aId, "tetrio"], [bId, "four"]]);
+    for (const client of f.clients) {
+      const state = [...client.messages].reverse().find(message => message.type === "roomState");
+      expect(state?.type === "roomState" && state.room.players.find(player => player.playerId === aId)?.skin).toBe("tetrio");
+    }
+    const joined = f.client(undefined, "ppt");
+    joined.send({ type: "join", code: f.room.code });
+    expect(f.rooms.view(f.room).players.find(player => player.playerId === joined.welcome!.playerId)?.skin).toBe("ppt");
+    for (const skin of ["https://example.com/skin.png", "custom:0", "x".repeat(33), ""]) {
+      f.rooms.receive(a.peer.id, { type: "skin", skin });
+      expect(a.messages.at(-1)).toMatchObject({ code: "INVALID_MESSAGE" });
+    }
+    expect(f.rooms.view(f.room).players.find(player => player.playerId === aId)?.skin).toBe("tetrio");
+    f.rooms.disconnect(a.peer.id);
+    const resumed = f.client(a.welcome!.resumeToken, "emoji");
+    expect(f.rooms.view(f.room).players.find(player => player.playerId === aId)?.skin).toBe("emoji");
+    f.rooms.disconnect(resumed.peer.id);
+    const restored = f.client(a.welcome!.resumeToken);
+    expect(f.rooms.view(f.room).players.find(player => player.playerId === aId)?.skin).toBe("emoji");
+    restored.send({ type: "leave" });
+    expect(f.rooms.view(f.room).players.some(player => player.playerId === aId)).toBe(false);
+    const replacement = f.client(undefined, "n3base");
+    replacement.send({ type: "join", code: f.room.code });
+    const replacementId = replacement.welcome!.playerId;
+    expect(replacementId).not.toBe(aId);
+    expect(f.rooms.view(f.room).players.find(player => player.playerId === replacementId)?.skin).toBe("n3base");
+  });
+
+  test("skin changes never enter deterministic Match state, scores or events", () => {
+    const f = fixture(2);
+    f.start();
+    f.advance(200);
+    const before = structuredClone(f.room.match!.saveState());
+    const scores = { ...f.room.match!.scores };
+    f.a.send({ type: "skin", skin: "tetrio" });
+    f.clients[1].send({ type: "skin", skin: "ppt" });
+    expect(f.room.match!.saveState()).toEqual(before);
+    expect(f.room.match!.scores).toEqual(scores);
+    expect(JSON.stringify(f.room.match!.saveState())).not.toContain("tetrio");
+    expect(f.rooms.view(f.room).players.map(player => player.skin)).toEqual(["tetrio", "ppt"]);
   });
 
   test("creator settings, capacity and idempotent create cannot bypass room authority", () => {

@@ -26,7 +26,7 @@ test("session input and render ticks sample the current injected clock", () => {
       code: "ABCDEF", revision: 1, ownerId: "a",
       options: { firstTo: 3, maxPlayers: 4, mode: "competitive", attacksEnabled: true },
       phase: "playing", matchId: "clock-test", preparationId: 1, startsAt: null, prepareDeadline: null,
-      players: ["a", "b"].map(playerId => ({ playerId, name: playerId, connected: true,
+      players: ["a", "b"].map(playerId => ({ playerId, name: playerId, skin: "classic", connected: true,
         ready: true, prepared: true, deadline: null, withdrawn: false })),
     },
     owner: { generation: 0, epoch: 0, nextSeq: 1, resolvedThroughSeq: 0, pendingAccepted: [], rejections: [] },

@@ -15,6 +15,7 @@ import { drawBoard } from "./board-view";
 import { mountOnline } from "./online-view";
 import { mountGuestName } from "./guest-name";
 import { dismissSettingsOnBackdrop } from "./settings-dialog";
+import { MultiplayerSkinPreference, setupMultiplayerSkinSetting, shareableSkinId } from "./multiplayer-skins";
 import { mountGameplayInput } from "./gameplay-input";
 import { renderOnlineWaiting } from "./waiting-view";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
@@ -64,6 +65,8 @@ const bindings = loadKeybinds();
 const cancelKeyCapture = setupKeybinds(bindings, updateControls);
 const skins = new SkinState(() => localStorage);
 void skins.select(skins.preferences.active, false);
+const multiplayerSkins = new MultiplayerSkinPreference();
+setupMultiplayerSkinSetting(multiplayerSkins);
 setupSettingsTabs(cancelKeyCapture, setupSkins(skins));
 let showGhost = setupGhost(enabled => { showGhost = enabled; });
 // Zen is selected per game; old preferences no longer control gameplay.
@@ -275,6 +278,7 @@ async function enterOnline() {
   const root = document.querySelector<HTMLElement>("#online")!;
   online = mountOnline(root, {
     clearKeys: () => pressed.clear(), handling: () => handling, skins, invite,
+    skin: () => shareableSkinId(skins.preferences.active), skinMode: () => multiplayerSkins.mode,
     view: view => { if (!atHome) showView(view); },
     local() {
       online?.destroy();

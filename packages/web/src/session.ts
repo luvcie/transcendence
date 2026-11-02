@@ -12,6 +12,7 @@ export interface SessionOptions {
   profile: Pick<Storage, "getItem" | "setItem">;
   connect(callbacks: { open(): void; message(message: ServerMessage): void; close(): void }): Transport;
   clearKeys(): void;
+  skin?(): string;
 }
 type Pending = InputItem & { sent: boolean };
 // Attempts at 0, 600, 1800, 4200 and 8200 ms cover a half-open lease's
@@ -49,6 +50,7 @@ export class Session {
   private sequence = -1;
   private invite = "";
   private inviteSent = false;
+  private sharedSkin = "";
   notice = "";
   private previousName: string | null = null;
 
@@ -105,7 +107,10 @@ export class Session {
           profile = `guest-${this.options.now()}-${Math.random().toString(36).slice(2)}`;
           this.store(this.options.profile, "42tris.profile", profile);
         }
+        const skin = this.options.skin?.();
+        this.sharedSkin = skin ?? "";
         this.socket?.send({ type: "hello", name: this.name, guestProfileId: profile,
+          ...(skin ? { skin } : {}),
           resumeToken: this.read(this.options.storage, "42tris.resume") || undefined });
       },
       message: message => { if (serial === this.serial) this.receive(message); },
@@ -345,6 +350,11 @@ export class Session {
         this.disconnected();
       }
       return;
+    }
+    const skin = this.options.skin?.();
+    if (skin && skin !== this.sharedSkin) {
+      this.sharedSkin = skin;
+      this.send({ type: "skin", skin });
     }
     if (now - this.lastPing >= 2000) {
       const nonce = String(now);

@@ -5,12 +5,15 @@ const integer = (minimum = 0, maximum = Number.MAX_SAFE_INTEGER) => t.Integer({ 
 const text = (maxLength: number) => t.String({ minLength: 1, maxLength });
 const object = <T extends Record<string, import("elysia").TSchema>>(properties: T) => t.Object(properties, { additionalProperties: false });
 export const NameSchema = t.String({ minLength: 1, maxLength: 24, pattern: "^[^<>\\x00-\\x1f\\x7f]+$" });
+// Cosmetic built-in skin ids only. Custom sheets never leave the device that owns them.
+export const SkinIdSchema = t.String({ minLength: 1, maxLength: 32, pattern: "^[A-Za-z0-9]+$" });
 export const HandlingSchema = object({ das: t.Number({ minimum: 0, maximum: 20 }), arr: t.Number({ minimum: 0, maximum: 15 }), sddas: t.Number({ minimum: 0, maximum: 10 }), sdarr: t.Number({ minimum: 0, maximum: 4 }) });
 export const RoomOptionsSchema = object({ firstTo: integer(1, 100), width: t.Optional(integer(4, 12)), maxPlayers: t.Optional(integer(2, 8)), mode: t.Union([t.Literal("competitive"), t.Literal("practice")]), attacksEnabled: t.Boolean() });
 export const InputItemSchema = object({ seq: integer(1), frame: integer(), subframe: t.Number({ minimum: 0, exclusiveMaximum: 1 }), input: t.Union([t.Literal(0), t.Literal(1), t.Literal(2), t.Literal(3), t.Literal(4), t.Literal(5), t.Literal(6), t.Literal(7), t.Literal(8), t.Literal(9), t.Literal(10)]) });
 export const ClientCommandSchema = t.Union([
-  object({ type: t.Literal("hello"), resumeToken: t.Optional(text(128)), guestProfileId: t.Optional(text(128)), name: NameSchema }),
+  object({ type: t.Literal("hello"), resumeToken: t.Optional(text(128)), guestProfileId: t.Optional(text(128)), name: NameSchema, skin: t.Optional(SkinIdSchema) }),
   object({ type: t.Literal("rename"), name: NameSchema }),
+  object({ type: t.Literal("skin"), skin: SkinIdSchema }),
   object({ type: t.Literal("create"), requestId: text(64), options: RoomOptionsSchema }),
   object({ type: t.Literal("configure"), options: RoomOptionsSchema }),
   object({ type: t.Literal("join"), code: t.String({ pattern: "^[A-HJ-NP-Z2-9]{6}$" }) }),
@@ -40,7 +43,7 @@ export interface RoomState {
   preparationId: number;
   startsAt: number | null;
   prepareDeadline: number | null;
-  players: { playerId: string; name: string; connected: boolean; ready: boolean; prepared: boolean; deadline: number | null; withdrawn: boolean }[];
+  players: { playerId: string; name: string; skin: string; connected: boolean; ready: boolean; prepared: boolean; deadline: number | null; withdrawn: boolean }[];
 }
 export interface InputAck {
   generation: number;
@@ -75,7 +78,7 @@ export const RoomStateSchema = object({
   code: t.String(), revision: integer(), ownerId: t.String(), options: RoomOptionsSchema,
   phase: t.Union([t.Literal("waiting"), t.Literal("preparing"), t.Literal("countdown"), t.Literal("playing"), t.Literal("paused"), t.Literal("roundResult"), t.Literal("setResult")]),
   matchId: nullableId, preparationId: integer(), startsAt: nullableTime, prepareDeadline: nullableTime,
-  players: t.Array(object({ playerId: t.String(), name: t.String(), connected: t.Boolean(), ready: t.Boolean(), prepared: t.Boolean(), deadline: nullableTime, withdrawn: t.Boolean() })),
+  players: t.Array(object({ playerId: t.String(), name: t.String(), skin: SkinIdSchema, connected: t.Boolean(), ready: t.Boolean(), prepared: t.Boolean(), deadline: nullableTime, withdrawn: t.Boolean() })),
 });
 // Simulation checkpoints/events are trusted Match output. Only transport envelopes
 // are validated here; Match owns the versioned nested simulation format.

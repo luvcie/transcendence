@@ -7,6 +7,7 @@ import { mountOnline } from "./src/online-view";
 import { renderOnlineWaiting } from "./src/waiting-view";
 import { Session } from "./src/session";
 import { SkinState } from "./src/skin-state";
+import type { MultiplayerSkinMode } from "./src/multiplayer-skins";
 
 class Element extends EventTarget {
   textContent = "";
@@ -26,10 +27,12 @@ class Element extends EventTarget {
   classes = new Set<string>();
   classList = { add: (name: string) => this.classes.add(name), remove: (name: string) => this.classes.delete(name) };
   calls: string[] = [];
+  images: unknown[] = [];
   elements = { namedItem: (name: string) => this.querySelector(name) };
   context = {
     canvas: this, clearRect: () => { this.calls.push("clear"); }, fillRect: () => { this.calls.push("tile"); },
-    fillText: (text: string) => { this.calls.push(text); }, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, strokeRect() {},
+    fillText: (text: string) => { this.calls.push(text); }, drawImage: (image: unknown) => { this.images.push(image); },
+    beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, strokeRect() {},
   };
   constructor(readonly ownerDocument: FakeDocument) { super(); }
   querySelector(selector: string): Element {
@@ -58,7 +61,7 @@ class FakeDocument {
   }
 }
 
-function harness(invite?: string) {
+function harness(invite?: string, settings: { skins?: SkinState; skinMode?: () => MultiplayerSkinMode } = {}) {
   const document = new FakeDocument();
   if (invite !== undefined) document.location = new URL(`https://example.com/?room=${invite}`);
   const storage = { getItem: () => null, setItem() {}, removeItem() {} };
@@ -71,7 +74,8 @@ function harness(invite?: string) {
   const view = mountOnline(document.root as unknown as HTMLElement, {
     session, invite, clearKeys() {}, handling: () => DEFAULT_HANDLING, view: showView,
     local() { returnedLocal = true; showView("solo"); },
-    skins: new SkinState(() => storage),
+    skins: settings.skins ?? new SkinState(() => storage),
+    skinMode: settings.skinMode ?? (() => "player"),
   });
   session.receive({ type: "welcome", guestSessionId: "a", playerId: "a", resumeToken: "token", name: "A", room: null, generation: 0, serverNow: 0 });
   const match = new Match({ players: ["a", "b"], seed: 123, mode: "practice" });
@@ -81,7 +85,7 @@ function harness(invite?: string) {
     type: "checkpoint", serverSequence: 1, serverNow: 0, matchId: "match", state,
     room: { code: "ABCDEF", revision: 1, ownerId: "a", options: { firstTo: 3, maxPlayers: 4, mode: "practice", attacksEnabled: true },
       phase: "playing", matchId: "match", preparationId: 1, startsAt: null, prepareDeadline: null,
-      players: ["a", "b"].map(playerId => ({ playerId, name: playerId, connected: true, ready: true, prepared: true, deadline: null, withdrawn: false })) },
+      players: ["a", "b"].map(playerId => ({ playerId, name: playerId, skin: "classic", connected: true, ready: true, prepared: true, deadline: null, withdrawn: false })) },
     owner: { generation: 0, epoch: 0, nextSeq: 1, resolvedThroughSeq: 0, pendingAccepted: [], rejections: [] },
     clock: { currentTargetFrame: 0, simulationNow: 0, origin: 0, pausedTotal: 0, commitDelayMs: 100, frozen: false }, roundDurations: [], events: [],
   };
@@ -161,7 +165,7 @@ test.each([2, 3, 4, 8])("match layout and garbage use the authoritative roster w
   const packet = { id: 1, from: "b", to: "a", lines: 7, kind: "base" as const, atMs: 0, eligibleAtMs: 1000 };
   state.players[0].garbage.packets.push(packet);
   state.players[1].garbage.packets.push({ ...packet, id: 2, from: "a", to: "b", lines: 13 });
-  h.session.receive({ ...h.cp, state, room: { ...h.cp.room, players: ids.map(playerId => ({ playerId, name: playerId, connected: true, ready: true, prepared: true, deadline: null, withdrawn: false })) } });
+  h.session.receive({ ...h.cp, state, room: { ...h.cp.room, players: ids.map(playerId => ({ playerId, name: playerId, skin: "classic", connected: true, ready: true, prepared: true, deadline: null, withdrawn: false })) } });
   h.render();
   expect(h.document.querySelector("main").attributes.get("data-layout")).toBe(count === 2 ? "duel" : "group");
   const opponents = h.document.querySelector("[data-opponents]");
@@ -347,6 +351,29 @@ test("room updates preserve form focus and phase changes do not steal focus from
   h.view.destroy();
 });
 
+
+test("opponent boards use their owner's skin and the local override redraws immediately", async () => {
+  let mode: MultiplayerSkinMode = "player";
+  const images: Record<string, unknown> = { four: {}, tetrio: {} };
+  const storage = { getItem: () => null, setItem() {} };
+  const skins = new SkinState(() => storage, async skin => skin.url
+    ? { def: skin, image: images[skin.id] as HTMLImageElement, tile: 30 } : undefined);
+  await skins.select("four");
+  const h = harness(undefined, { skins, skinMode: () => mode });
+  h.cp.room.players[0].skin = "four";
+  h.cp.room.players[1].skin = "tetrio";
+  h.session.receive({ ...h.cp, serverSequence: 2 });
+  h.render();
+  const opponent = h.document.querySelector("[data-opponents]").children[0];
+  const board = opponent.children[0].children[1].children[1];
+  await Bun.sleep(0);
+  h.render();
+  expect(board.images.at(-1)).toBe(images.tetrio);
+  mode = "local";
+  h.render();
+  expect(board.images.at(-1)).toBe(images.four);
+  h.view.destroy();
+});
 
 test("home and mode selection hide gameplay without leaving the connected online room", () => {
   const h = harness();

@@ -8,9 +8,11 @@ import type { PieceId } from "@42tris/core";
 import type { SkinState } from "./skin-state";
 import { onlineView, type AppView } from "./app-view";
 import { formatTime } from "./singleplayer";
+import { MultiplayerSkinResolver, playerSkinAssignments, type MultiplayerSkinMode } from "./multiplayer-skins";
 
 export function mountOnline(root: HTMLElement, options: {
   clearKeys(): void; handling(): Handling; local(): void; skins: SkinState;
+  skin?(): string; skinMode(): MultiplayerSkinMode;
   session?: Session; invite?: string | null; view?(view: AppView): void;
 }) {
   const document = root.ownerDocument;
@@ -21,7 +23,7 @@ export function mountOnline(root: HTMLElement, options: {
     removeItem: (key: string) => window[kind].removeItem(key),
   });
   const session = options.session ?? new Session({ now: () => performance.now(), storage: storage("sessionStorage"), profile: storage("localStorage"),
-    clearKeys: options.clearKeys,
+    clearKeys: options.clearKeys, skin: options.skin,
     connect(callbacks) {
       const socket = createClient(location.origin).ws.subscribe();
       socket.on("open", callbacks.open);
@@ -150,6 +152,10 @@ export function mountOnline(root: HTMLElement, options: {
   let optionsKey = "";
   let lastCheckpoint = -1;
   let lastSkin = options.skins.loaded;
+  let lastSkinSource = "";
+  let lastSkinsRevision = -1;
+  let skinsRevision = 0;
+  const remoteSkins = new MultiplayerSkinResolver(options.skins.load, () => { skinsRevision++; });
   let returnLocal = false;
   let previousView: AppView | undefined;
   const boards = new Map<string, { container: HTMLElement; canvas: HTMLCanvasElement; label: HTMLElement; meter: HTMLElement; hold: HTMLCanvasElement; next: HTMLCanvasElement }>();
@@ -258,9 +264,14 @@ export function mountOnline(root: HTMLElement, options: {
     element("[data-attacks]").hidden = room.options.mode !== "practice" || room.phase !== "playing" || room.ownerId !== session.playerId;
     for (const selector of ["[data-reset]", "[data-attacks]", "[data-leave]"]) element<HTMLButtonElement>(selector).disabled = !session.connected;
     if (!cp) { clearMatch(); return; }
-    const redraw = cp.serverSequence !== lastCheckpoint || options.skins.loaded !== lastSkin;
+    const mode = options.skinMode();
+    const skinSource = `${mode}|${room.revision}|${room.players.map(player => `${player.playerId}:${player.skin ?? ""}`).join(",")}`;
+    const redraw = cp.serverSequence !== lastCheckpoint || options.skins.loaded !== lastSkin
+      || skinSource !== lastSkinSource || skinsRevision !== lastSkinsRevision;
     lastCheckpoint = cp.serverSequence;
     lastSkin = options.skins.loaded;
+    lastSkinSource = skinSource;
+    lastSkinsRevision = skinsRevision;
     const state = cp.state;
     if (!state) { clearMatch(); return; }
     const main = stageElement("main");
@@ -296,6 +307,8 @@ export function mountOnline(root: HTMLElement, options: {
       }));
     }
     for (const [id, board] of boards) if (!state.roster.includes(id)) { board.container.remove(); boards.delete(id); }
+    const boardSkins = redraw ? playerSkinAssignments(state.roster, room.players, session.playerId,
+      options.skins.loaded, mode, skin => remoteSkins.get(skin)) : undefined;
     state.roster.forEach((id, index) => {
       if (id === session.playerId) return;
       let board = boards.get(id);
@@ -344,13 +357,14 @@ export function mountOnline(root: HTMLElement, options: {
       board.meter.setAttribute("aria-label", `${playerName(id)} incoming garbage lines`);
       setGarbage(board.meter, p.garbage.packets.reduce((n, packet) => n + packet.lines, 0));
       if (redraw) {
-        drawSnapshot(board.canvas.getContext("2d")!, p.game, options.skins.loaded);
+        const skin = boardSkins!.get(id);
+        drawSnapshot(board.canvas.getContext("2d")!, p.game, skin);
         const hold = board.hold.getContext("2d")!;
         const next = board.next.getContext("2d")!;
         hold.clearRect(0, 0, board.hold.width, board.hold.height);
         next.clearRect(0, 0, board.next.width, board.next.height);
-        if (p.game.state.held !== null) drawPiecePreview(hold, p.game.state.held, 30, 150, 90, 0, options.skins.loaded);
-        p.game.previews.forEach((piece, i) => drawPiecePreview(next, piece as PieceId, 30, 150, 90, i * 90, options.skins.loaded));
+        if (p.game.state.held !== null) drawPiecePreview(hold, p.game.state.held, 30, 150, 90, 0, skin);
+        p.game.previews.forEach((piece, i) => drawPiecePreview(next, piece as PieceId, 30, 150, 90, i * 90, skin));
       }
     });
   }
