@@ -10,7 +10,7 @@ import { onlineView, type AppView } from "./app-view";
 
 export function mountOnline(root: HTMLElement, options: {
   clearKeys(): void; handling(): Handling; local(): void; skins: SkinState;
-  session?: Session; view?(view: AppView): void;
+  session?: Session; invite?: string | null; view?(view: AppView): void;
 }) {
   const document = root.ownerDocument;
   const location = document.location;
@@ -346,6 +346,7 @@ export function mountOnline(root: HTMLElement, options: {
       }
     });
   }
+  if (options.invite !== undefined && options.invite !== null) session.joinInvite(options.invite);
   session.start();
   return { session, update, local: () => leave(true), closeDetails,
     get detailsOpen() { return roomDialog.open; },

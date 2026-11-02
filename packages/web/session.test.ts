@@ -35,6 +35,58 @@ function harness() {
     receive: (message: ServerMessage) => session.receive(message) };
 }
 
+describe("invitation links", () => {
+  function invited(code: string) {
+    const sent: ClientCommand[] = [];
+    const sockets: Parameters<SessionOptions["connect"]>[0][] = [];
+    const session = new Session({ now: () => 0, storage: storage(), profile: storage(), clearKeys() {},
+      connect(callbacks) { sockets.push(callbacks); return { send: command => sent.push(command), close() {} }; } });
+    session.joinInvite(code);
+    session.start();
+    const welcome = (room: Checkpoint["room"] | null = null) => sockets.at(-1)!.message({ type: "welcome", guestSessionId: "a", playerId: "a", resumeToken: "token", name: "A", room, generation: 0, serverNow: 0 });
+    return { session, sockets, sent, welcome };
+  }
+  test("waits for welcome and sends only one join on the connection", () => {
+    const h = invited("abcdef");
+    h.sockets[0].open();
+    expect(h.sent.map(c => c.type)).toEqual(["hello"]);
+    h.welcome(); h.welcome();
+    expect(h.sent.filter(c => c.type === "join")).toEqual([{ type: "join", code: "ABCDEF" }]);
+  });
+  test.each(["ROOM_NOT_FOUND", "ROOM_FULL", "ROOM_BUSY"] as const)("shows a useful %s error and permits manual joining", code => {
+    const h = invited("ABCDEF");
+    h.welcome();
+    h.sockets[0].message({ type: "error", code, message: code });
+    expect(h.session.status).toMatch(/Room (not found|is full|is unavailable)/);
+    h.welcome();
+    h.session.send({ type: "join", code: "ZZZZZZ" });
+    expect(h.sent.filter(c => c.type === "join")).toEqual([{ type: "join", code: "ABCDEF" }, { type: "join", code: "ZZZZZZ" }]);
+  });
+  test("rejects malformed codes without sending a join", () => {
+    const h = invited("bad");
+    h.welcome();
+    expect(h.session.notice).toContain("Invalid invitation code");
+    expect(h.sent.some(c => c.type === "join")).toBe(false);
+  });
+  test("resumes existing membership and retries only an unacknowledged join after reconnect", () => {
+    const h = invited("ABCDEF");
+    h.welcome();
+    h.session.stop(); h.session.start(); h.welcome(checkpoint().room);
+    expect(h.sent.filter(c => c.type === "join")).toHaveLength(1);
+    h.session.stop(); h.session.start(); h.welcome();
+    expect(h.sent.filter(c => c.type === "join")).toHaveLength(1);
+    const retry = invited("ABCDEF");
+    retry.welcome(); retry.session.stop(); retry.session.start(); retry.welcome();
+    expect(retry.sent.filter(c => c.type === "join")).toHaveLength(2);
+  });
+  test("keeps a different restored room instead of switching rooms", () => {
+    const h = invited("ZZZZZZ");
+    h.welcome(checkpoint().room);
+    expect(h.sent.some(c => c.type === "join")).toBe(false);
+    expect(h.session.notice).toContain("already in room ABCDEF");
+  });
+});
+
 describe("owner session", () => {
   test("predicts immediately, batches at 34ms, and restores accepted inputs only once", () => {
     const h = harness();

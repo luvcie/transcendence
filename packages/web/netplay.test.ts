@@ -9,7 +9,7 @@ test("real Eden sessions play, resume, undo, reset, finish a set and explicitly 
   const origin = `http://127.0.0.1:${app.server!.port}`;
   const errors: string[] = [];
   const sessions: Session[] = [];
-  const make = () => {
+  const make = (invite?: string) => {
     const values = new Map<string, string>();
     const storage = { getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => { values.set(key, value); }, removeItem: (key: string) => { values.delete(key); } };
@@ -24,6 +24,7 @@ test("real Eden sessions play, resume, undo, reset, finish a set and explicitly 
         return { send: command => socket.send(command), close: () => socket.close() };
       },
     });
+    if (invite) session.joinInvite(invite);
     sessions.push(session); session.start(); return session;
   };
   const wait = async (condition: () => boolean, label: string, timeout = 6000) => {
@@ -35,13 +36,14 @@ test("real Eden sessions play, resume, undo, reset, finish a set and explicitly 
   };
   const timer = setInterval(() => sessions.forEach(s => s.tick()), 8);
   try {
-    const a = make(), b = make();
-    await wait(() => a.connected && b.connected, "welcome");
-    expect(a.playerId).not.toBe(b.playerId);
+    const a = make();
+    await wait(() => a.connected, "welcome");
     a.send({ type: "create", requestId: "web-integration", options: { firstTo: 3, maxPlayers: 4, mode: "practice", attacksEnabled: true } });
     await wait(() => !!a.room, "create");
-    b.send({ type: "join", code: a.room!.code });
+    const b = make(a.room!.code);
     await wait(() => b.room?.players.length === 2, "join");
+    expect(a.playerId).not.toBe(b.playerId);
+    expect(b.room!.players.find(player => player.playerId === b.playerId)!.ready).toBe(false);
     for (const session of [a, b]) session.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
     await wait(() => a.canPlay && b.canPlay, "prepared/countdown/play");
     const x = a.prediction!.gameState().state.x;

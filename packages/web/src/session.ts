@@ -47,10 +47,20 @@ export class Session {
   private resyncAt = -Infinity;
   private receivedAt = 0;
   private sequence = -1;
+  private invite = "";
+  private inviteSent = false;
   notice = "";
 
   constructor(private options: SessionOptions) {
     this.name = this.read(options.profile, "42tris.name") || "Guest";
+  }
+  joinInvite(code: string) {
+    const normalized = code.toUpperCase();
+    if (!/^[A-HJ-NP-Z2-9]{6}$/.test(normalized)) {
+      this.notice = "Invalid invitation code. Enter a valid room code to join.";
+      return;
+    }
+    this.invite = normalized;
   }
   private read(storage: SessionOptions["profile"], key: string) {
     try { return storage.getItem(key); }
@@ -82,6 +92,7 @@ export class Session {
     const serial = ++this.serial;
     this.socket?.close();
     this.connected = false;
+    this.inviteSent = false;
     this.openedAt = this.options.now();
     this.retryAt = Infinity;
     this.status = this.attempts ? `Reconnecting (${this.attempts}/8)…` : "Connecting…";
@@ -129,7 +140,10 @@ export class Session {
     this.store(this.options.profile, "42tris.name", this.name);
     this.send({ type: "rename", name: this.name });
   }
-  send(command: ClientCommand) { if (this.connected) this.socket?.send(command); }
+  send(command: ClientCommand) {
+    if (command.type === "join" || command.type === "create") this.invite = "";
+    if (this.connected) this.socket?.send(command);
+  }
   serverNow() { return this.options.now() + this.offset; }
   private invalidate() {
     this.pending = [];
@@ -212,9 +226,19 @@ export class Session {
         this.store(this.options.storage, "42tris.resume", message.resumeToken);
         this.status = `Connected as ${message.name}`;
         this.lastPing = -Infinity;
+        if (this.invite) {
+          if (message.room) {
+            if (message.room.code !== this.invite) this.notice = `You are already in room ${message.room.code}. Leave it to join another room.`;
+            this.invite = "";
+          } else if (!this.inviteSent) {
+            this.inviteSent = true;
+            this.socket?.send({ type: "join", code: this.invite });
+          }
+        }
         break;
       case "roomState":
         this.room = message.room;
+        this.invite = "";
         if (message.room.phase !== "playing") this.options.clearKeys();
         break;
       case "checkpoint": {
@@ -222,6 +246,7 @@ export class Session {
         this.sequence = message.serverSequence;
         this.receivedAt = this.options.now();
         this.room = message.room;
+        this.invite = "";
         const identity = [message.matchId, message.state?.round, message.owner.generation, message.owner.epoch].join(":");
         const changed = identity !== this.identity;
         if (changed) {
@@ -273,6 +298,12 @@ export class Session {
       }
       case "error":
         this.status = `${message.code}: ${message.message}`;
+        if (this.invite && ["ROOM_NOT_FOUND", "ROOM_FULL", "ROOM_BUSY"].includes(message.code)) {
+          this.status = message.code === "ROOM_NOT_FOUND" ? "Room not found or expired. Check the code and try again."
+            : message.code === "ROOM_FULL" ? "Room is full. Try another room code."
+            : "Room is unavailable to join right now. Try another room code.";
+          this.invite = "";
+        }
         if (message.code === "ALREADY_CONNECTED") {
           this.duplicate = true;
           this.socket?.close();

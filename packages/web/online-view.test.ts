@@ -58,8 +58,9 @@ class FakeDocument {
   }
 }
 
-function harness() {
+function harness(invite?: string) {
   const document = new FakeDocument();
+  if (invite !== undefined) document.location = new URL(`https://example.com/?room=${invite}`);
   const storage = { getItem: () => null, setItem() {}, removeItem() {} };
   const sent: ClientCommand[] = [];
   let returnedLocal = false;
@@ -68,7 +69,7 @@ function harness() {
   const session = new Session({ now: () => 0, storage, profile: storage, clearKeys() {},
     connect: () => ({ send(command) { sent.push(command); }, close() {} }) });
   const view = mountOnline(document.root as unknown as HTMLElement, {
-    session, clearKeys() {}, handling: () => DEFAULT_HANDLING, view: showView,
+    session, invite, clearKeys() {}, handling: () => DEFAULT_HANDLING, view: showView,
     local() { returnedLocal = true; showView("solo"); },
     skins: new SkinState(() => storage),
   });
@@ -90,6 +91,18 @@ function harness() {
   };
   return { document, session, view, cp, render, sent, get returnedLocal() { return returnedLocal; } };
 }
+
+test("invitation joins after welcome and displays the existing waiting interface", () => {
+  const h = harness("abcdef");
+  expect(h.sent.filter(command => command.type === "join")).toEqual([{ type: "join", code: "ABCDEF" }]);
+  h.session.receive({ type: "roomState", room: { ...h.cp.room, phase: "waiting", matchId: null,
+    players: h.cp.room.players.map(player => ({ ...player, ready: false })) }, serverNow: 0 });
+  h.view.update();
+  expect(h.document.querySelector("main").getAttribute("data-view")).toBe("waiting");
+  expect(h.document.querySelector("[data-entry]").hidden).toBe(true);
+  expect(h.sent.some(command => command.type === "ready")).toBe(false);
+  h.view.destroy();
+});
 
 test("mounted opponent view renders settlement-required snapshots without restoring or simulating a Game", () => {
   const h = harness();

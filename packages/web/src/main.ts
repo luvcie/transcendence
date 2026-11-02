@@ -21,6 +21,7 @@ import { snapshotDisplay, type GameDisplay } from "./game-display";
 import { mountAppView } from "./app-view";
 
 let online: ReturnType<typeof mountOnline> | undefined;
+let invite = new URL(location.href).searchParams.get("room");
 const showView = mountAppView(document);
 showView("solo");
 
@@ -161,7 +162,7 @@ function enterOnline() {
   const root = document.querySelector<HTMLElement>("#online")!;
   showView("lobby");
   online = mountOnline(root, {
-    clearKeys: () => pressed.clear(), handling: () => handling, skins, view: showView,
+    clearKeys: () => pressed.clear(), handling: () => handling, skins, view: showView, invite,
     local() {
       online?.destroy();
       online = undefined;
@@ -172,6 +173,7 @@ function enterOnline() {
       restart();
     },
   });
+  invite = null;
 }
 document.querySelector("#online-button")!.addEventListener("click", enterOnline);
 function enterSolo() {
