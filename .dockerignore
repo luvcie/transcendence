@@ -1,0 +1,7 @@
+.git
+node_modules
+**/node_modules
+packages/web/dist
+.env
+.env.*
+.local-notes
