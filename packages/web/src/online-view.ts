@@ -3,6 +3,8 @@ import { createClient } from "@42tris/protocol/client";
 import type { RoomOptions, ServerMessage } from "@42tris/protocol";
 import { Session } from "./session";
 import { drawSnapshot } from "./board-view";
+import { drawPiecePreview } from "./tile-renderer";
+import type { PieceId } from "@42tris/core";
 import type { SkinState } from "./skin-state";
 
 export function mountOnline(root: HTMLElement, options: {
@@ -42,12 +44,13 @@ export function mountOnline(root: HTMLElement, options: {
     </div>
     <section data-room hidden><h2 data-code></h2><button data-copy>Copy invite</button>
       <p data-phase></p><p data-settings></p><ul data-roster></ul>
-      <p data-result role="status"></p><p data-garbage></p><meter data-meter min="0" max="40" value="0" aria-label="Incoming garbage lines"></meter>
+      <p data-result role="status"></p>
       <div class="actions"><button data-ready>Ready</button><button data-leave>Leave room</button>
       <button data-reset hidden>Reset my practice board</button><button data-attacks hidden>Toggle attacks</button></div>
       <p class="hint">Handling is fixed for the active set. Settings changes apply to your next set. Escape opens the menu; online play keeps running.</p>
-    </section><div data-opponents></div>`;
+    </section>`;
   const element = <T extends HTMLElement = HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
+  const stageElement = <T extends HTMLElement = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
   const text = (selector: string, value: string) => {
     const node = element(selector);
     if (node.textContent !== value) node.textContent = value;
@@ -110,13 +113,20 @@ export function mountOnline(root: HTMLElement, options: {
   let lastCheckpoint = -1;
   let lastSkin = options.skins.loaded;
   let returnLocal = false;
-  const boards = new Map<string, { canvas: HTMLCanvasElement; label: HTMLElement }>();
+  const boards = new Map<string, { container: HTMLElement; canvas: HTMLCanvasElement; label: HTMLElement; meter: HTMLElement; hold: HTMLCanvasElement; next: HTMLCanvasElement }>();
+  function setGarbage(meter: HTMLElement, lines: number) {
+    meter.setAttribute("aria-valuemax", String(Math.max(40, lines)));
+    meter.setAttribute("aria-valuenow", String(lines));
+    meter.setAttribute("aria-valuetext", `${lines} incoming garbage lines`);
+    meter.setAttribute("style", `--garbage: ${Math.min(lines / 40, 1) * 100}%`);
+  }
   function clearMatch() {
-    if (boards.size) { boards.clear(); element("[data-opponents]").replaceChildren(); }
+    if (boards.size) { boards.clear(); stageElement("[data-opponents]").replaceChildren(); }
     text("[data-result]", "");
-    text("[data-garbage]", "");
-    element<HTMLMeterElement>("[data-meter]").value = 0;
-    element("[data-meter]").hidden = true;
+    const meter = stageElement("[data-local-meter]");
+    setGarbage(meter, 0);
+    meter.hidden = true;
+    stageElement("main").classList.remove("match-active");
   }
   function update() {
     session.tick();
@@ -170,40 +180,75 @@ export function mountOnline(root: HTMLElement, options: {
     element("[data-reset]").hidden = room.options.mode !== "practice" || room.phase !== "playing";
     element("[data-attacks]").hidden = room.options.mode !== "practice" || room.phase !== "playing" || room.ownerId !== session.playerId;
     const cp = session.checkpoint;
-    if (!cp || (cp.serverSequence === lastCheckpoint && options.skins.loaded === lastSkin)) return;
+    if (!cp) return;
+    const redraw = cp.serverSequence !== lastCheckpoint || options.skins.loaded !== lastSkin;
     lastCheckpoint = cp.serverSequence;
     lastSkin = options.skins.loaded;
     const state = cp.state;
     if (!state) { clearMatch(); return; }
-    element("[data-meter]").hidden = false;
+    const main = stageElement("main");
+    main.classList.add("match-active");
+    main.setAttribute("data-layout", state.roster.length === 2 ? "duel" : "group");
+    stageElement("[data-opponents]").setAttribute("style", `--opponent-columns: ${Math.min(4, state.roster.length - 1)}`);
+    const localMeter = stageElement("[data-local-meter]");
+    localMeter.hidden = false;
     const owner = state.players[state.roster.indexOf(session.playerId)];
     const garbage = owner?.garbage.packets.reduce((n, p) => n + p.lines, 0) ?? 0;
-    text("[data-garbage]", `Incoming garbage: ${garbage} lines`);
-    element<HTMLMeterElement>("[data-meter]").value = garbage;
+    setGarbage(localMeter, garbage);
     const result = [...cp.events].reverse().find(({ event }) => event.round === state.round && (event.type === "setEnd" || event.type === "roundEnd"))?.event;
     const playerName = (id: string) => room.players.find(p => p.playerId === id)?.name ?? id;
     text("[data-result]", ["roundResult", "setResult"].includes(room.phase)
       ? result && (result.type === "setEnd" || result.type === "roundEnd")
         ? `${result.type === "setEnd" ? "Set" : "Round"}: ${result.winner ? `${playerName(result.winner)} wins` : result.reason === "aborted" ? "aborted; no winner" : "draw"} · ${result.reason}`
         : `${room.phase === "setResult" ? "Set" : "Round"} finished. Scores: ${state.roster.map((id, i) => `${playerName(id)} ${state.scores[i]}`).join(" · ")}` : "");
-    for (const [id, board] of boards) if (!state.roster.includes(id)) { board.canvas.parentElement!.remove(); boards.delete(id); }
+    for (const [id, board] of boards) if (!state.roster.includes(id)) { board.container.remove(); boards.delete(id); }
     state.roster.forEach((id, index) => {
       if (id === session.playerId) return;
       let board = boards.get(id);
       if (!board) {
         const container = document.createElement("section");
+        container.className = "opponent";
         const label = document.createElement("p");
+        label.className = "opponent-label";
+        const field = document.createElement("div");
+        field.className = "opponent-field";
+        const preview = (title: string, height: number) => {
+          const panel = document.createElement("aside");
+          panel.className = "preview-panel";
+          const heading = document.createElement("p"); heading.textContent = title;
+          const canvas = document.createElement("canvas"); canvas.width = 150; canvas.height = height;
+          panel.append(heading, canvas);
+          return { panel, canvas };
+        };
+        const hold = preview("Hold", 90);
+        const next = preview("Next", 450);
+        const frame = document.createElement("div"); frame.className = "board-frame";
+        const meter = document.createElement("div"); meter.className = "garbage-meter";
+        meter.setAttribute("role", "meter"); meter.setAttribute("aria-valuemin", "0"); meter.setAttribute("aria-valuemax", "40");
+        const fill = document.createElement("div"); fill.className = "garbage-fill"; meter.append(fill);
         const canvas = document.createElement("canvas");
-        canvas.width = 120; canvas.height = 240;
-        container.append(label, canvas);
-        element("[data-opponents]").append(container);
-        board = { canvas, label }; boards.set(id, board);
+        canvas.width = 300; canvas.height = 600;
+        frame.append(meter, canvas);
+        field.append(hold.panel, frame, next.panel);
+        container.append(field, label);
+        stageElement("[data-opponents]").append(container);
+        board = { container, canvas, label, meter, hold: hold.canvas, next: next.canvas }; boards.set(id, board);
       }
       const p = state.players[index];
-      board.label.textContent = `${playerName(id)} · ${state.scores[index]} points${p.game.state.topOut ? " · top out" : ""}${room.players.find(p => p.playerId === id)?.connected ? "" : " · disconnected"}`;
-      drawSnapshot(board.canvas.getContext("2d")!, p.game, options.skins.loaded);
+      board.label.textContent = `${playerName(id)} · ${state.scores[index]} points${p.eliminated ? " · eliminated" : ""}${p.withdrawn ? " · withdrawn" : ""}${room.players.find(p => p.playerId === id)?.connected ? "" : " · disconnected"}`;
+      board.meter.setAttribute("aria-label", `${playerName(id)} incoming garbage lines`);
+      setGarbage(board.meter, p.garbage.packets.reduce((n, packet) => n + packet.lines, 0));
+      if (redraw) {
+        drawSnapshot(board.canvas.getContext("2d")!, p.game, options.skins.loaded);
+        const hold = board.hold.getContext("2d")!;
+        const next = board.next.getContext("2d")!;
+        hold.clearRect(0, 0, board.hold.width, board.hold.height);
+        next.clearRect(0, 0, board.next.width, board.next.height);
+        if (p.game.state.held !== null) drawPiecePreview(hold, p.game.state.held, 30, 150, 90, 0, options.skins.loaded);
+        p.game.previews.forEach((piece, i) => drawPiecePreview(next, piece as PieceId, 30, 150, 90, i * 90, options.skins.loaded));
+      }
     });
   }
   session.start();
-  return { session, update, destroy() { session.stop(); lifetime.abort(); root.replaceChildren(); } };
+  return { session, update, destroy() { session.stop(); lifetime.abort(); clearMatch(); root.replaceChildren(); } };
 }

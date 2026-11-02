@@ -79,13 +79,31 @@
       #online { border-top: 1px solid #666; margin-top: 24px; }
       #online form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
       #online input:not([type=checkbox]) { background: #111; color: #eee; border: 1px solid #666; padding: 8px; max-width: 180px; }
-      [data-opponents] { display: flex; flex-wrap: wrap; gap: 16px; }
-      [data-opponents] section { width: 120px; overflow-wrap: anywhere; }
-      [data-opponents] canvas { outline: 1px solid #444; }
-      @media (min-width: 1050px) {
-        main.online-layout { width: 1000px; display: grid; grid-template-columns: 600px 368px; column-gap: 32px; }
-        main.online-layout > * { grid-column: 1; }
-        main.online-layout > #online { grid-column: 2; grid-row: 1 / span 10; margin-top: 0; align-self: start; }
+      .board-frame { position: relative; min-width: 0; }
+      .garbage-meter { position: absolute; right: calc(100% + 3px); top: 0; bottom: 0; width: 7px; background: #292929; border: 1px solid #555; }
+      .garbage-fill { position: absolute; bottom: 0; width: 100%; height: var(--garbage, 0%); background: #ef5350; }
+      .match-stage > [data-opponents] { display: none; }
+      main.match-active { width: calc(100vw - 32px); max-width: none; container-type: inline-size; }
+      .match-active .match-stage { --board: min(300px, calc((100cqw - 68px) / 4.2), calc((100vh - 150px) / 2)); display: flex; justify-content: center; align-items: start; gap: 28px; }
+      .match-active .playfield { width: calc(var(--board) * 2 + 24px); flex: none; grid-template-columns: calc(var(--board) / 2) var(--board) calc(var(--board) / 2); }
+      .match-active .match-stage > [data-opponents] { display: grid; gap: 16px; }
+      .opponent { min-width: 0; }
+      .opponent-label { margin: 6px 0 0; overflow-wrap: anywhere; font-size: 12px; }
+      .opponent canvas { display: block; width: 100%; height: auto; outline: 1px solid #444; }
+      .opponent-field { display: grid; align-items: start; }
+      .match-active[data-layout=duel] .opponent-field { width: calc(var(--board) * 2 + 24px); grid-template-columns: calc(var(--board) / 2) var(--board) calc(var(--board) / 2); gap: 12px; }
+      .match-active[data-layout=duel] .opponent-label { margin-left: calc(var(--board) / 2 + 12px); }
+      .match-active[data-layout=group] .match-stage { --board: min(300px, calc((100vh - 150px) / 2), calc((100cqw - 68px) / 4)); }
+      .match-active[data-layout=group] [data-opponents] { --small-board: min(120px, calc((100vh - 220px) / 4), calc((100cqw - var(--board) * 2 - 118px) / 4)); grid-template-columns: repeat(var(--opponent-columns), var(--small-board)); gap: 14px 18px; }
+      .match-active[data-layout=group] .opponent-field { grid-template-columns: var(--small-board); }
+      .match-active[data-layout=group] .opponent .preview-panel { display: none; }
+      .match-active[data-layout=group] .garbage-meter { width: 5px; }
+      @media (max-width: 700px) {
+        .match-active .match-stage { gap: 12px; }
+        .match-active .playfield, .match-active[data-layout=duel] .opponent-field { gap: 4px; }
+        .match-active .playfield, .match-active[data-layout=duel] .opponent-field { width: calc(var(--board) * 2 + 8px); }
+        .match-active[data-layout=duel] .opponent-label { margin-left: calc(var(--board) / 2 + 4px); }
+        .match-active[data-layout=group] [data-opponents] { gap: 8px 10px; }
       }
 
     </style>
@@ -93,18 +111,18 @@
   <body>
     <main>
       <p id="status">Loading…</p>
-      <div class="playfield">
+      <div class="match-stage"><div class="playfield">
         <aside class="preview-panel">
           <p>Hold</p>
           <canvas id="hold-preview" width="150" height="90" aria-label="Hold empty"></canvas>
           <button id="hold-button">Hold</button>
         </aside>
-        <canvas id="board" width="300" height="600" aria-label="42tris playfield"></canvas>
+        <div class="board-frame"><div data-local-meter class="garbage-meter" hidden role="meter" aria-label="Your incoming garbage lines" aria-valuemin="0" aria-valuemax="40" aria-valuenow="0"><div class="garbage-fill"></div></div><canvas id="board" width="300" height="600" aria-label="42tris playfield"></canvas></div>
         <aside class="preview-panel">
           <p>Next</p>
           <canvas id="next-preview" width="150" height="450" aria-label="Next pieces"></canvas>
         </aside>
-      </div>
+      </div><div data-opponents></div></div>
       <dl id="game-stats" aria-label="Game statistics">
         <div><dt>Lines</dt><dd id="line-count">0</dd></div>
         <div><dt>Combo</dt><dd id="combo-count">0</dd></div>

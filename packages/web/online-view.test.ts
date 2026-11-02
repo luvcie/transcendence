@@ -20,11 +20,13 @@ class Element extends EventTarget {
   parentElement?: Element;
   nodes = new Map<string, Element>();
   attributes = new Map<string, string>();
+  className = "";
+  classList = { add() {}, remove() {} };
   calls: string[] = [];
   elements = { namedItem: (name: string) => this.querySelector(name) };
   context = {
     canvas: this, clearRect: () => { this.calls.push("clear"); }, fillRect: () => { this.calls.push("tile"); },
-    fillText: (text: string) => { this.calls.push(text); }, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {},
+    fillText: (text: string) => { this.calls.push(text); }, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {}, strokeRect() {},
   };
   constructor(readonly ownerDocument: FakeDocument) { super(); }
   querySelector(selector: string): Element {
@@ -81,8 +83,8 @@ test("mounted opponent view renders settlement-required snapshots without restor
   expect(h.render()).toBe(false);
   const opponents = h.document.querySelector("[data-opponents]");
   expect(opponents.children).toHaveLength(1);
-  expect(opponents.children[0].children[0].textContent).toContain("b · 0 points");
-  expect(opponents.children[0].children[1].calls).toContain("tile");
+  expect(opponents.children[0].children[1].textContent).toContain("b · 0 points");
+  expect(opponents.children[0].children[0].children[1].children[1].calls).toContain("tile");
   h.session.receive({ ...h.cp, serverSequence: 2 });
   expect(() => h.render()).not.toThrow();
   expect(h.cp.state).toEqual(before);
@@ -97,7 +99,7 @@ test("disconnect retains boards; authoritative practice end clears all match pre
   const opponent = node("[data-opponents]").children[0];
   for (const id of ["line-count", "combo-count", "b2b-count", "surge-count", "clear-result", "zen-status"]) node(`#${id}`).textContent = "old match";
   node("[data-result]").textContent = "old result";
-  node("[data-meter]").value = 12;
+  node("[data-local-meter]").setAttribute("aria-valuenow", "12");
   h.session.stop();
   expect(h.render()).toBe(false);
   expect(node("[data-opponents]").children[0]).toBe(opponent);
@@ -109,9 +111,8 @@ test("disconnect retains boards; authoritative practice end clears all match pre
   expect(h.session.prediction).toBeNull();
   expect(node("[data-opponents]").children).toHaveLength(0);
   expect(node("[data-result]").textContent).toBe("");
-  expect(node("[data-garbage]").textContent).toBe("");
-  expect(node("[data-meter]").value).toBe(0);
-  expect(node("[data-meter]").hidden).toBe(true);
+  expect(node("[data-local-meter]").attributes.get("aria-valuenow")).toBe("0");
+  expect(node("[data-local-meter]").hidden).toBe(true);
   expect(node("#board").calls).toContain("Waiting for a match");
   for (const id of ["hold-preview", "next-preview"]) expect(node(`#${id}`).calls).toContain("clear");
   for (const id of ["line-count", "combo-count", "b2b-count", "surge-count", "clear-result", "zen-status"]) expect(node(`#${id}`).textContent).toBe("");
@@ -120,6 +121,24 @@ test("disconnect retains boards; authoritative practice end clears all match pre
   h.session.receive({ ...h.cp, serverSequence: 3, matchId: "next-match" });
   expect(h.render()).toBe(false);
   expect(node("[data-opponents]").children).toHaveLength(1);
-  expect(node("[data-meter]").hidden).toBe(false);
+  expect(node("[data-local-meter]").hidden).toBe(false);
+  h.view.destroy();
+});
+
+test.each([2, 3, 4, 8])("match layout and garbage use the authoritative roster with %i players", count => {
+  const h = harness();
+  const ids = Array.from({ length: count }, (_, i) => String.fromCharCode(97 + i));
+  const state = new Match({ players: ids, seed: 123, mode: "practice" }).saveState();
+  const packet = { id: 1, from: "b", to: "a", lines: 7, kind: "base" as const, atMs: 0, eligibleAtMs: 1000 };
+  state.players[0].garbage.packets.push(packet);
+  state.players[1].garbage.packets.push({ ...packet, id: 2, from: "a", to: "b", lines: 13 });
+  h.session.receive({ ...h.cp, state, room: { ...h.cp.room, players: ids.map(playerId => ({ playerId, name: playerId, connected: true, ready: true, prepared: true, deadline: null, withdrawn: false })) } });
+  h.render();
+  expect(h.document.querySelector("main").attributes.get("data-layout")).toBe(count === 2 ? "duel" : "group");
+  const opponents = h.document.querySelector("[data-opponents]");
+  expect(opponents.children).toHaveLength(count - 1);
+  expect(opponents.attributes.get("style")).toBe(`--opponent-columns: ${Math.min(4, count - 1)}`);
+  expect(h.document.querySelector("[data-local-meter]").attributes.get("aria-valuenow")).toBe("7");
+  expect(opponents.children[0].children[0].children[1].children[0].attributes.get("aria-valuenow")).toBe("13");
   h.view.destroy();
 });
