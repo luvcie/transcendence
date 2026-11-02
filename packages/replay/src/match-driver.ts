@@ -108,7 +108,7 @@ export class MatchDriver {
     const op = record.op;
     if (op.type === "advance") {
       if (op.toFrame < this.match.frame || op.reachedFrame < this.match.frame || op.reachedFrame > op.toFrame
-        || this.frames + op.toFrame - this.match.frame > MAX_MATCH_FRAMES) throw new RangeError("Invalid advance or frame budget exceeded");
+        || this.frames + op.reachedFrame - this.match.frame > MAX_MATCH_FRAMES) throw new RangeError("Invalid advance or frame budget exceeded");
       this.pending = structuredClone(record);
       return this.advance(maxFrames);
     }
@@ -127,13 +127,18 @@ export class MatchDriver {
     if (!this.pending || this.pending.op.type !== "advance") throw new Error("No advance is pending");
     const op = this.pending.op;
     const before = this.match.frame;
-    this.match.advanceToFrame(Math.min(op.toFrame, before + maxFrames));
+    // A claimed early round end can stop before toFrame, but actual work must still
+    // fit the remaining global budget even when reachedFrame is forged small.
+    const remaining = Math.max(0, MAX_MATCH_FRAMES - this.frames);
+    this.match.advanceToFrame(Math.min(op.toFrame, before + Math.min(maxFrames, remaining)));
     this.frames += this.match.frame - before;
     const events = this.match.drainEvents();
     if (this.match.ended || this.match.frame === op.toFrame) {
       if (this.match.frame !== op.reachedFrame) throw new RangeError("Reached frame mismatch");
       this.pending = null;
       this.cursor++;
+    } else if (this.frames >= MAX_MATCH_FRAMES) {
+      throw new RangeError("Match frame budget exceeded");
     } else if (this.match.frame >= op.reachedFrame) {
       throw new RangeError("Reached frame mismatch");
     }

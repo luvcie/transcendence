@@ -20,6 +20,8 @@ export type ReplayStatus = (typeof REPLAY_STATUSES)[number];
 
 export const MATCH_SUMMARY_REASONS = ["firstTo", "forfeit", "aborted"] as const;
 export type MatchSummaryReason = (typeof MATCH_SUMMARY_REASONS)[number];
+export const MATCH_ROUND_REASONS = ["survivor", "draw", "forfeit"] as const;
+export type MatchRoundReason = (typeof MATCH_ROUND_REASONS)[number];
 
 export interface ReplayVersions {
   format: typeof REPLAY_FORMAT_VERSION;
@@ -96,6 +98,8 @@ export interface MatchRoundSummary {
   frame: number;
   winner: string | null;
   complete: boolean;
+  /** Optional assertion of the authored roundEnd reason; verified when present. */
+  reason?: MatchRoundReason;
 }
 
 export interface MatchReplaySummary {

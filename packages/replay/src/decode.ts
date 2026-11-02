@@ -6,6 +6,7 @@ import {
   CURRENT_REPLAY_VERSIONS,
   MATCH_MODE_ID,
   MATCH_MODE_VERSION,
+  MATCH_ROUND_REASONS,
   MATCH_SUMMARY_REASONS,
   MAX_TIMESTAMP_MS,
   REPLAY_FORMAT_VERSION,
@@ -18,6 +19,7 @@ import {
   type MatchReplay,
   type MatchReplayEnd,
   type MatchReplaySummary,
+  type MatchRoundReason,
   type MatchRoundSummary,
   type Replay,
   type ReplayIntegrity,
@@ -59,6 +61,7 @@ type ObjectValue = Record<string, unknown>;
 const INTEGRITY_DIGEST = /^[0-9a-f]{64}$/;
 const STATUSES = new Set<string>(REPLAY_STATUSES);
 const MATCH_REASONS = new Set<string>(MATCH_SUMMARY_REASONS);
+const MATCH_ROUND_REASON_SET = new Set<string>(MATCH_ROUND_REASONS);
 
 function malformed(message: string): never {
   throw new ReplayError("malformed", message);
@@ -362,7 +365,7 @@ function copyMatchRecords(
         if (op.toFrame < frame || op.reachedFrame < frame || op.reachedFrame > op.toFrame) {
           malformed("Invalid advance boundaries");
         }
-        if (op.toFrame - frame > limits.maxMatchFrames - advancedFrames) resourceLimit("Match frame budget exceeded");
+        if (op.reachedFrame - frame > limits.maxMatchFrames - advancedFrames) resourceLimit("Match frame budget exceeded");
         advancedFrames += op.reachedFrame - frame;
         if (op.toFrame > frame) ended = op.reachedFrame < op.toFrame ? "ended" : "unknown";
         frame = op.reachedFrame;
@@ -509,7 +512,7 @@ function copyMatchSummary(
   array(value.rounds, limits.maxOperations, "round summary");
   const rounds: MatchRoundSummary[] = [];
   for (const [index, item] of value.rounds.entries()) {
-    object(item, ["round", "frame", "winner", "complete"]);
+    object(item, ["round", "frame", "winner", "complete"], ["reason"]);
     integer(item.round, 1);
     integer(item.frame, 0, limits.maxMatchFrames);
     if (item.round !== index + 1) malformed("Round summaries must be contiguous");
@@ -517,7 +520,20 @@ function copyMatchSummary(
       malformed("Invalid round winner");
     }
     if (typeof item.complete !== "boolean") malformed("Invalid round completion flag");
-    rounds.push({ round: item.round, frame: item.frame, winner: item.winner, complete: item.complete });
+    let reason: MatchRoundReason | undefined;
+    if (Object.hasOwn(item, "reason")) {
+      if (typeof item.reason !== "string" || !MATCH_ROUND_REASON_SET.has(item.reason)) {
+        malformed("Invalid round reason");
+      }
+      reason = item.reason as MatchRoundReason;
+    }
+    rounds.push({
+      round: item.round,
+      frame: item.frame,
+      winner: item.winner,
+      complete: item.complete,
+      ...(reason === undefined ? {} : { reason }),
+    });
   }
   return {
     scores,

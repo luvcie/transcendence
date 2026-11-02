@@ -1,10 +1,11 @@
 # Replay work in progress
 
-This package implements the R1-A replay format, bounded decoding, corruption
-checks, R1-B Sprint reconstruction/result verification and R2 Sprint recording.
-Deterministic execution lives in the drivers. Sprint playback is implemented in
-`packages/web/src/sprint-playback.ts` on top of `SprintDriver`; recording for other
-modes, Match playback and export UI are not implemented yet.
+This package implements the replay format, bounded decoding, corruption checks,
+Sprint reconstruction/result verification, Sprint recording and competitive Match
+reconstruction/result verification. Deterministic execution lives in the drivers.
+Sprint playback is implemented in `packages/web/src/sprint-playback.ts` on top of
+`SprintDriver`; Match playback, competitive recording and export UI are not
+implemented yet.
 
 ## Format and decoding
 
@@ -22,6 +23,16 @@ press do not start the clock, and the first non-release input starts the pause-f
 elapsed timeline. Pause and undo records are rejected. A terminal record must be the
 final journal entry. The shared `Singleplayer` controller from core executes both
 live Sprint and replay, so replay cannot drift from the game's rules.
+
+Competitive matches pin a sorted 2–8 player roster, board width, first-to target,
+per-player handling, full match compatibility versions, the league lock profile and
+enabled attacks. Initial boards and piece sequences derive from the round seed, so
+the journal never accepts client-supplied boards, scores, attacks or garbage. Each
+round after the first gets its seed from a recorded `nextRound` operation.
+The journal's `summary.rounds` entries may carry an optional `reason` assertion
+(`survivor`, `draw` or `forfeit`). The field is additive: older v1 payloads that omit
+it still decode, and verification checks it only when present. No format or
+compatibility version changed for this optional field.
 
 `decodeReplay(value)` validates an already-parsed value. `decodeReplayJson(text)`
 first enforces the byte limit, then parses, validates and verifies the envelope
@@ -64,11 +75,33 @@ as the live game. It reproduces the first-input clock, pause-free elapsed time,
 handling changes and finesse accounting. It rejects pause, continued records after a
 terminal result, non-Sprint configuration and clock regressions.
 
-`MatchDriver` executes competitive Match operations at recorded round/frame
-boundaries. `apply` starts an operation and `advance` continues a partially consumed
-advance; `afterSeq` changes only when the operation completes. Each call returns
-newly drained events. The detached `state` includes pending Match inputs. Do not
-checkpoint while `hasPendingAdvance` is true. Practice is rejected.
+`MatchDriver` executes the authoritative `Match` in journal order at recorded
+round/frame boundaries. It supports 2–8 players and the complete competitive
+controller surface: ordered `submit`, `advance` (including partial chunking),
+`release` (one player or all), `forfeit` and `nextRound` with its recorded seed.
+`apply` starts an operation and `advance` continues a partially consumed advance;
+`afterSeq` changes only when the operation completes. Each call returns newly
+drained events. The detached `state` includes pending Match inputs and every
+player's board, garbage queue, sent counter, elimination/withdrawal flags and epoch.
+Do not checkpoint while `hasPendingAdvance` is true.
+
+All boards advance through the same Match scheduler, so equal-time deadlines,
+subframe ordering, frame-end attack reconciliation, simultaneous eliminations and
+round transitions retain their authoritative semantics. The driver budgets actual
+reached frames rather than the original requested target, because an ended round
+stops early, and caps each call at the remaining global frame budget so a forged
+small `reachedFrame` cannot force over-budget work before rejection. It never steps
+players through independent single-player simulations. Practice is rejected by
+initial validation, and the journal operation set contains no practice-only undo,
+reset or attacks toggle.
+
+Match lifecycle phases that do not exist in the simulation are not journal
+operations: preparation, readiness, three-second countdowns, server pause waits and
+round-result countdowns do not advance `Match`. A disconnect pause is represented by
+the authoritative `release` calls the server makes and by the absence of advances.
+Reconnection resumes with further recorded operations; the server's resume token is
+never part of replay data. A forfeit or an ended round is represented by its explicit
+Match operation and the resulting events.
 
 Discard a driver after an execution exception; partially executed operations are not
 rolled back.
@@ -120,20 +153,59 @@ requires an exact match with `end.finalStateDigest`. It then compares every clai
 summary field (outcome, elapsed completion time, clear stats, finesse, top-out) and
 the terminal constraints against the simulation. A completed run must end with a
 winning lock at the reported timestamp and at least 40 lines; a failed run must top
-out below the target. `verifyReplayExecution` dispatches to Sprint and rejects other
-kinds until their milestones arrive. Verification throws `ReplayError` with code
+out below the target. Verification throws `ReplayError` with code
 `simulation-mismatch` and never returns a partial success object.
 
+`verifyMatchReplayExecution(replay)` executes a decoded competitive journal, then:
+
+- requires the executed endpoint to equal `end.round`, `end.frame`, `end.afterSeq`
+  and the completed journal cursor, with no outstanding advance;
+- requires every player's final epoch to equal `round - 1` and the final roster,
+  width, first-to setting, mode and attacks flag to match the initial state;
+- recomputes the canonical digest over the detached final `MatchState` and requires
+  an exact match with `end.finalStateDigest`;
+- reconstructs every `roundEnd` event, converts its authoritative frame boundary,
+  and compares round numbers, frames, winners, set-completion flags and optional
+  reasons against `summary.rounds`. The summary must list exactly the rounds that
+  ended; it cannot invent, omit or reorder one;
+- compares the claimed final scores with the executed scores from every board;
+- for a completed set, requires a terminal `setEnd`, `status: "complete"`, the same
+  winner and reason, and enforces the engine's result shape: `firstTo` requires the
+  winner to have reached the target and to match the final round; `forfeit` requires
+  exactly one eligible player and that winner; `aborted` requires no eligible
+  players and no winner;
+- for an unfinished set, requires no `setEnd` event, `status` `stopped` or
+  `incomplete`, and an `aborted` summary with no winner. The result object carries
+  `complete: false`; it is a verified prefix, not a claimed competitive result.
+
+`verifyReplayExecution` dispatches to Sprint or competitive Match and rejects other
+kinds. Verification throws `ReplayError` with code `simulation-mismatch` for any
+semantic divergence and never returns a partially executed or partially verified
+object.
+
+The replay format does not persist the full `MatchEvent` stream. Verification
+therefore derives events by executing the journal and compares the represented
+summary data (round boundaries and set result); it does not accept a claimed event
+list. A future recorder may add an event assertion as separate, optional metadata.
+Per-player skins, display names and other cosmetics are deliberately absent from the
+replay schema. They cannot influence execution or validity and remain presentation
+metadata for a later viewer. No recorder is implemented in this package for
+competitive matches, and online practice must never create one. Practice replay data
+is rejected as `unsupported` at decode, driver construction and execution.
+
 The digest check proves only that the claimed result follows the journal under the
-pinned rules. It is not proof of human play, an authenticated author or a trusted
-origin. Check envelope integrity separately with `verifyReplayIntegrity` or
-`decodeReplayWithIntegrity`; a matching checksum is not authentication either.
+pinned rules. It is not proof of human play, an authenticated author, a trusted
+origin or a genuine server-issued match. Check envelope integrity separately with
+`verifyReplayIntegrity` or `decodeReplayWithIntegrity`; a matching checksum is not
+authentication either. Deterministic verification is not anti-cheat enforcement.
 
-## Remaining R1 work
+## Remaining work
 
-- Add Match execution verification in R1-C.
-- Add optional bounded metadata and annotation fields when their consumers exist.
-  Match countdowns and disconnect waits remain presentation annotations outside this
-  simulation driver.
-- Export UI, Match playback and recording for modes other than Sprint remain
-  separate milestones.
+- Competitive Match recording, Match playback, export UI, persistence and shareable
+  links remain separate milestones. When recording is added, disable it at the
+  source for practice rooms rather than filtering practice data afterwards.
+- Add optional bounded metadata and presentation annotations when their consumers
+  exist. Match countdowns, disconnect waits and pause durations remain presentation
+  annotations outside this simulation driver.
+- Per-player appearance metadata and replay skin overrides belong to the later
+  viewer; they must stay outside simulation state and final-state digests.
