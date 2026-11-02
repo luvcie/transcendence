@@ -34,6 +34,16 @@
         "typescript": "5.9.3",
       },
     },
+    "packages/replay": {
+      "name": "@42tris/replay",
+      "dependencies": {
+        "@42tris/core": "workspace:*",
+        "@42tris/match": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.6.0",
+      },
+    },
     "packages/server": {
       "name": "@42tris/server",
       "dependencies": {
@@ -68,6 +78,8 @@
     "@42tris/match": ["@42tris/match@workspace:packages/match"],
 
     "@42tris/protocol": ["@42tris/protocol@workspace:packages/protocol"],
+
+    "@42tris/replay": ["@42tris/replay@workspace:packages/replay"],
 
     "@42tris/server": ["@42tris/server@workspace:packages/server"],
 
