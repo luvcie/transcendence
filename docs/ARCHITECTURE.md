@@ -75,6 +75,26 @@ Match use the league lock profile. Online practice undo rewinds its board withou
 retracting sent attacks or restoring the external garbage ledger. These differences
 are intentional contracts that contributors need to preserve.
 
+## Browser views
+
+`web/src/app-view.ts` selects the visible workspace from Solo or the current room
+phase. Lobby and waiting views hide gameplay. Preparation, countdown, play,
+reconnection and results retain the board stage. A lost socket keeps the last
+checkpoint visible until the server supplies a replacement or ends the match.
+
+`online-view.ts` keeps scores and next-round or rematch actions above gameplay.
+The same player list and room settings nodes appear
+inline while waiting and in a Room details dialog during a match. Only the host
+can edit room settings, while waiting or after a set. Forms retain their values
+and listeners when moved into the dialog. Leaving for Solo waits for the server's
+leave acknowledgement before destroying the online session.
+
+View changes update the navigation and focus the view heading, unless a menu is
+open. Native controls retain their keyboard behavior. Closing a gameplay dialog
+returns focus to the game. Menus and focus loss release online controls without
+pausing the session; local play still pauses. CSS sizes boards from the remaining
+gameplay area, preserving equal duel boards and a larger local board in groups.
+
 See [core rules](../packages/core/RULES.md) for attacks, lock checkpoints and exact
 restoration, and [match rules](../packages/match/RULES.md) for scheduling, garbage,
 practice semantics, transport behavior and compatibility limits. The implementation

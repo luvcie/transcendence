@@ -3,7 +3,6 @@ import {
   Game,
   Input,
   Piece,
-  version,
   type PieceId,
   type InputId,
 } from "@42tris/core";
@@ -18,8 +17,11 @@ import { mountOnline } from "./online-view";
 import { mountGameplayInput } from "./gameplay-input";
 import { renderOnlineWaiting } from "./waiting-view";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
+import { mountAppView } from "./app-view";
 
 let online: ReturnType<typeof mountOnline> | undefined;
+const showView = mountAppView(document);
+showView("solo");
 
 const canvas = document.querySelector<HTMLCanvasElement>("#board")!;
 const status = document.querySelector<HTMLParagraphElement>("#status")!;
@@ -73,14 +75,13 @@ setupHandling(handling, value => {
 const pauseDialog = document.querySelector<HTMLDialogElement>("#pause-dialog")!;
 const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dialog")!;
 
+function focusView() {
+  const gameView = document.querySelector<HTMLElement>("#game-view")!;
+  (gameView.hidden ? document.querySelector<HTMLElement>("#view-title")! : gameView).focus({ preventScroll: true });
+}
+
 function pause() {
-  if (online) {
-    online.session.release();
-    pressed.clear();
-    if (!pauseDialog.open && !settingsDialog.open) pauseDialog.showModal();
-    return;
-  }
-  if (game.paused) return;
+  if (online || game.paused) return;
   game.setPaused(true, performance.now());
   consumeEvents();
   pressed.clear();
@@ -92,10 +93,26 @@ function resume() {
   settingsDialog.close();
   pauseDialog.close();
   if (!online) game.setPaused(false, performance.now());
-  document.querySelector<HTMLButtonElement>("#pause-button")!.blur();
+  focusView();
 }
 
-function backToPause() {
+let settingsFromMenu = false;
+function openSettings(fromMenu: boolean) {
+  settingsFromMenu = fromMenu;
+  if (fromMenu) pauseDialog.close();
+  else if (online) {
+    online.session.release();
+    pressed.clear();
+  } else {
+    game.setPaused(true, performance.now());
+    consumeEvents();
+    pressed.clear();
+  }
+  settingsDialog.showModal();
+}
+
+function closeSettings() {
+  if (!settingsFromMenu) { resume(); return; }
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.showModal();
@@ -113,7 +130,7 @@ function restart() {
   game.tick(performance.now());
   display = game;
   refreshHud();
-  status.textContent = `42tris core v${version()} | seed ${seed}`;
+  status.textContent = "Singleplayer";
   pressed.clear();
 }
 
@@ -123,33 +140,39 @@ function enterOnline() {
   settingsDialog.close();
   pauseDialog.close();
   pressed.clear();
-  if (online) return;
+  if (online) {
+    online.session.release();
+    focusView();
+    return;
+  }
   game.setPaused(true, performance.now());
   display = null;
   const root = document.querySelector<HTMLElement>("#online")!;
-  root.hidden = false;
-  document.querySelector("main")!.classList.add("online-layout");
-  document.querySelector("#pause-title")!.textContent = "Online menu · play continues";
+  showView("lobby");
   online = mountOnline(root, {
-    clearKeys: () => pressed.clear(), handling: () => handling, skins,
+    clearKeys: () => pressed.clear(), handling: () => handling, skins, view: showView,
     local() {
       online?.destroy();
       online = undefined;
-      root.hidden = true;
-      document.querySelector("main")!.classList.remove("online-layout");
+      pauseDialog.close();
+      settingsDialog.close();
       document.querySelector("#pause-title")!.textContent = "Paused";
+      showView("solo");
       restart();
     },
   });
 }
 document.querySelector("#online-button")!.addEventListener("click", enterOnline);
-document.querySelector("#menu-online")!.addEventListener("click", enterOnline);
+function enterSolo() {
+  if (online) online.local();
+  else if (pauseDialog.open || settingsDialog.open) resume();
+  else document.querySelector<HTMLElement>("#game-view")!.focus({ preventScroll: true });
+}
+document.querySelector("#solo-button")!.addEventListener("click", enterSolo);
 document.querySelector("#resume-button")!.addEventListener("click", resume);
-document.querySelector("#settings-button")!.addEventListener("click", () => {
-  pauseDialog.close();
-  settingsDialog.showModal();
-});
-document.querySelector("#settings-back")!.addEventListener("click", backToPause);
+document.querySelector("#settings-button")!.addEventListener("click", () => openSettings(true));
+document.querySelector("#nav-settings-button")!.addEventListener("click", () => openSettings(false));
+document.querySelector("#settings-back")!.addEventListener("click", closeSettings);
 holdButton.addEventListener("click", () => {
   applyInput(Input.Hold);
   holdButton.blur();
@@ -239,14 +262,15 @@ function render() {
 
 const unmountInput = mountGameplayInput(window, {
   bindings, pressed,
-  editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, [contenteditable=true]"),
-  blocked: () => pauseDialog.open || settingsDialog.open || (online ? !online.session.canPlay : game.paused),
+  editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, summary, a, [contenteditable=true]"),
+  blocked: () => pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || (online ? !online.session.canPlay : game.paused),
   settingsOpen: () => settingsDialog.open,
   starting: () => display?.starting ?? true,
   menu() {
-    if (settingsDialog.open) backToPause();
+    if (online?.detailsOpen) online.closeDetails();
+    else if (settingsDialog.open) closeSettings();
     else if (pauseDialog.open || (!online && game.paused)) resume();
-    else pause();
+    else if (!online) pause();
   },
   undo() {
     if (online) online.session.practice("practiceUndo");
@@ -263,18 +287,14 @@ function frame() {
     if (state) { display = snapshotDisplay(state); refreshHud(); }
     else if (session && !session.checkpoint?.state) display = null;
     if (session) {
-      const room = session.room;
       const cp = session.checkpoint;
       const index = cp?.state?.roster.indexOf(session.playerId) ?? -1;
-      const countdown = room?.startsAt === null || room?.startsAt === undefined ? "" : ` · ${Math.max(0, Math.ceil((room.startsAt - session.serverNow()) / 1000))}s`;
-      const missing = room?.players.filter(p => !p.connected && p.deadline !== null).map(p => `${p.name}: ${Math.max(0, Math.ceil((p.deadline! - session.serverNow()) / 1000))}s`).join(", ");
-      const details = [`${session.name} (you)`, room ? `${room.code} · ${room.phase}${countdown}` : "Online lobby"];
+      const details = [`${session.name} (you)`];
       if (cp?.state && index >= 0) {
-        details.push(`${cp.state.scores[index]} points`);
+        const score = cp.state.scores[index];
+        details.push(`${score} ${score === 1 ? "point" : "points"}`);
         if (cp.state.players[index].game.state.topOut) details.push("Top out");
       }
-      if (missing) details.push(`Waiting for ${missing}`);
-      if (!session.connected) details.push("Disconnected; frozen");
       const label = details.join(" · ");
       if (status.textContent !== label) status.textContent = label;
     }

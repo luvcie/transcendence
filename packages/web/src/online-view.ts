@@ -6,10 +6,11 @@ import { drawSnapshot } from "./board-view";
 import { drawPiecePreview } from "./tile-renderer";
 import type { PieceId } from "@42tris/core";
 import type { SkinState } from "./skin-state";
+import { onlineView, type AppView } from "./app-view";
 
 export function mountOnline(root: HTMLElement, options: {
   clearKeys(): void; handling(): Handling; local(): void; skins: SkinState;
-  session?: Session;
+  session?: Session; view?(view: AppView): void;
 }) {
   const document = root.ownerDocument;
   const location = document.location;
@@ -28,27 +29,40 @@ export function mountOnline(root: HTMLElement, options: {
       return { send: command => socket.send(command), close: () => socket.close() };
     },
   });
-  root.innerHTML = `<h2>Online play</h2>
-    <p data-status role="status"></p>
-    <form data-name><label>Guest name <input name="name" maxlength="24" required></label><button>Save name</button></form>
-    <div class="actions"><button data-retry>Retry connection</button><button data-guest hidden>Join as another guest</button><button data-local>Local practice</button></div>
-    <div data-entry>
-      <form data-join><label>Room code <input name="code" maxlength="6" pattern="[A-HJ-NP-Z2-9a-hj-np-z]{6}" required></label><button>Join room</button></form>
-      <form data-options>
-        <label>First to <input name="firstTo" type="number" min="1" max="100" value="3" required></label>
-        <label>Players <input name="maxPlayers" type="number" min="2" max="8" value="4" required></label>
-        <label><input name="practice" type="checkbox"> Practice (no scoring)</label>
-        <label><input name="attacks" type="checkbox" checked disabled> Attacks enabled</label>
-        <button data-create>Create room</button><button data-configure hidden>Save room settings</button>
-      </form>
+  root.innerHTML = `<p data-status class="connection-status" role="status"></p><p data-notification class="online-notification" role="status" hidden></p>
+    <div class="connection-actions"><button data-retry>Retry connection</button><button data-guest hidden>Join as another guest</button></div>
+    <section data-room hidden aria-label="Current room">
+      <div class="room-bar">
+        <div class="room-identity"><h2 data-code></h2><p data-phase role="status"></p></div>
+        <div class="actions"><button data-copy>Copy invite</button><button data-details>Room details</button>
+          <button data-reset hidden>Reset my board</button><button data-attacks hidden>Toggle attacks</button>
+          <button data-ready class="primary">Ready</button><button data-leave>Leave room</button></div>
+      </div>
+      <div data-round-summary class="round-summary" hidden><p data-result role="status"></p><ul data-scores aria-label="Set scores"></ul></div>
+    </section>
+    <div data-management-home>
+      <div data-management class="online-workspace">
+        <section data-entry class="online-panel">
+          <h2>Play with friends</h2>
+          <form data-name><label class="input-label">Guest name <input name="name" maxlength="24" required autocomplete="nickname"></label><button>Save name</button></form>
+          <form data-join><label class="input-label">Room code <input name="code" maxlength="6" pattern="[A-HJ-NP-Z2-9a-hj-np-z]{6}" required autocomplete="off" spellcheck="false" placeholder="ABC234"></label><button class="primary">Join room</button></form>
+          <p class="hint">Enter a friend's room code or create your own room.</p>
+        </section>
+        <section data-roster-panel class="online-panel" hidden><h2>Players <span data-player-count></span></h2><ul data-roster></ul><p data-waiting-hint class="hint"></p></section>
+        <section class="online-panel">
+          <h2 data-options-title>Create a room</h2><p data-settings hidden></p>
+          <form data-options>
+            <div class="option-fields"><label class="input-label">First to <input name="firstTo" type="number" min="1" max="100" value="3" required></label>
+              <label class="input-label">Max players <input name="maxPlayers" type="number" min="2" max="8" value="4" required></label></div>
+            <div class="option-toggles"><label><input name="practice" type="checkbox"> Practice (no scoring)</label>
+              <label><input name="attacks" type="checkbox" checked disabled> Attacks enabled</label></div>
+            <button data-create class="primary">Create room</button><button data-configure hidden>Save room settings</button>
+          </form>
+          <p class="hint">Handling is fixed for each set. Online play continues while settings are open.</p>
+        </section>
+      </div>
     </div>
-    <section data-room hidden><h2 data-code></h2><button data-copy>Copy invite</button>
-      <p data-phase></p><p data-settings></p><ul data-roster></ul>
-      <p data-result role="status"></p>
-      <div class="actions"><button data-ready>Ready</button><button data-leave>Leave room</button>
-      <button data-reset hidden>Reset my practice board</button><button data-attacks hidden>Toggle attacks</button></div>
-      <p class="hint">Handling is fixed for the active set. Settings changes apply to your next set. Escape opens the menu; online play keeps running.</p>
-    </section>`;
+    <dialog data-room-dialog aria-labelledby="room-details-title"><div class="dialog-heading"><h2 id="room-details-title">Room details</h2><button data-close-details autofocus>Back</button></div></dialog>`;
   const element = <T extends HTMLElement = HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
   const stageElement = <T extends HTMLElement = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
   const text = (selector: string, value: string) => {
@@ -96,23 +110,47 @@ export function mountOnline(root: HTMLElement, options: {
     }
     if (local) options.local();
   };
-  click("[data-local]", () => leave(true));
   click("[data-leave]", () => leave());
   click("[data-ready]", () => session.send({ type: "ready", ready: !session.room?.players.find(p => p.playerId === session.playerId)?.ready, handling: options.handling() }));
-  click("[data-reset]", () => session.practice("practiceReset"));
-  click("[data-attacks]", () => session.send({ type: "toggleAttacks", enabled: !session.room?.options.attacksEnabled }));
+  const focusGame = () => stageElement("#game-view").focus({ preventScroll: true });
+  click("[data-reset]", () => { session.practice("practiceReset"); focusGame(); });
+  click("[data-attacks]", () => { session.send({ type: "toggleAttacks", enabled: !session.room?.options.attacksEnabled }); focusGame(); });
+  let notificationUntil = 0;
   click("[data-copy]", () => {
     const url = new URL(location.href);
     url.searchParams.set("room", session.room!.code);
+    if (!stageElement("#game-view").hidden) focusGame();
     if (!navigator.clipboard) { session.status = `Copy this invite: ${url.href}`; return; }
-    void navigator.clipboard.writeText(url.href).then(() => { session.status = "Invite copied. Open it in another window and click Join room."; },
+    void navigator.clipboard.writeText(url.href).then(() => {
+      text("[data-notification]", "Invite copied");
+      element("[data-notification]").hidden = false;
+      notificationUntil = performance.now() + 3000;
+    },
       () => { session.status = `Copy this invite: ${url.href}`; });
   });
+  const roomDialog = element<HTMLDialogElement>("[data-room-dialog]");
+  const management = element("[data-management]");
+  const managementHome = element("[data-management-home]");
+  function closeDetails() {
+    const wasOpen = roomDialog.open;
+    roomDialog.close();
+    if (management.parentElement !== managementHome) managementHome.append(management);
+    if (wasOpen) focusGame();
+  }
+  click("[data-details]", () => {
+    session.release();
+    options.clearKeys();
+    roomDialog.append(management);
+    roomDialog.showModal();
+  });
+  click("[data-close-details]", closeDetails);
+  roomDialog.addEventListener("cancel", e => { e.preventDefault(); closeDetails(); }, { signal: lifetime.signal });
   let rosterKey = "";
   let optionsKey = "";
   let lastCheckpoint = -1;
   let lastSkin = options.skins.loaded;
   let returnLocal = false;
+  let previousView: AppView | undefined;
   const boards = new Map<string, { container: HTMLElement; canvas: HTMLCanvasElement; label: HTMLElement; meter: HTMLElement; hold: HTMLCanvasElement; next: HTMLCanvasElement }>();
   function setGarbage(meter: HTMLElement, lines: number) {
     meter.setAttribute("aria-valuemax", String(Math.max(40, lines)));
@@ -132,13 +170,31 @@ export function mountOnline(root: HTMLElement, options: {
     session.tick();
     if (returnLocal && !session.room) { options.local(); return; }
     text("[data-status]", [session.notice, session.status].filter(Boolean).join(" "));
+    element("[data-status]").hidden = !!session.room && session.connected && !session.notice && session.status.startsWith("Connected as ");
+    if (notificationUntil && performance.now() >= notificationUntil) {
+      element("[data-notification]").hidden = true;
+      notificationUntil = 0;
+    }
     element("[data-guest]").hidden = !session.duplicate;
     element("[data-retry]").hidden = session.connected;
     for (const selector of ["[data-create]", "[data-configure]"]) element<HTMLButtonElement>(selector).disabled = !session.connected;
     join.querySelector("button")!.disabled = !session.connected;
     const room = session.room;
+    const view = onlineView(room, session.connected);
+    if (previousView !== view) {
+      closeDetails();
+      previousView = view;
+      options.view?.(view);
+    }
+    const waiting = !room || room.phase === "waiting";
+    managementHome.hidden = !waiting;
     element("[data-room]").hidden = !room;
-    join.hidden = !!room;
+    element("[data-entry]").hidden = !!room;
+    element("[data-roster-panel]").hidden = !room;
+    element("[data-settings]").hidden = !room;
+    element("[data-details]").hidden = waiting;
+    element("[data-round-summary]").hidden = !room || !["roundResult", "setResult"].includes(room.phase);
+    text("[data-options-title]", room ? "Room settings" : "Create a room");
     element("[data-create]").hidden = !!room;
     element("[data-configure]").hidden = !room;
     form.hidden = !!room && (room.ownerId !== session.playerId || !["waiting", "setResult"].includes(room.phase));
@@ -147,19 +203,34 @@ export function mountOnline(root: HTMLElement, options: {
       return;
     }
     text("[data-code]", `Room ${room.code}`);
-    let phase = room.phase as string;
-    if (room.phase === "countdown" && room.startsAt !== null) phase += ` · ${Math.max(0, Math.ceil((room.startsAt - session.serverNow()) / 1000))}`;
+    const phaseLabels = {
+      waiting: "Ready up to start", preparing: "Preparing all boards…", countdown: "Starting in",
+      playing: room.options.mode === "practice" ? "Practice · no scoring" : `Round ${session.checkpoint?.state?.round ?? 1} · first to ${room.options.firstTo}`,
+      paused: "Match paused · waiting for reconnection", roundResult: "Ready up for the next round", setResult: "Ready up for a rematch",
+    };
+    let phase = phaseLabels[room.phase];
+    if (room.phase === "countdown" && room.startsAt !== null) phase += ` ${Math.max(0, Math.ceil((room.startsAt - session.serverNow()) / 1000))}…`;
     const missing = room.players.filter(p => !p.connected && p.deadline !== null);
     if (missing.length) phase += ` · Waiting for ${missing.map(p => `${p.name}: ${Math.max(0, Math.ceil((p.deadline! - session.serverNow()) / 1000))}s`).join(", ")}`;
     if (!session.connected) phase += " · Connection lost; boards frozen";
     text("[data-phase]", phase);
     text("[data-settings]", `${room.options.mode} · ${room.options.mode === "practice" ? "No scoring" : `First to ${room.options.firstTo}`} · ${room.players.length}/${room.options.maxPlayers} players · Attacks ${room.options.attacksEnabled ? "on" : "off"}`);
+    text("[data-player-count]", `${room.players.length}/${room.options.maxPlayers}`);
+    text("[data-waiting-hint]", room.players.length < 2 ? "Invite at least one more player, then ready up."
+      : room.players.every(p => p.connected && p.ready) ? "Everyone is ready. Preparing the match…" : "The match starts when every connected player is ready.");
     const key = JSON.stringify(room.players) + room.ownerId + session.playerId;
     if (key !== rosterKey) {
       rosterKey = key;
       element("[data-roster]").replaceChildren(...room.players.map(p => {
         const li = document.createElement("li");
-        li.textContent = `${p.name}${p.playerId === session.playerId ? " (you)" : ""}${p.playerId === room.ownerId ? " · creator" : ""} · ${p.connected ? "connected" : "disconnected"} · ${p.withdrawn ? "withdrawn" : p.ready ? "ready" : "not ready"}`;
+        const name = document.createElement("span");
+        name.className = "player-name";
+        name.textContent = `${p.name}${p.playerId === session.playerId ? " (you)" : ""}${p.playerId === room.ownerId ? " · host" : ""}`;
+        const status = document.createElement("span");
+        status.className = "player-state";
+        status.textContent = !p.connected ? "Disconnected" : p.withdrawn ? "Withdrawn" : p.ready ? "Ready" : "Not ready";
+        status.setAttribute("data-ready", String(p.connected && p.ready));
+        li.append(name, status);
         return li;
       }));
     }
@@ -179,8 +250,9 @@ export function mountOnline(root: HTMLElement, options: {
     text("[data-ready]", room.players.find(p => p.playerId === session.playerId)?.ready ? "Unready" : room.phase === "roundResult" ? "Ready for next round" : room.phase === "setResult" ? "Ready for rematch" : "Ready");
     element("[data-reset]").hidden = room.options.mode !== "practice" || room.phase !== "playing";
     element("[data-attacks]").hidden = room.options.mode !== "practice" || room.phase !== "playing" || room.ownerId !== session.playerId;
+    for (const selector of ["[data-reset]", "[data-attacks]", "[data-leave]"]) element<HTMLButtonElement>(selector).disabled = !session.connected;
     const cp = session.checkpoint;
-    if (!cp) return;
+    if (!cp) { clearMatch(); return; }
     const redraw = cp.serverSequence !== lastCheckpoint || options.skins.loaded !== lastSkin;
     lastCheckpoint = cp.serverSequence;
     lastSkin = options.skins.loaded;
@@ -199,8 +271,16 @@ export function mountOnline(root: HTMLElement, options: {
     const playerName = (id: string) => room.players.find(p => p.playerId === id)?.name ?? id;
     text("[data-result]", ["roundResult", "setResult"].includes(room.phase)
       ? result && (result.type === "setEnd" || result.type === "roundEnd")
-        ? `${result.type === "setEnd" ? "Set" : "Round"}: ${result.winner ? `${playerName(result.winner)} wins` : result.reason === "aborted" ? "aborted; no winner" : "draw"} · ${result.reason}`
-        : `${room.phase === "setResult" ? "Set" : "Round"} finished. Scores: ${state.roster.map((id, i) => `${playerName(id)} ${state.scores[i]}`).join(" · ")}` : "");
+        ? `${result.type === "setEnd" ? "Set" : "Round"}: ${result.winner ? `${playerName(result.winner)} wins` : result.reason === "aborted" ? "aborted; no winner" : "draw"} · ${result.reason === "firstTo" ? `first to ${room.options.firstTo}` : result.reason === "survivor" ? "last player standing" : result.reason}`
+        : `${room.phase === "setResult" ? "Set" : "Round"} finished.` : "");
+    const scores = state.roster.map((id, i) => `${playerName(id)}${id === session.playerId ? " (you)" : ""}: ${state.scores[i]}${room.players.find(p => p.playerId === id)?.ready ? " · Ready" : ""}`);
+    const scoreKey = JSON.stringify(scores);
+    if (element("[data-scores]").getAttribute("data-score-key") !== scoreKey) {
+      element("[data-scores]").setAttribute("data-score-key", scoreKey);
+      element("[data-scores]").replaceChildren(...scores.map(score => {
+        const li = document.createElement("li"); li.textContent = score; return li;
+      }));
+    }
     for (const [id, board] of boards) if (!state.roster.includes(id)) { board.container.remove(); boards.delete(id); }
     state.roster.forEach((id, index) => {
       if (id === session.playerId) return;
@@ -235,7 +315,18 @@ export function mountOnline(root: HTMLElement, options: {
         board = { container, canvas, label, meter, hold: hold.canvas, next: next.canvas }; boards.set(id, board);
       }
       const p = state.players[index];
-      board.label.textContent = `${playerName(id)} · ${state.scores[index]} points${p.eliminated ? " · eliminated" : ""}${p.withdrawn ? " · withdrawn" : ""}${room.players.find(p => p.playerId === id)?.connected ? "" : " · disconnected"}`;
+      const connected = room.players.find(p => p.playerId === id)?.connected;
+      const label = `${playerName(id)} · ${state.scores[index]} points${p.eliminated ? " · eliminated" : ""}${p.withdrawn ? " · withdrawn" : ""}${connected ? "" : " · disconnected"}`;
+      if (board.label.title !== label) {
+        board.label.title = label;
+        if (state.roster.length === 2) board.label.textContent = label;
+        else {
+          const name = document.createElement("span"); name.className = "opponent-name"; name.textContent = playerName(id);
+          const score = document.createElement("span"); score.className = "opponent-score";
+          score.textContent = `${state.scores[index]} pts${p.withdrawn ? " · left" : p.eliminated ? " · out" : ""}${connected ? "" : " · offline"}`;
+          board.label.replaceChildren(name, score);
+        }
+      }
       board.meter.setAttribute("aria-label", `${playerName(id)} incoming garbage lines`);
       setGarbage(board.meter, p.garbage.packets.reduce((n, packet) => n + packet.lines, 0));
       if (redraw) {
@@ -250,5 +341,8 @@ export function mountOnline(root: HTMLElement, options: {
     });
   }
   session.start();
-  return { session, update, destroy() { session.stop(); lifetime.abort(); clearMatch(); root.replaceChildren(); } };
+  return { session, update, local: () => leave(true), closeDetails,
+    get detailsOpen() { return roomDialog.open; },
+    destroy() { closeDetails(); session.stop(); lifetime.abort(); clearMatch(); root.replaceChildren(); },
+  };
 }
