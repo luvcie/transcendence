@@ -4,6 +4,7 @@ import { decodeReplayJson, verifySprintReplayExecution } from "@42tris/replay";
 import {
   abandonSprintRecording,
   lastSprintRecording,
+  sprintRecordingFor,
   startSprintRecording,
 } from "./src/sprint-recording";
 
@@ -39,6 +40,24 @@ test("only a terminal attempt becomes the last completed Sprint recording", asyn
 
   abandonSprintRecording();
   expect(lastSprintRecording()).toEqual(completed);
+});
+
+test("a recorder exposes only its own verified recording, not an earlier completed attempt", async () => {
+  const first = startSprintRecording(5, 0, DEFAULT_HANDLING);
+  topOut(first, 10);
+  await first.completion;
+  const firstRecording = lastSprintRecording();
+  expect(firstRecording).not.toBeNull();
+  expect(sprintRecordingFor(first)).toBe(firstRecording);
+
+  const second = startSprintRecording(6, 20, DEFAULT_HANDLING);
+  expect(sprintRecordingFor(second)).toBeNull();
+  expect(sprintRecordingFor(first)).toBe(firstRecording);
+
+  second.apply(Input.RotateCw, 30);
+  abandonSprintRecording();
+  expect(sprintRecordingFor(second)).toBeNull();
+  expect(sprintRecordingFor(first)).toBe(firstRecording);
 });
 
 test("starting another attempt replaces the active recording without mixing journals", async () => {

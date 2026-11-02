@@ -2,8 +2,9 @@
 
 This package implements the R1-A replay format, bounded decoding, corruption
 checks, R1-B Sprint reconstruction/result verification and R2 Sprint recording.
-Deterministic execution lives in the drivers. Recording for other modes, export UI
-and playback are not implemented yet.
+Deterministic execution lives in the drivers. Sprint playback is implemented in
+`packages/web/src/sprint-playback.ts` on top of `SprintDriver`; recording for other
+modes, Match playback and export UI are not implemented yet.
 
 ## Format and decoding
 
@@ -96,8 +97,20 @@ budgets come from `DEFAULT_REPLAY_LIMITS` and can be lowered per recorder.
 
 `packages/web/src/sprint-recording.ts` owns the browser lifecycle: Sprint launch
 starts a recorder, restart and leaving abandon the unfinished one, and
-`lastSprintRecording()` exposes the last successfully verified attempt for the
-playback milestone. Zen and multiplayer never create a recorder.
+`sprintRecordingFor(recorder)` exposes only that attempt's successfully verified
+recording. Zen and multiplayer never create a recorder.
+
+## Sprint playback
+
+`SprintPlayback` is a presentation controller, not a second simulator. It verifies a
+Sprint replay once, then feeds its journal records to a fresh `SprintDriver` in seq
+order as a recorded-timeline cursor moves. Browser frame time only moves that cursor
+(`advance`), scaled by playback speed; the driver still timestamps every operation
+with the recorded values, so reconstructed states do not depend on framerate. The
+pre-first-input idle period remains part of the watched timeline and the Sprint
+timer still starts at the first gameplay input. Playback never writes to the stored
+replay, never touches the live recorder and owns no animation loop or DOM handlers;
+the web layer starts and stops it with the results screen.
 
 ## Terminal verification
 
@@ -122,5 +135,5 @@ origin. Check envelope integrity separately with `verifyReplayIntegrity` or
 - Add optional bounded metadata and annotation fields when their consumers exist.
   Match countdowns and disconnect waits remain presentation annotations outside this
   simulation driver.
-- Export UI, playback and recording for modes other than Sprint remain separate
-  milestones.
+- Export UI, Match playback and recording for modes other than Sprint remain
+  separate milestones.

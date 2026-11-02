@@ -20,8 +20,9 @@ import { renderOnlineWaiting } from "./waiting-view";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
 import { initialView, mountAppView, onlineView } from "./app-view";
 import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary, type SingleplayerMode } from "./singleplayer";
-import type { SprintRecorder } from "@42tris/replay";
-import { abandonSprintRecording, startSprintRecording } from "./sprint-recording";
+import { SprintRecorder } from "@42tris/replay";
+import { abandonSprintRecording, sprintRecordingFor, startSprintRecording } from "./sprint-recording";
+import { SprintPlayback } from "./sprint-playback";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
@@ -47,6 +48,14 @@ const finesseCount = document.querySelector("#finesse-count")!;
 const sprintClock = document.querySelector<HTMLElement>("#sprint-clock")!;
 const elapsedTime = document.querySelector<HTMLElement>("#elapsed-time")!;
 const resultPanel = document.querySelector<HTMLElement>("#sprint-result")!;
+const watchReplayButton = document.querySelector<HTMLButtonElement>("#watch-replay-button")!;
+const replayBar = document.querySelector<HTMLElement>("#replay-bar")!;
+const replayToggle = document.querySelector<HTMLButtonElement>("#replay-toggle")!;
+const replayRestart = document.querySelector<HTMLButtonElement>("#replay-restart")!;
+const replayExit = document.querySelector<HTMLButtonElement>("#replay-exit")!;
+const replaySpeed = document.querySelector<HTMLSelectElement>("#replay-speed")!;
+const replayTime = document.querySelector<HTMLElement>("#replay-time")!;
+const replayState = document.querySelector<HTMLElement>("#replay-state")!;
 const clearResult = document.querySelector("#clear-result")!;
 const zenStatus = document.querySelector<HTMLParagraphElement>("#zen-status")!;
 const LETTERS = "_ZLOSIJT";
@@ -83,9 +92,12 @@ let seed: number | undefined;
 let solo: Singleplayer | SprintRecorder | null = null;
 let pendingMode: SingleplayerMode | null = null;
 let display: GameDisplay | null = null;
+let playback: SprintPlayback | null = null;
+let openingPlayback = false;
+let lastFrameAt: number | null = null;
 setupHandling(handling, value => {
   handling = value;
-  if (!online) { solo?.setHandling(value, performance.now()); pressed.clear(); }
+  if (!online && !playback) { solo?.setHandling(value, performance.now()); pressed.clear(); }
 });
 
 const pauseDialog = document.querySelector<HTMLDialogElement>("#pause-dialog")!;
@@ -108,7 +120,7 @@ function focusView() {
 }
 
 function pause() {
-  if (online || !solo || solo.mode === "sprint" || solo.paused || solo.result) return;
+  if (playback || online || !solo || solo.mode === "sprint" || solo.paused || solo.result) return;
   solo.setPaused(true, performance.now());
   refreshHud();
   if (solo.result) return;
@@ -120,13 +132,14 @@ function resume() {
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.close();
-  if (!online) solo?.setPaused(false, performance.now());
+  if (!online && !playback) solo?.setPaused(false, performance.now());
   focusView();
 }
 
 let settingsFromMenu = false;
 function openSettings(fromMenu: boolean) {
   if (!online && solo?.mode === "sprint" && !solo.result) return;
+  if (playback) { playback.pause(); syncPlaybackControls(); }
   settingsFromMenu = fromMenu;
   if (fromMenu) pauseDialog.close();
   else if (online) {
@@ -148,6 +161,7 @@ function closeSettings() {
 }
 
 function launchMode(mode: SingleplayerMode) {
+  stopPlayback();
   const random = new Uint32Array(1);
   do { crypto.getRandomValues(random); } while (random[0] === seed);
   seed = random[0];
@@ -171,6 +185,7 @@ function launchMode(mode: SingleplayerMode) {
 }
 
 function restart() {
+  if (playback) return;
   if (online) { online.session.practice("practiceReset"); return; }
   if (solo) launchMode(solo.mode);
 }
@@ -209,6 +224,7 @@ function closeMenus() {
 
 async function enterHome() {
   if (!await abandonSolo()) return;
+  stopPlayback();
   abandonSprintRecording();
   closeMenus();
   online?.closeDetails();
@@ -240,6 +256,7 @@ async function chooseMode(mode: SingleplayerMode) {
 
 async function enterOnline() {
   if (!await abandonSolo()) return;
+  stopPlayback();
   abandonSprintRecording();
   closeMenus();
   sprintClock.hidden = true;
@@ -279,6 +296,26 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("[data-mode]")
   button.addEventListener("click", () => chooseMode(button.dataset.mode as SingleplayerMode));
 }
 document.querySelector("#retry-button")!.addEventListener("click", restart);
+document.querySelector("#watch-replay-button")!.addEventListener("click", () => { void watchSprintReplay(); });
+replayToggle.addEventListener("click", () => {
+  if (!playback) return;
+  if (playback.complete) playback.restart();
+  else playback.toggle();
+  replayToggle.blur();
+  syncPlaybackControls();
+});
+replayRestart.addEventListener("click", () => {
+  if (!playback) return;
+  playback.restart();
+  syncPlaybackControls();
+  replayToggle.focus({ preventScroll: true });
+});
+replayExit.addEventListener("click", backToResults);
+replaySpeed.addEventListener("change", () => {
+  if (!playback) return;
+  playback.setSpeed(Number(replaySpeed.value));
+  syncPlaybackControls();
+});
 document.querySelector("#pause-restart-button")!.addEventListener("click", () => { closeMenus(); restart(); });
 document.querySelector("#resume-button")!.addEventListener("click", resume);
 document.querySelector("#settings-button")!.addEventListener("click", () => openSettings(true));
@@ -293,6 +330,12 @@ for (const dialog of [pauseDialog, settingsDialog]) {
   dialog.addEventListener("cancel", e => e.preventDefault());
 }
 function handleFocusLoss() {
+  if (playback) {
+    playback.pause();
+    pressed.clear();
+    syncPlaybackControls();
+    return;
+  }
   if (online) {
     online.session.release();
     pressed.clear();
@@ -307,11 +350,74 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) handleFocusLoss();
 });
 
+function syncPlaybackControls(): void {
+  if (!playback) return;
+  const toggle = playback.complete ? "Replay" : playback.playing ? "Pause" : "Play";
+  if (replayToggle.textContent !== toggle) replayToggle.textContent = toggle;
+  if (replaySpeed.value !== String(playback.speed)) replaySpeed.value = String(playback.speed);
+  replayTime.textContent = `${formatTime(playback.positionMs)} / ${formatTime(playback.durationMs)}`;
+  const state = playback.complete ? "Replay complete · final board"
+    : playback.playing ? `Playing · ${playback.speed}×` : `Paused · ${playback.speed}×`;
+  if (replayState.textContent !== state) replayState.textContent = state;
+}
+
+function stopPlayback(): void {
+  if (!playback) return;
+  playback.dispose();
+  playback = null;
+  replayBar.hidden = true;
+  display = solo?.game ?? null;
+  lastFrameAt = null;
+  pressed.clear();
+}
+
+function backToResults(): void {
+  if (!playback) return;
+  stopPlayback();
+  resultPanel.hidden = !solo?.result;
+  status.textContent = solo ? `${SINGLEPLAYER_MODES[solo.mode].name} · ${solo.game.width} wide` : "";
+  refreshHud();
+  if (solo?.result) document.querySelector<HTMLElement>("#sprint-result-title")!.focus({ preventScroll: true });
+}
+
+async function watchSprintReplay(): Promise<void> {
+  const recorder = solo;
+  if (playback || openingPlayback || !(recorder instanceof SprintRecorder) || !recorder.result) return;
+  const recording = sprintRecordingFor(recorder);
+  if (!recording) return;
+  openingPlayback = true;
+  watchReplayButton.disabled = true;
+  let next: SprintPlayback;
+  try {
+    next = await SprintPlayback.create(recording.replay);
+  } catch (error) {
+    console.warn("Sprint replay playback failed:", error);
+    openingPlayback = false;
+    refreshHud();
+    return;
+  }
+  openingPlayback = false;
+  if (solo !== recorder || online || atHome) {
+    next.dispose();
+    return;
+  }
+  playback = next;
+  resultPanel.hidden = true;
+  replayBar.hidden = false;
+  pressed.clear();
+  lastFrameAt = null;
+  status.textContent = `Sprint 40L · Replay · ${next.outcome === "complete" ? "completed" : "topped out"}`;
+  display = snapshotDisplay(playback.state);
+  refreshHud();
+  syncPlaybackControls();
+  replayToggle.focus({ preventScroll: true });
+}
+
 function refreshHud() {
   if (!display) return;
-  const sprint = !online && solo?.mode === "sprint";
+  const sprint = playback !== null || (!online && solo?.mode === "sprint");
   sprintClock.hidden = !sprint;
-  elapsedTime.textContent = formatTime(solo?.elapsedMs ?? 0);
+  elapsedTime.textContent = formatTime(playback ? playback.elapsedMs : solo?.elapsedMs ?? 0);
   const { lines, combo, chainLength, b2b, surge } = display.stats;
   lineCount.textContent = sprint ? `${lines} / 40` : String(lines);
   comboCount.textContent = String(Math.max(0, combo));
@@ -337,11 +443,11 @@ function refreshHud() {
     if (attack) labels.push(`Attack ${attack}`);
   }
   clearResult.textContent = labels.join(" · ");
-  zenStatus.hidden = !display.zen && (!sprint || !!solo?.started);
+  zenStatus.hidden = playback !== null || (!display.zen && (!sprint || !!solo?.started));
   zenStatus.textContent = online ? "Online practice · Ctrl+Z to undo; restart resets your board."
     : sprint ? "Sprint 40L · Make your first move to start the clock."
     : `Zen · Ctrl+Z to undo (${solo?.undoCount ?? 0} available)`;
-  if (solo?.result && !online && resultPanel.hidden) {
+  if (solo?.result && !online && !playback && resultPanel.hidden) {
     const result = solo.result;
     document.querySelector("#sprint-result-title")!.textContent = result.outcome === "complete" ? "Sprint complete" : "Topped out";
     navSettingsButton.disabled = false;
@@ -353,9 +459,21 @@ function refreshHud() {
     pressed.clear();
     if (!document.querySelector("dialog[open]")) document.querySelector<HTMLElement>("#sprint-result-title")!.focus({ preventScroll: true });
   }
+  if (!online && solo instanceof SprintRecorder && solo.result) {
+    const recording = sprintRecordingFor(solo);
+    const failed = !recording && solo.status === "failed";
+    watchReplayButton.disabled = !recording || openingPlayback;
+    const label = openingPlayback ? "Opening replay…"
+      : recording ? "Watch replay" : failed ? "Replay unavailable" : "Preparing replay…";
+    if (watchReplayButton.textContent !== label) watchReplayButton.textContent = label;
+    watchReplayButton.title = recording ? "Watch this attempt from the beginning"
+      : failed ? solo.error?.message ?? "This attempt could not be recorded."
+      : "Verifying the recording…";
+  }
 }
 
 function applyInput(input: InputId) {
+  if (playback) return;
   if (online) { online.session.input(input); return; }
   solo?.apply(input, performance.now());
   if (solo && display !== solo.game) pressed.clear();
@@ -377,7 +495,7 @@ function render() {
   document.querySelector<HTMLElement>("#game-view")!.style.setProperty("--board-ratio", String(width / 10));
   if (canvas.getAttribute("aria-label") !== "42tris playfield") canvas.setAttribute("aria-label", "42tris playfield");
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-  holdButton.disabled = display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay);
+  holdButton.disabled = playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay);
   holdCanvas.setAttribute("aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
   if (display.held !== null) drawPreview(holdCtx, display.held, 0);
 
@@ -394,10 +512,11 @@ function render() {
 const unmountInput = mountGameplayInput(window, {
   bindings, pressed,
   editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, summary, a, [contenteditable=true]"),
-  blocked: () => abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
+  blocked: () => abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || playback !== null || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
   settingsOpen: () => settingsDialog.open,
   starting: () => display?.starting ?? true,
   menu() {
+    if (playback) { backToResults(); return; }
     if (abandonDialog.open) abandonDialog.close("cancel");
     else if (online?.detailsOpen) online.closeDetails();
     else if (settingsDialog.open) closeSettings();
@@ -405,15 +524,23 @@ const unmountInput = mountGameplayInput(window, {
     else if (!online && solo) pause();
   },
   undo() {
+    if (playback) return;
     if (online) online.session.practice("practiceUndo");
     else if (solo?.undo(performance.now())) { pressed.clear(); display = solo.game; refreshHud(); }
   },
   restart, input: applyInput, lateRelease: () => online?.session.release(),
 });
 
-function frame() {
+function frame(now: number) {
+  const delta = lastFrameAt === null ? 0 : Math.min(Math.max(0, now - lastFrameAt), 100);
+  lastFrameAt = now;
   guestName.update();
-  if (online) {
+  if (playback) {
+    playback.advance(delta);
+    display = snapshotDisplay(playback.state);
+    refreshHud();
+    syncPlaybackControls();
+  } else if (online) {
     online.update();
     const session = online?.session;
     const state = session?.prediction?.gameState();
