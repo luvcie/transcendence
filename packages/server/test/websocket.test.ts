@@ -37,7 +37,17 @@ async function client(url: string, resumeToken?: string) {
   }
   send({ type: "hello", name: "Socket Guest", ...(resumeToken ? { resumeToken } : {}) });
   const welcome = await wait("welcome");
-  async function checkpoint() { const after = messages.length; send({ type: "resync" }); return wait("checkpoint", () => true, after); }
+  let checkpointNonce = 0;
+  async function checkpoint() {
+    const after = messages.length;
+    const nonce = `checkpoint-${++checkpointNonce}`;
+    send({ type: "resync" });
+    send({ type: "ping", nonce });
+    const pong = await wait("pong", m => m.nonce === nonce, after);
+    const checkpoint = messages.slice(after, messages.indexOf(pong)).reverse().find(m => m.type === "checkpoint");
+    if (!checkpoint || checkpoint.type !== "checkpoint") throw new Error("Missing resync checkpoint before pong");
+    return checkpoint;
+  }
   async function close() { if (socket.readyState === WebSocket.CLOSED) return; await new Promise<void>(resolve => { socket.addEventListener("close", () => resolve(), { once: true }); socket.close(); }); }
   return { socket, messages, welcome, send, wait, checkpoint, close };
 }
@@ -79,7 +89,8 @@ test("real Elysia sockets: create, join, prepare, inputs, pause/resume, FT resul
   for (let i = 0; i < 20 && snapshot.room.phase === "playing"; i++) {
     resumed.send({ type: "inputBatch", matchId: snapshot.matchId!, generation: snapshot.owner.generation, epoch: snapshot.owner.epoch,
       items: [{ seq: snapshot.owner.nextSeq, frame: snapshot.clock.currentTargetFrame, subframe: 0.25, input: Input.HardDrop }] });
-    await resumed.checkpoint();
+    const accepted = await resumed.checkpoint();
+    expect(accepted.owner.pendingAccepted.some(input => input.seq === snapshot.owner.nextSeq)).toBe(true);
     s.advance(120);
     snapshot = await resumed.checkpoint();
   }
@@ -100,7 +111,17 @@ test("real Elysia sockets: create, join, prepare, inputs, pause/resume, FT resul
   a.socket.send("not JSON");
   expect((await a.wait("error", () => true, after)).code).toBe("INVALID_MESSAGE");
   a.send({ type: "ping", nonce: "clock" });
-  expect((await a.wait("pong")).nonce).toBe("clock");
+  expect((await a.wait("pong", m => m.nonce === "clock")).nonce).toBe("clock");
+});
+
+test("resync waits past snapshots already queued on the socket", async () => {
+  const s = await server();
+  const a = await client(s.url);
+  a.send({ type: "create", requestId: "queued-snapshot", options: { firstTo: 1, mode: "competitive", attacksEnabled: true } });
+  await a.wait("roomState");
+  s.rooms.snapshots();
+  s.advance(123);
+  expect((await a.checkpoint()).serverNow).toBe(123);
 });
 
 test("three sockets: late disconnect deadlines forfeit seats and preserve remaining FFA Match", async () => {
