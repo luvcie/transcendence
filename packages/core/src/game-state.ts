@@ -3,9 +3,9 @@ import type { GameEvent, LockResult } from "./game";
 import { FRAME_MS, validateHandling, type Handling } from "./handling";
 import { MINOS, type PieceId } from "./pieces";
 import { RULES_VERSION } from "./rules";
-import { LEAGUE_LOCK, lockDelay, validateLockProfile, type LockProfile } from "./lock-profile";
+import { LEAGUE_LOCK, LOCK_RESET_LIMIT, lockDelay, validateLockProfile, type LockProfile } from "./lock-profile";
 
-export const GAME_STATE_VERSION = 4;
+export const GAME_STATE_VERSION = 5;
 
 export interface GameFields {
   piece: PieceId;
@@ -23,6 +23,7 @@ export interface GameFields {
   fallAcc: number;
   lockElapsed: number;
   lockResets: number;
+  groundedAt: number | null;
   rotationResets: number;
   lowestY: number;
   leagueOriginMs: number;
@@ -61,7 +62,7 @@ const FIELD_KEYS = [
   "piece", "rot", "x", "y", "dealt", "topOut", "held", "holdUsed", "lastWasRotation", "lastKickIndex",
   "lastNow", "observedNow", "fallAcc", "lockElapsed", "leftHeld", "rightHeld", "direction", "moveAt",
   "softHeld", "softAt", "readyMs", "paused", "sequence",
-  "lockResets", "rotationResets", "lowestY",
+  "lockResets", "groundedAt", "rotationResets", "lowestY",
   "leagueOriginMs", "leagueFrame", "leaguePhase", "leagueLockFrames", "finesseInputs", "finesseInherited",
 ] as const;
 
@@ -148,7 +149,8 @@ export function readGameState(value: unknown): GameState {
     requireState(typeof f[key] === "boolean");
   }
   requireState(integer(f.finesseInputs) && integer(f.piece, 1, 7) && integer(f.rot, 0, 3) && integer(f.x, -3, width - 1) && integer(f.y, -3, 39)
-    && integer(f.lockResets, 0, 31) && integer(f.rotationResets, 0, 63) && integer(f.lowestY, -3, 39)
+    && integer(f.lockResets, 0, LOCK_RESET_LIMIT) && integer(f.rotationResets, 0, 63) && integer(f.lowestY, -3, 39)
+    && (f.groundedAt === null || (f.lastNow >= 0 && number(f.groundedAt, 0, f.lastNow)))
     && number(f.leagueOriginMs) && integer(f.leagueFrame, 1) && number(f.leaguePhase, 0, f.leagueFrame)
     && number(f.leagueLockFrames, 0, f.topOut ? Number.MAX_VALUE : 30)
     && integer(f.dealt) && (f.held === null || integer(f.held, 1, 7)) && integer(f.lastKickIndex, 0, 5)

@@ -2,7 +2,9 @@
 
 `@42tris/match` runs authoritative games from ordered inputs. Match version 3 uses
 `42tris-league-garbage-v1`, core's exported `LEAGUE_LOCK` and the core attack profile.
-It is a 42tris simulation with pinned League rules, not a TETR.IO replay emulator.
+Core's lock profile budgets 15 resets per piece and caps grounded lifetime at 3,000ms;
+match scheduling and inputs are unchanged. It is a 42tris simulation with pinned League
+rules, not a TETR.IO replay emulator.
 
 ```ts
 import { Input } from "@42tris/core";
@@ -349,4 +351,4 @@ Current compatibility limits:
    transport and reconnect policy are implemented outside this package, as described
    above.
 
-Match version 3 embeds core version 4 finesse counters in each authoritative player snapshot. Round results display those counters; a new round starts new counters.
+Match version 3 embeds core version 5 finesse and lock-timing state in each authoritative player snapshot. Round results display those counters; a new round starts new counters.

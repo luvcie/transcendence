@@ -6,7 +6,8 @@ import { copyEvent, copyLock, GAME_STATE_VERSION, readGameState, type GameState 
 import { kicksFor } from "./kicks";
 import { DEFAULT_HANDLING, FRAME_MS, validateHandling, type Handling } from "./handling";
 import { GARBAGE, SPAWN_Y, spawnX, type PieceId } from "./pieces";
-import { LEAGUE_LOCK, PRACTICE_LOCK, lockDelay, validateLockProfile, type LockProfile } from "./lock-profile";
+import { LEAGUE_LOCK, LEAGUE_LOCK_DELAY_FRAMES, LOCK_RESET_LIMIT, MAX_GROUNDED_MS, PRACTICE_LOCK,
+  PRACTICE_LOCK_DELAY_MS, lockDelay, validateLockProfile, type LockProfile } from "./lock-profile";
 
 export const Input = {
   LeftDown: 0,
@@ -22,7 +23,7 @@ export const Input = {
   Hold: 10,
 } as const;
 export type InputId = (typeof Input)[keyof typeof Input];
-export const LOCK_DELAY_MS = 1000;
+export const LOCK_DELAY_MS = PRACTICE_LOCK_DELAY_MS;
 
 export const UNDO_LIMIT = 1000;
 
@@ -85,6 +86,7 @@ export class Game {
   private fallAcc = 0;
   private lockElapsed = 0;
   private lockResets = 0;
+  private groundedAt: number | null = null;
   private rotationResets = 0;
   private lowestY = SPAWN_Y;
   private leagueOriginMs = 0;
@@ -148,7 +150,7 @@ export class Game {
         topOut: this.topOut, held: this.held, holdUsed: this.holdUsed,
         lastWasRotation: this.lastWasRotation, lastKickIndex: this.lastKickIndex,
         lastNow: this.lastNow, observedNow: this.observedNow, fallAcc: this.fallAcc, lockElapsed: this.lockElapsed,
-        lockResets: this.lockResets, rotationResets: this.rotationResets, lowestY: this.lowestY,
+        lockResets: this.lockResets, groundedAt: this.groundedAt, rotationResets: this.rotationResets, lowestY: this.lowestY,
         leagueOriginMs: this.leagueOriginMs, leagueFrame: this.leagueFrame,
         leaguePhase: this.leaguePhase, leagueLockFrames: this.leagueLockFrames,
         leftHeld: this.leftHeld, rightHeld: this.rightHeld, direction: this.direction,
@@ -218,10 +220,12 @@ export class Game {
     this.observe(nowMs);
     if (!this.zenEnabled || !this.history.length) return false;
     const checkpoint = this.history.pop()!;
+    const elapsed = Math.max(0, nowMs - checkpoint.atMs);
     this.board.set(checkpoint.board);
     this.previews.set(checkpoint.previews);
     this.bag.restore(checkpoint.bag);
     Object.assign(this, checkpoint.state);
+    if (this.groundedAt !== null) this.groundedAt += elapsed;
     this.lastNow = this.observedNow = nowMs;
     this.rebaseLeagueClock(nowMs);
     this.releaseInputs();
@@ -232,13 +236,15 @@ export class Game {
 
   private capture() {
     return {
+      atMs: this.lastNow,
       board: this.board.slice(), previews: this.previews.slice(), bag: this.bag.save(),
       state: {
         piece: this.piece, rot: this.rot, x: this.x, y: this.y, dealt: this.dealt,
         held: this.held, holdUsed: this.holdUsed, topOut: this.topOut,
         lastWasRotation: this.lastWasRotation, lastKickIndex: this.lastKickIndex,
         fallAcc: this.fallAcc, lockElapsed: this.lockElapsed, readyMs: this.readyMs,
-        lockResets: this.lockResets, rotationResets: this.rotationResets, lowestY: this.lowestY,
+        lockResets: this.lockResets, groundedAt: this.groundedAt,
+        rotationResets: this.rotationResets, lowestY: this.lowestY,
         leagueLockFrames: this.leagueLockFrames,
         lastResult: this.lastResult, finesseInputs: this.finesseInputs, finesseInherited: this.finesseInherited,
       },
@@ -309,6 +315,7 @@ export class Game {
     else if (input === Input.HardDrop) this.hardDrop();
     else if (input === Input.Hold) this.hold();
     this.instantSoftDrop();
+    this.lockIfDue();
   }
 
   private hold(): void {
@@ -375,10 +382,12 @@ export class Game {
   }
 
   private tryMove(dx: number): boolean {
+    this.noteGroundContact();
     if (canPlace(this.board, this.piece, this.rot, this.x + dx, this.y)) {
       this.x += dx;
       this.lastWasRotation = false;
       this.refreshLock("move");
+      this.noteGroundContact();
       this.instantSoftDrop();
       return true;
     }
@@ -408,29 +417,56 @@ export class Game {
     this.y++;
     this.lastWasRotation = false;
     this.refreshLock("fall");
+    this.noteGroundContact();
     return true;
   }
 
   private refreshLock(action: "move" | "rotate" | "fall"): void {
-    if (this.lockProfile === LEAGUE_LOCK) {
-      if (action === "fall") {
-        const depth = this.y + this.fallAcc / this.gravityMs;
-        if (depth > this.lowestY) {
-          this.lowestY = Math.ceil(depth);
-          this.lockResets = this.rotationResets = 0;
-        }
-      } else {
-        this.lockResets = Math.min(31, this.lockResets + 1);
-        if (action === "rotate") this.rotationResets = Math.min(63, this.rotationResets + 1);
-        if (this.lockResets < 15) this.lockElapsed = this.leagueLockFrames = 0;
+    if (action === "fall") {
+      if (this.lockProfile !== LEAGUE_LOCK) return;
+      const depth = this.y + this.fallAcc / this.gravityMs;
+      if (depth > this.lowestY) {
+        this.lowestY = Math.ceil(depth);
+        // Historical depth renews the excess-rotation speed penalty, not the
+        // per-piece lock-reset budget.
+        this.rotationResets = 0;
       }
       return;
     }
-    // Techmino's easyFresh restores both timers after a successful action.
-    if (this.lockElapsed > 0) {
+    // Successful actions before first ground contact are free. After contact,
+    // every successful move or rotation consumes one reset, including actions
+    // that leave the ground. The first LOCK_RESET_LIMIT actions restart the
+    // lock timer; later actions leave the timer and grounded lifetime untouched.
+    if (this.groundedAt !== null && this.lockResets < LOCK_RESET_LIMIT) {
+      this.lockResets++;
       this.lockElapsed = 0;
-      this.fallAcc = 0;
+      if (this.lockProfile === LEAGUE_LOCK) this.leagueLockFrames = 0;
     }
+    if (this.lockProfile === LEAGUE_LOCK && action === "rotate") {
+      this.rotationResets = Math.min(63, this.rotationResets + 1);
+    }
+  }
+
+  private noteGroundContact(): void {
+    if (this.groundedAt === null && this.lastNow >= 0
+      && !canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) {
+      this.groundedAt = this.lastNow;
+    }
+  }
+
+  private groundDeadline(): number {
+    return this.groundedAt === null ? Infinity : this.groundedAt + MAX_GROUNDED_MS;
+  }
+
+  /** Lock at a grounded simulation point when either timer has expired. Never in midair. */
+  private lockIfDue(): boolean {
+    if (this.topOut || canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) return false;
+    const expired = this.groundedAt !== null && this.lastNow >= this.groundedAt + MAX_GROUNDED_MS;
+    const timedOut = this.lockProfile === LEAGUE_LOCK
+      ? this.leagueLockFrames > LEAGUE_LOCK_DELAY_FRAMES : this.lockRemaining() === 0;
+    if (!expired && !timedOut) return false;
+    this.lock();
+    return true;
   }
 
   private dropToSurface(): void {
@@ -470,6 +506,9 @@ export class Game {
     if (paused) {
       this.tick(nowMs);
       if (!this.starting && !this.topOut) this.advanceTo(nowMs);
+    } else if (this.groundedAt !== null) {
+      // A paused interval is not grounded lifetime.
+      this.groundedAt += nowMs - this.lastNow;
     }
     this.paused = paused;
     this.lastNow = this.observedNow = nowMs;
@@ -478,12 +517,14 @@ export class Game {
   }
 
   private rotate(turns: number): void {
+    this.noteGroundContact();
     const to = (this.rot + turns) & 3;
     if (canPlace(this.board, this.piece, to, this.x, this.y)) {
       this.rot = to;
       this.lastKickIndex = 0;
       this.lastWasRotation = true;
       this.refreshLock("rotate");
+      this.noteGroundContact();
       return;
     }
     const table = kicksFor(this.piece, this.rot, to);
@@ -497,6 +538,7 @@ export class Game {
         this.lastKickIndex = i / 2 + 1;
         this.lastWasRotation = true;
         this.refreshLock("rotate");
+        this.noteGroundContact();
         return;
       }
     }
@@ -529,7 +571,7 @@ export class Game {
     const airborne = canPlace(this.board, this.piece, this.rot, this.x, this.y + 1);
     return Math.min(this.moveAt, this.softAt > this.lastNow ? this.softAt : Infinity,
       airborne ? this.lastNow + (this.gravityMs - this.fallAcc) / this.fallSpeed()
-        : this.lockDeadline());
+        : Math.min(this.lockDeadline(), this.groundDeadline()));
   }
 
   private advanceTo(nowMs: number): void {
@@ -537,6 +579,7 @@ export class Game {
       this.leagueCheckpoint(nowMs);
       return;
     }
+    this.noteGroundContact();
     if (canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) {
       this.fallAcc += (nowMs - this.lastNow) * this.fallSpeed();
     } else {
@@ -552,6 +595,7 @@ export class Game {
     if (this.lastNow < 0) {
       this.lastNow = nowMs;
       this.rebaseLeagueClock(nowMs);
+      this.noteGroundContact();
       return;
     }
     if (nowMs < this.lastNow) return;
@@ -569,13 +613,17 @@ export class Game {
       return;
     }
     while ((this.lastNow < nowMs || this.nextStepAt <= nowMs) && !this.topOut) {
+      this.noteGroundContact();
+      if (this.lockIfDue()) continue;
       this.instantSoftDrop();
       this.repeatChargedMove();
       const airborne = canPlace(this.board, this.piece, this.rot, this.x, this.y + 1);
       const speed = this.fallSpeed();
       const gravityAt = airborne ? this.lastNow + (this.gravityMs - this.fallAcc) / speed : Infinity;
       const lockAt = airborne ? Infinity : this.lockDeadline();
-      const next = Math.min(this.moveAt, this.softAt > this.lastNow ? this.softAt : Infinity, gravityAt, lockAt);
+      const groundAt = airborne ? Infinity : this.groundDeadline();
+      const next = Math.min(this.moveAt, this.softAt > this.lastNow ? this.softAt : Infinity,
+        gravityAt, lockAt, groundAt);
       // Render-only ticks must not accumulate rounding error in the simulation clock.
       if (next > nowMs) return;
       this.advanceTo(next);
@@ -585,7 +633,10 @@ export class Game {
         this.fallAcc = 0;
         this.fallOne();
       }
-      if (this.lockRemaining() === 0 && !canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) this.lock();
+      if (this.lockIfDue()) {
+        this.repeatChargedMove();
+        continue;
+      }
       this.repeatChargedMove();
     }
   }
@@ -598,6 +649,7 @@ export class Game {
 
   private leagueCheckpoint(nowMs: number): void {
     if (nowMs <= this.lastNow || this.topOut) return;
+    this.noteGroundContact();
     const boundary = this.leagueOriginMs + this.leagueFrame * FRAME_MS;
     let phase = nowMs === boundary ? this.leagueFrame : (nowMs - this.leagueOriginMs) / FRAME_MS;
     if (nowMs < boundary && phase >= this.leagueFrame) {
@@ -615,20 +667,22 @@ export class Game {
     this.repeatChargedMove();
     this.instantSoftDrop();
     let cells = duration * FRAME_MS / this.gravityMs * speed;
-    if (this.lockResets >= 15 && !canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) cells = 20;
     cells += 0.5 * duration * Math.max(0, this.rotationResets - 30);
     // Compute the whole Fall distance before depth renewal changes rotresets.
     while (cells > 0) {
       const step = Math.min(1, cells);
       if (!canPlace(this.board, this.piece, this.rot, this.x, this.y + 1)) {
+        if (this.groundedAt === null) this.groundedAt = nowMs;
         this.leagueLockFrames += duration;
         // Subtracting fractional phases can put an exact 30 just above 30.
         // Normalize only the threshold's clock-scale rounding neighborhood.
-        const lockRounding = 8 * Number.EPSILON * Math.max(30, phase);
-        if (this.leagueLockFrames > 30 && this.leagueLockFrames - 30 <= lockRounding) {
-          this.leagueLockFrames = 30;
+        const lockRounding = 8 * Number.EPSILON * Math.max(LEAGUE_LOCK_DELAY_FRAMES, phase);
+        if (this.leagueLockFrames > LEAGUE_LOCK_DELAY_FRAMES
+          && this.leagueLockFrames - LEAGUE_LOCK_DELAY_FRAMES <= lockRounding) {
+          this.leagueLockFrames = LEAGUE_LOCK_DELAY_FRAMES;
         }
-        if (this.leagueLockFrames > 30 || this.lockResets >= 15) this.lock();
+        if (this.leagueLockFrames > LEAGUE_LOCK_DELAY_FRAMES
+          || this.lastNow >= this.groundedAt + MAX_GROUNDED_MS) this.lock();
         return;
       }
       let progress = this.fallAcc / this.gravityMs + step;
@@ -641,6 +695,7 @@ export class Game {
         this.lastWasRotation = false;
       }
       this.refreshLock("fall");
+      this.noteGroundContact();
       cells -= step;
     }
   }
@@ -670,9 +725,13 @@ export class Game {
     this.lockElapsed = 0;
     this.leagueLockFrames = 0;
     this.lockResets = this.rotationResets = 0;
+    this.groundedAt = null;
     this.lowestY = SPAWN_Y;
     if (!canPlace(this.board, this.piece, this.rot, this.x, this.y)) {
       this.topOut = true;
+    } else {
+      // A spawn that is already resting on the stack starts its grounded clock.
+      this.noteGroundContact();
     }
   }
 }

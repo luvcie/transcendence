@@ -58,7 +58,8 @@ invited players still need to ready up themselves.
   lines, pieces and finesse until Retry or Mode selection. Sprint never records
   undo history. Your Zen width preference is preserved.
 
-Both local modes use the existing one-second practice lock profile, handling,
+Both local modes use the existing one-second practice lock profile, including the
+shared 15-reset per-piece budget and 3,000ms grounded lifetime, plus handling,
 gravity, seeded bags and shared clear rules. Sprint results use the shared
 engine's exact winning placement timestamp on a pause-free attempt timeline;
 render frequency cannot extend a finished run. Results are local and temporary.

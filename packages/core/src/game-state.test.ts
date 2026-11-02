@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { Game, Input } from "./game";
 import { GAME_STATE_VERSION, type GameState } from "./game-state";
 import { DEFAULT_HANDLING } from "./handling";
+import { PRACTICE_LOCK } from "./lock-profile";
 import { Piece, SPAWN_Y } from "./pieces";
 import { Rng } from "./rng";
 
@@ -183,6 +184,7 @@ test("malformed state is rejected before mutating a target Game", () => {
     s => { s.state.x = 9; }, s => { s.state.y = 40; },
     s => { s.state.fallAcc = -1; }, s => { s.state.fallAcc = 501; },
     s => { s.state.lockElapsed = 1001; }, s => { s.state.readyMs = NaN; },
+    s => { s.state.lockResets = 16; }, s => { s.state.groundedAt = 0; },
     s => { s.state.lastNow = 1; s.state.observedNow = 0; },
     s => { s.state.moveAt = Infinity; }, s => { s.state.direction = -1; },
     s => { s.state.softHeld = true; }, s => { s.state.sequence = 0.5; },
@@ -212,7 +214,7 @@ test("malformed state is rejected before mutating a target Game", () => {
 
 test("constructor defaults and signed seeds remain unchanged; invalid numeric config is rejected", () => {
   const defaults = new Game(-1).saveState();
-  expect(defaults.config).toEqual({ width: 10, gravityMs: 500, handling: DEFAULT_HANDLING, lockProfile: "42tris-practice-lock-v1" });
+  expect(defaults.config).toEqual({ width: 10, gravityMs: 500, handling: DEFAULT_HANDLING, lockProfile: PRACTICE_LOCK });
   expect(defaults.previews).toHaveLength(5);
   expect(defaults.state.readyMs).toBe(0);
   expect(new Game(-1).saveState()).toEqual(new Game(0xffffffff).saveState());

@@ -72,7 +72,9 @@ checkpoint restoration does not recover earlier turns. Match checkpoints are tru
 controller data and must not be accepted as client commands.
 
 Local play uses the one-second practice lock profile. Both competitive and practice
-Match use the league lock profile. Online practice undo rewinds its board without
+Match use the league lock profile. Both profiles share the same per-piece 15-reset
+budget and 3,000ms grounded lifetime; only their normal lock delay differs.
+Online practice undo rewinds its board without
 retracting sent attacks or restoring the external garbage ledger. These differences
 are intentional contracts that contributors need to preserve.
 

@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from "bun:test";
-import { DEFAULT_HANDLING, FRAME_MS, Game, Input, Piece, type GameState } from "@42tris/core";
+import { DEFAULT_HANDLING, FRAME_MS, Game, Input, LOCK_RESET_LIMIT, Piece, type GameState } from "@42tris/core";
 import { Match, type MatchInput } from "./match";
 import { OwnerPrediction } from "./prediction";
 
@@ -25,6 +25,27 @@ function expectOwner(prediction: OwnerPrediction, match: Match) {
   expect(predicted.epoch).toBe(owner.epoch);
   expect(predicted.frame).toBe(match.frame);
 }
+
+test("authoritative and predicted simulations agree on bounded lock resets", () => {
+  const state = new Match(options).saveState();
+  Object.assign(state.players[0].game.state, { piece: Piece.O, rot: 0, x: 4, y: 38 });
+  const match = Match.fromState(state);
+  const predicted = new OwnerPrediction(state, "a");
+  for (let i = 0; i < 20; i++) {
+    const next = input("a", 2 + i * 2, Input.RotateCw);
+    match.submit(next);
+    predicted.submit(next);
+  }
+  match.advanceToFrame(45);
+  predicted.advanceToFrame(45);
+  expectOwner(predicted, match);
+  expect(predicted.gameState().state.lockResets).toBe(LOCK_RESET_LIMIT);
+  expect(predicted.gameState().lastResult).toBeNull();
+  match.advanceToFrame(70);
+  predicted.advanceToFrame(70);
+  expectOwner(predicted, match);
+  expect(predicted.gameState().lastResult?.stats.pieces).toBe(1);
+});
 
 test("owner prediction matches authoritative handling, subframe inputs, timed locks and batching", () => {
   const state = new Match({ ...options, handlingByPlayer: { a: { ...DEFAULT_HANDLING, das: 1, arr: 0.5 } } }).saveState();

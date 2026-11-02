@@ -1,7 +1,7 @@
 import { canPlace, ROWS } from "./board";
 import { Piece, type PieceId } from "./pieces";
 
-export const RULES_VERSION = "42tris-tl-s2-v1";
+export const RULES_VERSION = "42tris-tl-s2-v2";
 export type Spin = "none" | "mini" | "full";
 export type Attack = Readonly<{ kind: "normal" | "surge" | "allClear"; lines: number }>;
 

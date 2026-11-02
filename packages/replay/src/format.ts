@@ -5,7 +5,7 @@ import type { SoloInitial, SoloRecord } from "./solo-driver";
 import { SPRINT_TARGET } from "./sprint-driver";
 
 export const REPLAY_FORMAT_VERSION = 1 as const;
-export const REPLAY_SIMULATION_VERSION = "42tris-replay-sim-v1" as const;
+export const REPLAY_SIMULATION_VERSION = "42tris-replay-sim-v2" as const;
 export const SOLO_MODE_ID = "42tris-local" as const;
 export const SOLO_MODE_VERSION = 1 as const;
 export const SPRINT_MODE_ID = "42tris-sprint" as const;

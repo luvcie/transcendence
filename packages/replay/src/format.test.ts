@@ -6,6 +6,7 @@ import {
   DEFAULT_REPLAY_LIMITS,
   MAX_TIMESTAMP_MS,
   MATCH_MODE_ID,
+  REPLAY_SIMULATION_VERSION,
   ReplayError,
   SOLO_MODE_ID,
   SoloDriver,
@@ -198,6 +199,7 @@ describe("replay compatibility", () => {
     const upgrades: [string, (value: Record<string, any>) => void][] = [
       ["format", value => { value.versions.format = 2; }],
       ["simulation", value => { value.versions.simulation = "other-sim"; }],
+      ["previous simulation", value => { value.versions.simulation = "42tris-replay-sim-v1"; }],
       ["core state", value => { value.versions.coreState = GAME_STATE_VERSION - 1; }],
       ["core rules", value => { value.versions.coreRules = "other-rules"; }],
       ["mode", value => { value.mode.id = "42tris-unknown"; }],
@@ -227,6 +229,7 @@ describe("replay compatibility", () => {
   });
 
   test("rejects wrong scalar versions and current constants drift", () => {
+    expect(CURRENT_REPLAY_VERSIONS.simulation).toBe(REPLAY_SIMULATION_VERSION);
     expect(CURRENT_REPLAY_VERSIONS.coreState).toBe(GAME_STATE_VERSION);
     expect(CURRENT_REPLAY_VERSIONS.coreRules).toBe(RULES_VERSION);
     expect(CURRENT_REPLAY_VERSIONS.matchState).toBe(MATCH_VERSION);

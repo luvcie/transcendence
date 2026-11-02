@@ -1,8 +1,9 @@
 # Core gameplay rules
 
-`42tris-tl-s2-v1` adopts Tetra League Season 2 clears and attacks while keeping
+`42tris-tl-s2-v2` adopts Tetra League Season 2 clears and attacks while keeping
 42tris handling and gravity. Local play uses the one-second practice lock profile;
-match play, including online practice, uses the league lock profile. A controller
+match play, including online practice, uses the league lock profile. Both profiles
+share a per-piece 15-reset budget and a 3,000ms grounded lifetime. A controller
 can supply explicit incoming garbage rows at settlement. The core has no default
 garbage rules, cancellation, routing, eligibility or other Tetra League match settings.
 
@@ -116,11 +117,12 @@ const resumed = Game.fromState(state, null); // An unconnected game.
 game.restoreState(state, null);
 ```
 
-Version 4 stores the board, preview queue, bag permutation/index and signed RNG
+Version 5 stores the board, preview queue, bag permutation/index and signed RNG
 state, configuration, current piece, hold and rotation eligibility. It also stores
-the lock profile, move/rotation reset counters and historical lowest position. It adds
-the league frame origin, next frame index, processed phase and lock duration in frames.
-Versions 1 through 3 are rejected; no implicit migration changes their continuation rules. It stores
+the lock profile, per-piece lock reset count, first-ground-contact timestamp and
+historical lowest position. It adds the league frame origin, next frame index,
+processed phase and lock duration in frames.
+Versions 1 through 4 are rejected; no implicit migration changes their continuation rules. It stores
 held controls, deadlines, accumulators, opening time, pause/top-out flags, last
 result, pending events and sequence. `stats` is derived from the saved last result,
 or the initial counters when no result exists. Inactive infinite deadlines use
@@ -235,10 +237,35 @@ use Zen must account for this distinction in their own ledgers.
 ## Lock profiles and shared scheduling
 
 The seventh constructor argument selects `PRACTICE_LOCK` (default) or `LEAGUE_LOCK`.
-Their version strings are `42tris-practice-lock-v1` and `42tris-league-lock-v2`.
-The practice profile accumulates time only while grounded and locks at 1,000ms.
-A successful move, rotation or fall clears an accumulated lock timer and falling
-progress, with no reset limit. Failed actions do not refresh it.
+Their version strings are `42tris-practice-lock-v2` and `42tris-league-lock-v3`.
+The numeric limits live in [lock-profile.ts](src/lock-profile.ts):
+`PRACTICE_LOCK_DELAY_MS = 1000`, `LEAGUE_LOCK_DELAY_FRAMES = 30`,
+`LOCK_RESET_LIMIT = 15` and `MAX_GROUNDED_MS = 3000`. The practice profile
+accumulates time only while grounded and locks at 1,000ms. League keeps the
+30-frame (500ms) checkpoint delay described below.
+
+Both profiles share the same per-piece reset budget and grounded lifetime. Every
+successful lateral move or rotation after the active piece's first ground contact
+consumes one reset, including actions that leave the ground, wall kicks and rotation
+kicks. Successful actions before first contact consume nothing, as do failed
+actions. The first 15 post-contact actions clear the accumulated lock timer (and
+the league blocked timer); the 16th and later do not. The count saturates at 15. A
+piece can therefore never restart its lock timer indefinitely.
+
+The grounded lifetime starts at the active piece's first ground contact in
+simulation milliseconds. It is a wall-clock limit: falling off a ledge or being
+lifted by a kick pauses lock accumulation but not grounded lifetime. If it expires
+while the piece is airborne, the piece does not lock in midair; it locks at its
+next grounded checkpoint. Moving off and back onto the ground creates neither a new
+budget nor a new grounded lifetime. Only a genuinely new active piece resets both
+limits: spawn after a lock, hard drop, hold, top-out restart or a new Game.
+Historical depth renewal does not reset the lock-reset budget. Pause/resume and Zen
+undo shift the grounded timestamp by the paused or rewound interval, so paused time
+is excluded and undo restores the budget and remaining timer for the restored turn.
+
+Hard drop still moves to the surface and locks immediately. Hold still swaps or
+consumes the next preview once per placement, and the new active piece receives a
+fresh budget.
 
 ### Fall checkpoints
 
@@ -254,8 +281,9 @@ account for residual time, such as pausing, also create a checkpoint.
 
 `nextStepAt` includes the next canonical league frame even when airborne. Controllers
 must process these deadlines globally before dispatching an input to its target game.
-An exhausted reset count does not create a zero-time deadline. A later positive Fall
-segment checks exhaustion. The public timestamp unit remains milliseconds.
+An exhausted reset count does not create a zero-time deadline or a forced lock; the
+normal blocked timer or grounded lifetime ends the piece. The public timestamp unit
+remains milliseconds.
 
 The lock timer accumulates the full segment duration, in frames, once on the first
 failed positive Fall chunk. Successful chunks earlier in that Fall do not reduce the
@@ -279,26 +307,34 @@ from rounding and wait for another checkpoint. A 0.25-frame overshoot and a test
 1e-10-frame overshoot at frame 32.2 both lock. The normalized timer is saved unchanged;
 snapshot validation does not admit active timers above 30.
 
-Every successful lateral move or rotation increments the reset count, including airborne
-actions. Failed actions do not count; a successful 180 counts once. Counts saturate at
-31 moves/rotations and 63 rotations. Resulting counts below 15 clear the timer. The
-15th action preserves it. Exhaustion forces a lock during the next Fall if one cell
-down is blocked.
+After first ground contact, every successful lateral move or rotation consumes one
+of the same 15 per-piece resets, including actions that leave the ground. Pre-contact
+and failed actions do not count; a successful 180 counts once. The lock-reset count
+saturates at 15. The first 15 post-contact actions clear the blocked timer; later
+successful actions leave it running. Exhaustion does not create a
+zero-time deadline or force an extra lock: the normal 30-frame timer, or the shared
+grounded lifetime at its next grounded checkpoint, ends the piece. `rotationResets`
+is a separate excess-rotation counter, saturating at 63; it does not spend the
+lock-reset budget.
 
 The integer board retains fractional falling progress in `fallAcc / gravityMs`.
 Depth renewal compares `y + fallAcc / gravityMs` against the old historical marker,
-then stores its ceiling. Thus fractional progress past that marker renews both counts,
-even before a whole row changes. It preserves the lock timer. Each Fall computes its
+then stores its ceiling. Thus fractional progress past that marker renews rotation
+excess, even before a whole row changes. It preserves the lock timer and does not
+renew the lock-reset budget or grounded lifetime. Each Fall computes its
 distance once: configured gravity/soft drop plus `0.5 * duration * max(0, rotations - 30)`
 cells. Depth renewal mid-Fall does not reduce that distance. Soft drop does not multiply
 the rotation term. Values within eight machine epsilons of a whole cell snap to that
 cell to avoid losing an integer descent to floating-point accumulation.
 
-Hold and spawn clear per-piece timers, progress, counts and historical depth. They
-preserve the global frame phase. If a checkpoint locks, its remaining distance is
-discarded; the next piece receives only subsequent segments. Pause/resume and Zen undo
-rebase the canonical frame origin to their timestamp. Undo restores per-piece timers
-and releases controls. Exact JSON snapshots preserve the frame phase without rebasing.
+Hold and spawn clear per-piece timers, progress, counts, grounded lifetime and
+historical depth. A spawn already resting on the stack starts a new grounded lifetime
+at the spawn timestamp. Spawn and hold preserve the global frame phase. If a
+checkpoint locks, its remaining distance is discarded; the next piece receives only
+subsequent segments. Pause/resume and Zen undo shift the grounded timestamp by the
+paused or rewound interval and rebase the canonical frame origin to their timestamp.
+Undo restores per-piece timers and releases controls. Exact JSON snapshots preserve
+the frame phase and grounded timestamp without rebasing.
 
 ### Evidence and remaining differences
 
@@ -310,9 +346,9 @@ repository tests verify the 42tris contract:
 | --- | --- |
 | `_ProcessSubframe` | `ProcessAllShift(duration)` and `Fall(duration)` precede keydown/up. |
 | `_InternalLocking` | Adds supplied duration and tests `locking > locktime`. |
-| `Fall` | Forces exhausted grounded pieces, adds rotation distance once, charges full duration on first failed chunk. |
-| `_InternalShift`, `_InternalRotate` | Cap counts and clear the timer only while the resulting count is below the reset limit. |
-| `_InternalFall` | Renews counts past old `hy`, sets `hy = ceil(newY)`, and preserves locking. |
+| `Fall` | Adds rotation distance once and charges full duration on the first failed chunk; the 15-reset and grounded-lifetime limits end exhausted pieces. |
+| `_InternalShift`, `_InternalRotate` | Cap counts; the shared 42tris budget clears the timer for the first 15 successful actions. |
+| `_InternalFall` | Renews excess-rotation acceleration past old `hy`, sets `hy = ceil(newY)`, and preserves locking. |
 
 `lock-profile.test.ts` exercises those checkpoint rules, fractional snapshots, and coarse
 versus canonical stepping. These are source-derived unit fixtures, not differential

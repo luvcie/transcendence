@@ -60,17 +60,17 @@ test("strict lock still detects positive time beyond the rounding neighborhood",
   expect(g.stats.pieces).toBe(1);
 });
 
-test("league counts successful airborne moves and rotations, not failed moves", () => {
+test("league leaves pre-contact airborne actions unbudgeted and depth renewal only resets rotation excess", () => {
   const game = league();
   game.apply(Input.RotateCw, 0);
   game.apply(Input.LeftDown, 0);
   game.apply(Input.LeftUp, 0);
-  expect(game.saveState().state.lockResets).toBe(2);
+  expect(game.saveState().state.lockResets).toBe(0);
   expect(game.saveState().state.rotationResets).toBe(1);
   game.x = 0;
   game.piece = Piece.O;
   game.apply(Input.LeftDown, 0);
-  expect(game.saveState().state.lockResets).toBe(2);
+  expect(game.saveState().state.lockResets).toBe(0);
   game.apply(Input.LeftUp, 0);
   game.tick(30 * FRAME_MS);
   expect(game.saveState().state.lockResets).toBe(0);
@@ -91,7 +91,7 @@ test("league locks after 30 frames, practice retains a full second", () => {
   }
 });
 
-test("fifteenth successful action locks on the next positive Fall, not an equal-time tick", () => {
+test("the sixteenth successful action keeps the fifteenth reset timer instead of renewing it", () => {
   const game = league();
   Object.assign(game, { piece: Piece.O, x: 4, y: 38 });
   for (let i = 0; i < 14; i++) game.apply(Input.RotateCw, i);
@@ -104,8 +104,11 @@ test("fifteenth successful action locks on the next positive Fall, not an equal-
     g.tick(21);
     expect(g.stats.pieces).toBe(0);
     g.apply(Input.Rotate180, 22);
+    expect(g.rot).toBe(1);
+    expect(g.saveState().state.lockResets).toBe(15);
+    expect(g.stats.pieces).toBe(0);
+    g.tick(40 * FRAME_MS);
     expect(g.stats.pieces).toBe(1);
-    expect(g.rot).toBe(2);
   }
   expect(resumed.saveState()).toEqual(game.saveState());
 });
@@ -152,7 +155,7 @@ test("inputs before, at, and after the frame lock checkpoint target the correct 
   expect(g.saveState().state.leagueLockFrames).toBe(0);
 });
 
-test("fourteenth reset clears the timer, fifteenth preserves it, 180 counts once", () => {
+test("fifteenth reset clears the timer, sixteenth preserves it, 180 counts once", () => {
   const g = league();
   Object.assign(g, { piece: Piece.O, x: 4, y: 38 });
   for (let i = 0; i < 13; i++) g.apply(Input.Rotate180, 0);
@@ -162,10 +165,13 @@ test("fourteenth reset clears the timer, fifteenth preserves it, 180 counts once
   expect(g.saveState().state.leagueLockFrames).toBe(0);
   g.apply(Input.Rotate180, 4.25 * FRAME_MS);
   expect(g.saveState().state.lockResets).toBe(15);
-  expect(g.saveState().state.leagueLockFrames).toBe(0.25);
-  g.tick(4.25 * FRAME_MS);
+  expect(g.saveState().state.leagueLockFrames).toBe(0);
+  g.apply(Input.Rotate180, 4.5 * FRAME_MS);
+  expect(g.saveState().state.lockResets).toBe(15);
+  expect(g.saveState().state.leagueLockFrames).toBeCloseTo(0.25, 10);
+  g.tick(4.5 * FRAME_MS);
   expect(g.stats.pieces).toBe(0);
-  g.tick(5 * FRAME_MS);
+  g.tick(40 * FRAME_MS);
   expect(g.stats.pieces).toBe(1);
 });
 
@@ -177,11 +183,12 @@ test("fractional depth renewal preserves blocked time and uses the old historica
   g.apply(Input.LeftUp, FRAME_MS / 4);
   expect(g.y).toBe(18);
   expect(g.saveState().state.lowestY).toBe(19);
-  expect(g.saveState().state.lockResets).toBe(0);
+  expect(g.saveState().state.lockResets).toBe(14);
   expect(g.saveState().state.leagueLockFrames).toBe(12);
   g.apply(Input.Rotate180, FRAME_MS / 4);
   g.apply(Input.LeftUp, FRAME_MS / 2);
-  expect(g.saveState().state.lockResets).toBe(1);
+  // The piece has not touched ground yet, so this rotation stays unbudgeted.
+  expect(g.saveState().state.lockResets).toBe(14);
 });
 
 test("excess rotation adds distance once per Fall, including quarter frames and depth renewal", () => {
@@ -225,10 +232,10 @@ test("fractional blocked timer survives JSON restoration through the strict thre
   expect(b.saveState()).toEqual(a.saveState());
 });
 
-test("airborne reset counts saturate independently", () => {
+test("pre-contact rotation excess saturates without spending the lock budget", () => {
   const g = league();
   for (let i = 0; i < 80; i++) g.apply(Input.Rotate180, 0);
-  expect(g.saveState().state.lockResets).toBe(31);
+  expect(g.saveState().state.lockResets).toBe(0);
   expect(g.saveState().state.rotationResets).toBe(63);
   expect(g.stats.pieces).toBe(0);
 });
@@ -262,7 +269,7 @@ test("fractional JSON continuation and coarse ticks match canonical checkpoints"
 
 test("profile and counter corruption is rejected before restoring", () => {
   const g = league();
-  for (const patch of [{ lockResets: 32 }, { rotationResets: -1 }, { lowestY: NaN },
+  for (const patch of [{ lockResets: 16 }, { lockResets: -1 }, { rotationResets: -1 }, { lowestY: NaN },
     { leagueFrame: 0 }, { leaguePhase: 1 }, { leagueOriginMs: 20 }, { leagueLockFrames: 30.25 }]) {
     const state = g.saveState();
     Object.assign(state.state, patch);
@@ -292,7 +299,7 @@ test("failed rotations preserve the lock timer and counters", () => {
 test("rotation acceleration is additive to configured soft drop", () => {
   const g = league();
   const state = g.saveState();
-  Object.assign(state.state, { rotationResets: 32, lockResets: 31, softHeld: true, softAt: 0 });
+  Object.assign(state.state, { rotationResets: 32, lockResets: 15, softHeld: true, softAt: 0 });
   g.restoreState(state, null);
   g.apply(Input.LeftUp, FRAME_MS / 4);
   const expected = FRAME_MS / 4 / 500 + 0.25 / DEFAULT_HANDLING.sdarr + 0.25;
