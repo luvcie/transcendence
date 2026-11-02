@@ -16,6 +16,13 @@
       .view-heading { flex-shrink: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; padding: 14px 0; }
       .view-heading h1 { margin: 0; font-size: 18px; }
       #status { margin: 0; color: #aaa; font-size: 12px; overflow-wrap: anywhere; }
+      #guest-name-editor { color: #aaa; font-size: 12px; }
+      #guest-name-editor button { padding: 2px 4px; font-size: inherit; }
+      #guest-name-editor [data-edit-name]:not([hidden]) { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: inherit; }
+      #guest-name-editor [data-edit-name]:hover { color: #eee; text-decoration: underline; }
+      #guest-name-editor [data-edit-name] svg { width: 14px; height: 14px; flex: none; }
+      #guest-name-editor form:not([hidden]) { display: inline; }
+      #guest-name-editor input { width: 16em; max-width: 50vw; padding: 2px 4px; }
       #game-view { flex: 1; min-height: 360px; container-type: size; --board-ratio: 1; --board: min(300px, calc((100cqw - 24px) / max(2, 1 + var(--board-ratio))), calc((100cqh - 90px) / 2)); }
       .match-stage { display: flex; justify-content: center; align-items: start; }
       .playfield { width: calc(var(--board) * (1 + var(--board-ratio)) + 24px); flex: none; }
@@ -225,7 +232,7 @@
         <button id="pause-button" hidden>Pause / Esc</button>
         <button id="nav-settings-button"><span aria-hidden="true">⚙</span> Settings</button>
       </header>
-      <div class="view-heading"><h1 id="view-title" tabindex="-1">Choose your game</h1><p id="status"></p></div>
+      <div class="view-heading"><h1 id="view-title" tabindex="-1">Choose your game</h1><p id="status"></p><span id="guest-name-editor" hidden><button type="button" data-edit-name aria-label="Edit guest name"><span data-current-name></span> <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button><form data-edit-form hidden><input name="name" aria-label="Guest name" maxlength="24" required autocomplete="nickname"><button type="submit">Save</button></form> <span>(you)</span></span></div>
       <section id="home-view" hidden aria-labelledby="home-title">
         <h2 id="home-title" class="menu-label" tabindex="-1">Singleplayer</h2>
         <div class="mode-list" aria-label="Singleplayer modes">

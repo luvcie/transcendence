@@ -87,6 +87,20 @@ describe("invitation links", () => {
   });
 });
 
+test("renames are normalized, retained on reconnect, and rolled back on server error", () => {
+  const h = harness();
+  h.session.rename("  New <Name>  ");
+  expect(h.sent.at(-1)).toEqual({ type: "rename", name: "New Name" });
+  h.session.receive({ type: "roomState", room: { ...h.cp.room, players: h.cp.room.players.map(p => p.playerId === "a" ? { ...p, name: "New Name" } : p) } });
+  h.session.stop(); h.session.start(); h.sockets.at(-1)!.open();
+  expect(h.sent.at(-1)).toMatchObject({ type: "hello", name: "New Name", resumeToken: "token" });
+  h.session.receive({ type: "welcome", guestSessionId: "a", playerId: "a", resumeToken: "token", name: "New Name", room: null, generation: 0, serverNow: 0 });
+  h.session.rename("Another");
+  h.session.receive({ type: "error", code: "RATE_LIMIT", message: "Try again" });
+  expect(h.session.name).toBe("New Name");
+  expect(h.session.status).toContain("Try again");
+});
+
 describe("owner session", () => {
   test("predicts immediately, batches at 34ms, and restores accepted inputs only once", () => {
     const h = harness();

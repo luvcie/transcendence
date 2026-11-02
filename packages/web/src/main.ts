@@ -13,6 +13,8 @@ import { setupSettingsTabs, setupSkins } from "./skin-settings";
 import { drawPiecePreview } from "./tile-renderer";
 import { drawBoard } from "./board-view";
 import { mountOnline } from "./online-view";
+import { mountGuestName } from "./guest-name";
+import { dismissSettingsOnBackdrop } from "./settings-dialog";
 import { mountGameplayInput } from "./gameplay-input";
 import { renderOnlineWaiting } from "./waiting-view";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
@@ -29,6 +31,7 @@ showView(atHome ? "home" : "lobby");
 
 const canvas = document.querySelector<HTMLCanvasElement>("#board")!;
 const status = document.querySelector<HTMLParagraphElement>("#status")!;
+const guestName = mountGuestName(document.querySelector<HTMLElement>("#guest-name-editor")!, () => online?.session);
 const holdCanvas = document.querySelector<HTMLCanvasElement>("#hold-preview")!;
 const holdCtx = holdCanvas.getContext("2d")!;
 const nextCanvas = document.querySelector<HTMLCanvasElement>("#next-preview")!;
@@ -271,6 +274,7 @@ document.querySelector("#resume-button")!.addEventListener("click", resume);
 document.querySelector("#settings-button")!.addEventListener("click", () => openSettings(true));
 document.querySelector("#nav-settings-button")!.addEventListener("click", () => openSettings(false));
 document.querySelector("#settings-back")!.addEventListener("click", closeSettings);
+dismissSettingsOnBackdrop(settingsDialog, closeSettings);
 holdButton.addEventListener("click", () => {
   applyInput(Input.Hold);
   holdButton.blur();
@@ -398,6 +402,7 @@ const unmountInput = mountGameplayInput(window, {
 });
 
 function frame() {
+  guestName.update();
   if (online) {
     online.update();
     const session = online?.session;
@@ -415,8 +420,10 @@ function frame() {
       }
       const label = details.join(" · ");
       if (status.textContent !== label) status.textContent = label;
+      status.hidden = session.room?.phase === "waiting";
     }
   } else if (solo) {
+    status.hidden = false;
     solo.tick(performance.now());
     if (display !== solo.game) pressed.clear();
     display = solo.game;

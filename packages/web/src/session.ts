@@ -50,6 +50,7 @@ export class Session {
   private invite = "";
   private inviteSent = false;
   notice = "";
+  private previousName: string | null = null;
 
   constructor(private options: SessionOptions) {
     this.name = this.read(options.profile, "42tris.name") || "Guest";
@@ -136,6 +137,7 @@ export class Session {
     this.retry();
   }
   rename(name: string) {
+    if (this.connected && this.previousName === null) this.previousName = this.name;
     this.name = name.trim().replace(/[<>\x00-\x1f\x7f]/g, "").slice(0, 24) || "Guest";
     this.store(this.options.profile, "42tris.name", this.name);
     this.send({ type: "rename", name: this.name });
@@ -222,6 +224,7 @@ export class Session {
         this.bestRtt = Infinity;
         this.playerId = message.playerId;
         this.name = message.name;
+        this.previousName = null;
         this.room = message.room;
         this.store(this.options.storage, "42tris.resume", message.resumeToken);
         this.status = `Connected as ${message.name}`;
@@ -237,6 +240,7 @@ export class Session {
         }
         break;
       case "roomState":
+        if (message.room.players.find(p => p.playerId === this.playerId)?.name === this.name) this.previousName = null;
         this.room = message.room;
         this.invite = "";
         if (message.room.phase !== "playing") this.options.clearKeys();
@@ -297,6 +301,11 @@ export class Session {
         break;
       }
       case "error":
+        if (this.previousName !== null) {
+          this.name = this.previousName;
+          this.previousName = null;
+          this.store(this.options.profile, "42tris.name", this.name);
+        }
         this.status = `${message.code}: ${message.message}`;
         if (this.invite && ["ROOM_NOT_FOUND", "ROOM_FULL", "ROOM_BUSY"].includes(message.code)) {
           this.status = message.code === "ROOM_NOT_FOUND" ? "Room not found or expired. Check the code and try again."

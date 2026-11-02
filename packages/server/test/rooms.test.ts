@@ -491,6 +491,22 @@ describe("room authority", () => {
     expect(f.room.match!.playerState(f.a.welcome!.playerId).state.leftHeld).toBe(false);
   });
 
+  test("renamed guests are broadcast to the room and keep their name on reconnect", () => {
+    const f = fixture();
+    f.a.send({ type: "rename", name: "New Name" });
+    for (const client of f.clients) {
+      const state = [...client.messages].reverse().find(m => m.type === "roomState");
+      expect(state?.type === "roomState" && state.room.players.find(p => p.playerId === f.a.welcome!.playerId)?.name).toBe("New Name");
+    }
+    f.rooms.disconnect(f.a.peer.id);
+    const messages: ServerMessage[] = [];
+    const peer: Peer = { id: crypto.randomUUID(), send: m => messages.push(m), close() {} };
+    f.rooms.connect(peer);
+    f.rooms.receive(peer.id, { type: "hello", name: "New Name", guestProfileId: "same-profile", resumeToken: f.a.welcome!.resumeToken });
+    expect(messages.find(m => m.type === "welcome")).toMatchObject({ name: "New Name", playerId: f.a.welcome!.playerId });
+    expect(f.rooms.view(f.room).players.find(p => p.playerId === f.a.welcome!.playerId)?.name).toBe("New Name");
+  });
+
   test("creator settings, capacity and idempotent create cannot bypass room authority", () => {
     const f = fixture(2);
     const options = { firstTo: 2, maxPlayers: 2, mode: "competitive" as const, attacksEnabled: true };
