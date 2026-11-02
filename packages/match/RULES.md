@@ -39,8 +39,8 @@ break deadline ties. The scheduler always advances the earliest deadline across
 all games. A deadline exactly at a frame's right boundary belongs to the next frame.
 Input timestamps, rather than arrival batches or render calls, determine the result.
 
-I chose complete-frame commits to group deaths and reconcile crossing attacks.
-Running one player's entire coarse tick first would reorder attacks and garbage insertion.
+Complete-frame commits group deaths and reconcile crossing attacks. Running one
+player's entire coarse tick first would reorder attacks and garbage insertion.
 This frame boundary does not quantize input times; core deadlines and inputs retain
 their fractional milliseconds. Garbage eligibility uses the actual lock timestamp.
 
@@ -120,7 +120,8 @@ This includes attacks at different subframes of the same frame. Partial packets
 retain their identity and order. Staged packets are not yet in the recipient's
 defensive queue, so same-frame crossings do not gain the opener bonus. This is
 the simulation's authoritative delivery policy; it does not reproduce the client's
-network acknowledgement protocol. It prevents the rejected same-frame passthrough case.
+network acknowledgement protocol. Fully offset same-frame attacks never enter
+either recipient's queue.
 
 One living opponent is chosen randomly per outgoing placement bundle. All remaining
 packets in that bundle use that opponent, with no broadcast multiplication.
@@ -256,29 +257,94 @@ operations. Network checkpoints do not contain Zen history. After a reset or und
 the replacement predictor restores the authoritative epoch and core clock origin;
 old-epoch inputs must not be replayed against it.
 
+## Server authority and online lifecycle
+
+[rooms.ts](../server/src/rooms.ts) binds commands to a server-issued guest seat.
+An opaque resume token restores that seat after disconnect; a live connection
+cannot be taken over. The browser stores the token in session storage. This is
+guest-session authority, not account authentication. A profile ID is not a credential.
+[Protocol schemas](../protocol/src/index.ts) reject extra client fields, including
+forged player IDs, boards, attacks or scores.
+
+Each input batch carries `matchId`, connection `generation` and board `epoch`.
+The server assigns player identity and global order, requires contiguous sequence
+numbers, deduplicates identical retransmissions and disconnects conflicting reuse.
+Late inputs are rejected rather than rolled back. Inputs more than two frames
+ahead of the current wall-clock simulation frame are also rejected. Batches are
+limited to 32 inputs, with at most 128 accepted inputs pending per seat and a
+separate input rate budget. Acknowledgements distinguish pending accepted,
+resolved and rejected sequences; receipt does not mean an input has been simulated.
+
+The scheduler wakes every 10ms and advances complete frames to
+`floor(max(0, simulationNow - 100) / FRAME_MS)`, never backward. The 100ms commit
+delay leaves time for network input arrival. Full checkpoints are scheduled every
+50ms (20Hz) and also sent after relevant commands and transitions. Transport can
+skip a checkpoint under backpressure. These intervals are scheduling targets,
+not delivery guarantees. Checkpoints include the authoritative Match, owner input
+acknowledgements, clock information and a bounded recent event window.
+
+Ready players enter preparation. All eligible players must acknowledge the supplied
+checkpoint within 10 seconds before a three-second countdown starts. Readiness
+also gates subsequent rounds and a new set after a result. Handling is frozen when
+the set is created; later readiness messages do not change that set's handling.
+
+A detected disconnect during play, preparation or countdown pauses the whole room.
+Match advancement stops, the simulation clock freezes, all held controls and queued
+inputs are released, and each seat's generation changes. Each disconnected seat
+has its own 40-second reservation; another disconnect does not extend it. Native
+WebSocket heartbeat probes run every two seconds and close a lease after six
+seconds without a pong, so a silent connection loss need not pause immediately.
+
+When all remaining eligible seats are connected, preparation and the three-second
+countdown run again before the existing Match resumes. The paused duration is
+excluded from the simulation clock. Expired or explicitly leaving competitive seats
+forfeit; remaining players can continue, and simultaneous expiry can abort an
+unfinished set. Published completed-set results are preserved by the room layer.
+Removing a practice seat discards that practice Match and returns the room to waiting.
+
+Reconnect retains the live Match instance and its server-side Zen history. This
+is different from `Match.fromState`, which loses earlier undo history. Online undo
+and reset are server requests, not local prediction operations. The room owner alone
+can toggle practice attacks. Opening the online menu or losing browser focus only
+releases that owner's controls; play continues unless a disconnect pauses the room.
+
+The browser [Session](../web/src/session.ts) predicts its owner immediately, batches
+inputs at intervals of at least 34ms, and rebuilds prediction after each checkpoint.
+It replays unresolved inputs once, uses server-assigned order for accepted backlog,
+and drops old match/round/generation/epoch inputs. Ping samples estimate the server
+clock offset. Pauses freeze the prediction horizon; checkpoints stale for two
+seconds suspend input and request resynchronization. Opponents render from server
+snapshots without forward simulation.
+
+See [room tests](../server/test/rooms.test.ts),
+[WebSocket tests](../server/test/websocket.test.ts),
+[session tests](../web/session.test.ts) and [netplay tests](../web/netplay.test.ts).
+
 ## Evidence and compatibility gaps
 
-The public [client source](https://tetr.io/js/tetrio.js) was rechecked from the saved
-source on 2026-10-29. Core's `RULES.md` records the pinned source hash. Observed
-behavior guided an independent implementation; no client functions were copied.
+Historical implementation notes record a check of saved
+[client source](https://tetr.io/js/tetrio.js) on 2026-10-29.
+[Core rules](../core/RULES.md) record the source hash. These notes explain the
+profile's origin; they are not a fresh verification of the external client.
 
-The opener condition is `piecesplaced <= openerphase` and `pending >= sent`.
-The source increments placed pieces before resolving attacks. It spends normal
-attack before the extra defensive budget. The preset sets opener phase to 14,
+The historical reference notes describe the opener condition as
+`piecesplaced <= openerphase` and `pending >= sent`. The source increments placed
+pieces before resolving attacks. It spends normal attack before the extra defensive budget. The preset sets opener phase to 14,
 garbage speed to 20, cap to eight, combo blocking and zero passthrough. Engine
 defaults supply phase zero, nonsequential queue, instant entry, packet messiness
 one, inner messiness zero and no repeated-column avoidance.
 
-The following work remains explicit:
+Current compatibility limits:
 
 1. Core supplies lock timing through `LEAGUE_LOCK` and `nextStepAt`; match has no
-   separate lock timer. See `packages/core/RULES.md` for the current timing contract
+   separate lock timer. See [core rules](../core/RULES.md) for the current timing contract
    and its limits relative to the client's fractional falling model.
 2. Match retains 42tris gravity (500ms per cell) and handling. League gravity ramps,
    later garbage multipliers, fractional kick depth and the client's acknowledgement
    protocol are not implemented. Do not label this profile full League conformance.
 3. Practice history before an exact checkpoint is unavailable after restoration.
    The server must communicate that limit if it reloads a practice session.
-4. The future server must implement the 40-second whole-room reconnect pause,
-   authenticated input ordering and persistence. Disconnect sessions, Elysia/Eden
-   and online UI are outside this package.
+4. Durable server persistence is not implemented. Rooms, guest sessions and live
+   matches exist only in server memory. A process restart loses them. Network
+   transport and reconnect policy are implemented outside this package, as described
+   above.

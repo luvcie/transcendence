@@ -336,6 +336,7 @@ tags
 .ionide
 
 ARCHITECTURE.md
+!/docs/ARCHITECTURE.md
 en.subject.pdf
 .DS_Store
 

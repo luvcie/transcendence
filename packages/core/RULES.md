@@ -1,17 +1,21 @@
-# 42tris rules
+# Core gameplay rules
 
 `42tris-tl-s2-v1` adopts Tetra League Season 2 clears and attacks while keeping
-42tris handling and gravity. Practice retains its one-second lock delay. A controller can supply
-explicit incoming garbage rows at settlement. The core has no default garbage
-rules, cancellation, routing, eligibility or other Tetra League match settings.
+42tris handling and gravity. Local play uses the one-second practice lock profile;
+match play, including online practice, uses the league lock profile. A controller
+can supply explicit incoming garbage rows at settlement. The core has no default
+garbage rules, cancellation, routing, eligibility or other Tetra League match settings.
 
-References checked on 2026-10-28:
+Historical reference recorded during implementation on 2026-10-28:
 
 - [TETR.IO patch notes](https://tetr.io/about/patchnotes/notes.json)
 - [TETR.IO client](https://tetr.io/js/tetrio.js), SHA-256
   `9e57c958c43520deb5dd91f5e1773bf779bfb91e7d273dc8494a93a3a0866d2f`
 
-The profile fixes these choices explicitly, independent of future client updates:
+The reference date and hash are historical provenance, not a fresh verification of
+the external client. Current behavior is defined by [rules.ts](src/rules.ts),
+[game.ts](src/game.ts) and their tests. The profile fixes these choices independently
+of future client updates:
 
 - All-Mini+ spins with SRS+ rotation. T corners distinguish full spins from minis,
   with the fifth rotation test upgrading a corner mini. Immobile spins otherwise
@@ -30,6 +34,43 @@ The profile fixes these choices explicitly, independent of future client updates
 - A Quad or spin clearing a garbage-containing row adds one after rounding.
   An all clear adds a separate five-line packet. Surge and all-clear packets
   do not receive combo multipliers. Attack multiplier stays at one.
+
+## Board, pieces and handling
+
+The board is 10 columns by 40 rows. Rows 0 through 19 are hidden; rows 20 through
+39 are visible. Cell 0 is empty, IDs 1 through 7 are Z, L, O, S, I, J, T, and 8 is
+garbage. Pieces use a seeded splitmix32 RNG and a Fisher-Yates seven-bag shuffle.
+Default gravity is 500ms per cell with five previews. Spawn uses rotation 0 at
+`y = 18`, with `x = 4` for O and `x = 3` otherwise. Spawn collision or garbage
+overflow causes top-out; merely occupying hidden rows does not.
+
+Hold is available once per placement. An empty hold consumes the next preview;
+swapping an occupied hold does not. Either operation resets the active piece's
+orientation and per-piece timers. Hard drop moves to the surface and locks
+immediately. A positive descent invalidates spin eligibility; a zero-distance
+hard drop preserves it. Failed moves and rotations preserve eligibility.
+Rotation tries the natural position first, then the ordered SRS+ kick table,
+with separate I-piece candidates and explicit 180-degree kicks.
+
+Handling values are in 60Hz frames and may be fractional. Defaults are DAS 10,
+ARR 2, soft-drop DAS 0 and soft-drop ARR 2. Valid ranges are respectively 0..20,
+0..15, 0..10 and 0..4. A direction press attempts one immediate move, then repeats
+after DAS. The last pressed direction wins; releasing it recharges DAS for the
+remaining held direction. A blocked initial move charges DAS immediately. Blocked
+finite-ARR repeats retry after one frame. ARR 0 moves to the wall after charging
+and stays charged across spawns.
+
+Soft-drop press attempts one row immediately, plus a second when soft-drop DAS
+is zero and soft-drop ARR is positive. After the delay, positive soft-drop ARR
+adds one cell per configured interval to gravity. ARR 0 drops to the surface
+without locking and follows subsequent successful lateral moves into available
+space. Duplicate down inputs do not restart handling timers.
+
+An optional opening preview delay ignores gameplay input until the first spawn.
+The local browser uses 250ms; Match uses zero and the server supplies its own
+countdown. See [handling.test.ts](src/handling.test.ts),
+[rotation.test.ts](src/rotation.test.ts), [hold.test.ts](src/hold.test.ts) and
+[start.test.ts](src/start.test.ts).
 
 ## Core consumers
 
@@ -59,8 +100,9 @@ The attack counter measures generated lines, before any future cancellation.
 
 `stats.combo` is -1 outside a combo, 0 on its first clear. `chainLength` distinguishes
 an established B2B chain from no chain, even though both display B2B 0. Event values
-are immutable and sequence numbers increase throughout a game instance's lifetime.
-A future match controller supplies player identity and handles attack routing.
+are immutable and sequence numbers increase during forward play and Zen undo.
+Exact restoration reinstates the saved sequence, which can be older.
+[Match](../match/RULES.md) supplies player identity, cancellation and attack routing.
 
 ## Exact snapshots
 
@@ -93,11 +135,12 @@ older state; it is not an external timestamp call.
 
 Restore validates versions, array shapes, cell and piece IDs, bag permutation,
 integer counters, finite numeric ranges, control/deadline consistency, event
-ordering and piece bounds before mutating the target. Unknown properties are
+sequence ordering and piece bounds before mutating the target. Unknown properties are
 ignored. Invalid state throws. Restored data and later snapshots share no mutable
 arrays, configuration or result objects with the source. Lock results remain
 deeply frozen. An existing target must have the saved preview count; `fromState`
-constructs that count automatically.
+constructs that count automatically. Validation does not prove gameplay reachability
+or recompute historical attacks and counters from the board.
 
 Held directions with finite ARR require a finite movement deadline. A null
 movement deadline is valid for a held direction only with charged ARR=0. Held
@@ -155,10 +198,10 @@ If there is no overflow, normal spawn collision checks run after insertion.
 Incoming rows do not alter the generated attack counter or this placement's clear
 and all-clear calculation.
 
-I chose staged placement over rolling back a committed lock because a callback
-can already have changed an external attack ledger. If the callback throws,
-returns a promise, or returns invalid holes, the core throws and fails closed:
-top-out is set and controls are released. No part of that placement's staged
+Placement is staged before commit because a callback can already have changed
+an external attack ledger; rolling back only the Game would leave them inconsistent.
+If the callback throws, returns a promise, or returns invalid holes, the core throws
+and fails closed: top-out is set and controls are released. No part of that placement's staged
 board, result, sequence, queue or history is committed. Earlier successful locks
 in the same tick remain committed. Input movement and elapsed time are not rolled
 back. A later tick cannot retry the failed callback. The controller must recover
@@ -177,9 +220,10 @@ a new game discards it.
 Undo keeps current handling and pause settings, releases held inputs, and rebases
 the restored timer progress to `nowMs`. It drops pending events from the abandoned
 state and emits `restored`, without emitting old attacks again. The browser also
-clears its pressed-key map. Normal mode automatically restarts after top-out, while
-Zen keeps the board available for undo. Zen's local history is not a competitive
-rollback or wire protocol.
+clears its pressed-key map. Local non-Zen play automatically restarts after top-out,
+while local Zen keeps the board available for undo. Online competitive play waits
+for the server result; online practice retains the board for authoritative undo/reset.
+Zen's local history is not a competitive rollback or wire protocol.
 
 Undo restores the board before received garbage for that turn. It also rewinds
 local generated attack stats, but cannot retract attacks already recorded or sent
@@ -190,14 +234,16 @@ use Zen must account for this distinction in their own ledgers.
 
 The seventh constructor argument selects `PRACTICE_LOCK` (default) or `LEAGUE_LOCK`.
 Their version strings are `42tris-practice-lock-v1` and `42tris-league-lock-v2`.
-Practice retains its existing 1,000ms unlimited-refresh behavior.
+The practice profile accumulates time only while grounded and locks at 1,000ms.
+A successful move, rotation or fall clears an accumulated lock timer and falling
+progress, with no reset limit. Failed actions do not refresh it.
 
 ### Fall checkpoints
 
-I replaced the fixed 31-frame deadline because a subframe Fall can cross the strict
-30-frame threshold before frame 31. League simulation processes complete 60Hz frames,
-configured handling deadlines, and the residual segment before each input. Each segment
-processes held shifts before Fall, then the input acts on the resulting piece.
+A fixed 31-frame deadline would miss subframe Fall checkpoints that cross the
+strict 30-frame threshold before frame 31. League simulation processes complete
+60Hz frames, configured handling deadlines, and the residual segment before each
+input. Each segment processes held shifts before Fall, then the input acts on the resulting piece.
 
 `tick` processes canonical frame and handling deadlines only. Arbitrary render ticks
 do not create extra Fall segments. `apply` also processes its fractional input checkpoint.
@@ -254,7 +300,9 @@ and releases controls. Exact JSON snapshots preserve the frame phase without reb
 
 ### Evidence and remaining differences
 
-The cached client cited above contains these relevant methods:
+The implementation notes recorded these client methods as the basis of the profile.
+Their external-source behavior is retained as historical context; the current
+repository tests verify the 42tris contract:
 
 | Method | Observed behavior used here |
 | --- | --- |
@@ -281,4 +329,4 @@ or its soft-drop multiplier. These differences matter for cross-engine replay co
 This profile defines reproducible shared-core lock checkpoints without claiming that
 subcell positions or input handling match the client bit for bit.
 
-`packages/match/RULES.md` defines the shared versus scheduler and garbage profile.
+[Match rules](../match/RULES.md) define the shared versus scheduler and garbage profile.
