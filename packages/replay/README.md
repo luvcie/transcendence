@@ -4,8 +4,8 @@ This package implements the replay format, bounded decoding, corruption checks,
 Sprint reconstruction/result verification, Sprint recording and competitive Match
 reconstruction/result verification. Deterministic execution lives in the drivers.
 Sprint playback is implemented in `packages/web/src/sprint-playback.ts` on top of
-`SprintDriver`; Match playback, competitive recording and export UI are not
-implemented yet.
+`SprintDriver`; competitive recording is implemented in `MatchRecorder`; Match playback,
+server integration and export UI are not implemented yet.
 
 ## Format and decoding
 
@@ -133,6 +133,25 @@ starts a recorder, restart and leaving abandon the unfinished one, and
 `sprintRecordingFor(recorder)` exposes only that attempt's successfully verified
 recording. Zen and multiplayer never create a recorder.
 
+## Match recording
+
+`MatchRecorder` observes the authoritative operations performed against a real `Match`
+instance in competitive mode: `submit`, `advanceToFrame`, `releaseControls`, `forfeit` and
+`nextRound`. It wraps the live `Match` operations, delegates to the real `Match` methods,
+and appends accepted operations to the journal with their exact boundaries and authoritative
+outcomes (such as `reachedFrame` on advance). It does not drain events from `Match` without
+buffering them for callers (`drainEvents()`) and does not run a second simulation.
+
+Online practice rooms are strictly rejected at construction with `ReplayError` (`unsupported`).
+Practice rooms must never create a recorder.
+
+On set completion (`match.complete === true`), the recorder snapshots the final state,
+seals the replay with `sealReplay`, encodes and decodes canonical JSON with `decodeReplayJson`,
+and verifies it through `verifyMatchReplayExecution`. `finish()` resolves with the decoded,
+verified replay or `null`; `completion` resolves concurrently for lifecycle consumers.
+Unfinished attempts can be abandoned (`abandon()`), or a verified stopped prefix can be
+extracted with `buildIncompleteReplay()`.
+
 ## Sprint playback
 
 `SprintPlayback` is a presentation controller, not a second simulator. It verifies a
@@ -189,9 +208,9 @@ summary data (round boundaries and set result); it does not accept a claimed eve
 list. A future recorder may add an event assertion as separate, optional metadata.
 Per-player skins, display names and other cosmetics are deliberately absent from the
 replay schema. They cannot influence execution or validity and remain presentation
-metadata for a later viewer. No recorder is implemented in this package for
-competitive matches, and online practice must never create one. Practice replay data
-is rejected as `unsupported` at decode, driver construction and execution.
+metadata for a later viewer. `MatchRecorder` implements recording for competitive
+matches; online practice must never create one. Practice replay data is rejected as
+`unsupported` at decode, driver construction and execution.
 
 The digest check proves only that the claimed result follows the journal under the
 pinned rules. It is not proof of human play, an authenticated author, a trusted
@@ -201,9 +220,9 @@ authentication either. Deterministic verification is not anti-cheat enforcement.
 
 ## Remaining work
 
-- Competitive Match recording, Match playback, export UI, persistence and shareable
-  links remain separate milestones. When recording is added, disable it at the
-  source for practice rooms rather than filtering practice data afterwards.
+- Server integration of competitive Match recording (M2-B2), Match playback, export
+  UI, persistence and shareable links remain separate milestones. Online practice
+  recording remains strictly disabled at the source.
 - Add optional bounded metadata and presentation annotations when their consumers
   exist. Match countdowns, disconnect waits and pause durations remain presentation
   annotations outside this simulation driver.

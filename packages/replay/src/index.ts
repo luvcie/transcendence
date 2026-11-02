@@ -1,4 +1,5 @@
 export * from "./match-driver";
+export * from "./match-recorder";
 export * from "./solo-driver";
 export * from "./sprint-driver";
 export * from "./sprint-recorder";
