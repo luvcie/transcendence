@@ -1,13 +1,11 @@
 import {
   ROWS,
-  Game,
   Input,
-  finesseAccuracy,
   Piece,
   type PieceId,
   type InputId,
 } from "@42tris/core";
-import { loadHandling, setupHandling, setupGhost, setupZen } from "./settings";
+import { loadHandling, setupHandling, setupGhost } from "./settings";
 import { ACTIONS, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 import { SkinState } from "./skin-state";
@@ -18,12 +16,16 @@ import { mountOnline } from "./online-view";
 import { mountGameplayInput } from "./gameplay-input";
 import { renderOnlineWaiting } from "./waiting-view";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
-import { mountAppView } from "./app-view";
+import { initialView, mountAppView, onlineView } from "./app-view";
+import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary, type SingleplayerMode } from "./singleplayer";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
+let hasResume = false;
+try { hasResume = !!sessionStorage.getItem("42tris.resume"); } catch { /* Online session will report storage failures. */ }
+let atHome = initialView(location.href, hasResume) === "home";
 const showView = mountAppView(document);
-showView("solo");
+showView(atHome ? "home" : "lobby");
 
 const canvas = document.querySelector<HTMLCanvasElement>("#board")!;
 const status = document.querySelector<HTMLParagraphElement>("#status")!;
@@ -37,7 +39,9 @@ const comboCount = document.querySelector("#combo-count")!;
 const b2bCount = document.querySelector("#b2b-count")!;
 const surgeCount = document.querySelector("#surge-count")!;
 const finesseCount = document.querySelector("#finesse-count")!;
-const finalFinesse = document.querySelector<HTMLParagraphElement>("#final-finesse")!;
+const sprintClock = document.querySelector<HTMLElement>("#sprint-clock")!;
+const elapsedTime = document.querySelector<HTMLElement>("#elapsed-time")!;
+const resultPanel = document.querySelector<HTMLElement>("#sprint-result")!;
 const clearResult = document.querySelector("#clear-result")!;
 const zenStatus = document.querySelector<HTMLParagraphElement>("#zen-status")!;
 const LETTERS = "_ZLOSIJT";
@@ -48,11 +52,8 @@ const skins = new SkinState(() => localStorage);
 void skins.select(skins.preferences.active, false);
 setupSettingsTabs(cancelKeyCapture, setupSkins(skins));
 let showGhost = setupGhost(enabled => { showGhost = enabled; });
-let zen = setupZen(enabled => {
-  zen = enabled;
-  if (!online) game.setZen(enabled);
-  refreshHud();
-});
+// Zen is selected per game; old preferences no longer control gameplay.
+try { localStorage.removeItem("42tris.zen"); } catch { /* Storage is optional. */ }
 
 function updateControls() {
   document.querySelector("#controls")!.textContent = actionNames.map(action =>
@@ -64,8 +65,6 @@ updateControls();
 // Desynchronized canvas lets the browser skip the compositor queue, lowering input latency.
 const ctx = canvas.getContext("2d", { desynchronized: true })!;
 
-const PREVIEWS = 5;
-const READY_MS = 250;
 const widthSelect = document.querySelector<HTMLSelectElement>("#solo-width")!;
 try {
   const saved = Number(localStorage.getItem("42tris.boardWidth"));
@@ -75,27 +74,39 @@ widthSelect.addEventListener("change", () => {
   try { localStorage.setItem("42tris.boardWidth", widthSelect.value); } catch { /* Selection remains available for this session. */ }
 });
 let handling = loadHandling();
-let seed: number;
-let game: Game;
+let seed: number | undefined;
+let solo: Singleplayer | null = null;
+let pendingMode: SingleplayerMode | null = null;
 let display: GameDisplay | null = null;
-restart();
 setupHandling(handling, value => {
   handling = value;
-  if (!online) game.setHandling(value);
+  if (!online) { solo?.setHandling(value, performance.now()); pressed.clear(); }
 });
 
 const pauseDialog = document.querySelector<HTMLDialogElement>("#pause-dialog")!;
 const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dialog")!;
+const abandonDialog = document.querySelector<HTMLDialogElement>("#abandon-dialog")!;
+const pauseButton = document.querySelector<HTMLElement>("#pause-button")!;
+const navSettingsButton = document.querySelector<HTMLButtonElement>("#nav-settings-button")!;
+
+function releaseSoloControls() {
+  for (const action of new Set(pressed.values())) {
+    const binding = ACTIONS[action];
+    if ("up" in binding) solo?.apply(binding.up, performance.now());
+  }
+  pressed.clear();
+}
 
 function focusView() {
   const gameView = document.querySelector<HTMLElement>("#game-view")!;
-  (gameView.hidden ? document.querySelector<HTMLElement>("#view-title")! : gameView).focus({ preventScroll: true });
+  (atHome ? document.querySelector<HTMLElement>("#home-title")! : gameView.hidden ? document.querySelector<HTMLElement>("#view-title")! : gameView).focus({ preventScroll: true });
 }
 
 function pause() {
-  if (online || game.paused) return;
-  game.setPaused(true, performance.now());
-  consumeEvents();
+  if (online || !solo || solo.mode === "sprint" || solo.paused || solo.result) return;
+  solo.setPaused(true, performance.now());
+  refreshHud();
+  if (solo.result) return;
   pressed.clear();
   pauseDialog.showModal();
 }
@@ -104,20 +115,21 @@ function resume() {
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.close();
-  if (!online) game.setPaused(false, performance.now());
+  if (!online) solo?.setPaused(false, performance.now());
   focusView();
 }
 
 let settingsFromMenu = false;
 function openSettings(fromMenu: boolean) {
+  if (!online && solo?.mode === "sprint" && !solo.result) return;
   settingsFromMenu = fromMenu;
   if (fromMenu) pauseDialog.close();
   else if (online) {
     online.session.release();
     pressed.clear();
   } else {
-    game.setPaused(true, performance.now());
-    consumeEvents();
+    solo?.setPaused(true, performance.now());
+    refreshHud();
     pressed.clear();
   }
   settingsDialog.showModal();
@@ -130,58 +142,131 @@ function closeSettings() {
   pauseDialog.showModal();
 }
 
-function restart() {
-  if (online) { online.session.practice("practiceReset"); return; }
+function launchMode(mode: SingleplayerMode) {
   const random = new Uint32Array(1);
-  do {
-    crypto.getRandomValues(random);
-  } while (random[0] === seed);
+  do { crypto.getRandomValues(random); } while (random[0] === seed);
   seed = random[0];
-  game = new Game(seed, 500, PREVIEWS, handling, READY_MS, null, undefined, Number(widthSelect.value));
-  game.setZen(zen);
-  game.tick(performance.now());
-  display = game;
+  solo = new Singleplayer(mode, seed, performance.now(), handling, Number(widthSelect.value));
+  display = solo.game;
+  atHome = false;
+  resultPanel.hidden = true;
+  showView("solo");
+  pauseButton.hidden = mode === "sprint";
+  navSettingsButton.disabled = mode === "sprint";
   refreshHud();
-  status.textContent = `Singleplayer · ${game.width} wide`;
+  status.textContent = `${SINGLEPLAYER_MODES[mode].name} · ${solo.game.width} wide`;
   pressed.clear();
+  focusView();
 }
 
-document.querySelector("#pause-button")!.addEventListener("click", pause);
-function enterOnline() {
+function restart() {
+  if (online) { online.session.practice("practiceReset"); return; }
+  if (solo) launchMode(solo.mode);
+}
+
+async function abandonSolo(): Promise<boolean> {
+  if (!solo?.active) return true;
+  const wasPaused = solo.paused;
+  if (solo.mode === "zen") solo.setPaused(true, performance.now());
+  else releaseSoloControls();
+  pressed.clear();
+  refreshHud();
+  if (!solo.active) return true;
+  document.querySelector("#abandon-description")!.textContent = `Your ${SINGLEPLAYER_MODES[solo.mode].name} progress will be lost.`;
+  abandonDialog.returnValue = "cancel";
+  const choice = new Promise<boolean>(resolve => {
+    abandonDialog.addEventListener("close", () => resolve(abandonDialog.returnValue === "abandon"), { once: true });
+  });
+  abandonDialog.showModal();
+  if (!await choice) {
+    if (!wasPaused && solo.mode === "zen") solo.setPaused(false, performance.now());
+    if (!document.querySelector("dialog[open]")) {
+      if (solo.result) document.querySelector<HTMLElement>("#sprint-result-title")!.focus({ preventScroll: true });
+      else focusView();
+    }
+    return false;
+  }
+  return true;
+}
+
+function closeMenus() {
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.close();
   pressed.clear();
+}
+
+async function enterHome() {
+  if (!await abandonSolo()) return;
+  closeMenus();
+  online?.closeDetails();
+  online?.session.release();
+  solo = null;
+  pendingMode = null;
+  display = null;
+  resultPanel.hidden = true;
+  atHome = true;
+  showView("home");
+  navSettingsButton.disabled = false;
+  status.textContent = "";
+  focusView();
+}
+
+async function chooseMode(mode: SingleplayerMode) {
   if (online) {
+    const room = online.session.room;
+    if (room && !["playing", "paused", "countdown", "preparing"].includes(room.phase)
+      && !confirm(`Leave your online room and start ${SINGLEPLAYER_MODES[mode].name}?`)) return;
+    pendingMode = mode;
+    online.local();
+    return;
+  }
+  if (!await abandonSolo()) return;
+  closeMenus();
+  launchMode(mode);
+}
+
+async function enterOnline() {
+  if (!await abandonSolo()) return;
+  closeMenus();
+  sprintClock.hidden = true;
+  solo = null;
+  atHome = false;
+  resultPanel.hidden = true;
+  display = null;
+  showView(online ? onlineView(online.session.room, online.session.connected) : "lobby");
+  navSettingsButton.disabled = false;
+  if (online) {
+    online.closeDetails();
     online.session.release();
     focusView();
     return;
   }
-  game.setPaused(true, performance.now());
-  display = null;
   const root = document.querySelector<HTMLElement>("#online")!;
-  showView("lobby");
   online = mountOnline(root, {
-    clearKeys: () => pressed.clear(), handling: () => handling, skins, view: showView, invite,
+    clearKeys: () => pressed.clear(), handling: () => handling, skins, invite,
+    view: view => { if (!atHome) showView(view); },
     local() {
       online?.destroy();
       online = undefined;
-      pauseDialog.close();
-      settingsDialog.close();
-      document.querySelector("#pause-title")!.textContent = "Paused";
-      showView("solo");
-      restart();
+      closeMenus();
+      const mode = pendingMode;
+      pendingMode = null;
+      if (mode) launchMode(mode);
+      else enterHome();
     },
   });
   invite = null;
 }
+
+document.querySelector("#pause-button")!.addEventListener("click", pause);
 document.querySelector("#online-button")!.addEventListener("click", enterOnline);
-function enterSolo() {
-  if (online) online.local();
-  else if (pauseDialog.open || settingsDialog.open) resume();
-  else document.querySelector<HTMLElement>("#game-view")!.focus({ preventScroll: true });
+for (const id of ["#home-button", "#solo-button", "#result-home-button", "#pause-home-button"]) document.querySelector(id)!.addEventListener("click", enterHome);
+for (const button of document.querySelectorAll<HTMLButtonElement>("[data-mode]")) {
+  button.addEventListener("click", () => chooseMode(button.dataset.mode as SingleplayerMode));
 }
-document.querySelector("#solo-button")!.addEventListener("click", enterSolo);
+document.querySelector("#retry-button")!.addEventListener("click", restart);
+document.querySelector("#pause-restart-button")!.addEventListener("click", () => { closeMenus(); restart(); });
 document.querySelector("#resume-button")!.addEventListener("click", resume);
 document.querySelector("#settings-button")!.addEventListener("click", () => openSettings(true));
 document.querySelector("#nav-settings-button")!.addEventListener("click", () => openSettings(false));
@@ -198,7 +283,8 @@ function handleFocusLoss() {
     online.session.release();
     pressed.clear();
   } else {
-    pause();
+    if (solo?.mode === "sprint") releaseSoloControls();
+    else pause();
   }
 }
 
@@ -209,16 +295,18 @@ document.addEventListener("visibilitychange", () => {
 
 function refreshHud() {
   if (!display) return;
+  const sprint = !online && solo?.mode === "sprint";
+  sprintClock.hidden = !sprint;
+  elapsedTime.textContent = formatTime(solo?.elapsedMs ?? 0);
   const { lines, combo, chainLength, b2b, surge } = display.stats;
-  lineCount.textContent = String(lines);
+  lineCount.textContent = sprint ? `${lines} / 40` : String(lines);
   comboCount.textContent = String(Math.max(0, combo));
   b2bCount.textContent = chainLength === 0 ? "—" : b2b === 0 ? "Ready" : String(b2b);
   b2bCount.setAttribute("title", chainLength === 0
     ? "Clear a Quad, spin or all clear to start B2B."
     : b2b === 0 ? "Chain started. The next qualifying clear earns the B2B bonus." : `${b2b} back-to-back clears.`);
   surgeCount.textContent = String(surge);
-  const accuracy = finesseAccuracy(display.finesse);
-  finesseCount.textContent = `${accuracy === null ? "—" : `${accuracy.toFixed(1)}%`} · ${display.finesse.faults} faults / ${display.finesse.evaluated} evaluated`;
+  finesseCount.textContent = finesseSummary(display.finesse);
   const result = display.lastClear;
   const labels: string[] = [];
   if (result) {
@@ -235,19 +323,30 @@ function refreshHud() {
     if (attack) labels.push(`Attack ${attack}`);
   }
   clearResult.textContent = labels.join(" · ");
-  zenStatus.hidden = !display.zen;
+  zenStatus.hidden = !display.zen && (!sprint || !!solo?.started);
   zenStatus.textContent = online ? "Online practice · Ctrl+Z to undo; restart resets your board."
-    : `${display.topOut ? "Top out. " : ""}Zen · Ctrl+Z to undo (${game.undoCount} available)${display.topOut ? " or restart." : ""}`;
-}
-
-function consumeEvents() {
-  if (game.drainEvents().length || game.topOut) refreshHud();
+    : sprint ? "Sprint 40L · Make your first move to start the clock."
+    : `Zen · Ctrl+Z to undo (${solo?.undoCount ?? 0} available)`;
+  if (solo?.result && !online && resultPanel.hidden) {
+    const result = solo.result;
+    document.querySelector("#sprint-result-title")!.textContent = result.outcome === "complete" ? "Sprint complete" : "Topped out";
+    navSettingsButton.disabled = false;
+    document.querySelector("#result-time")!.textContent = formatTime(result.elapsedMs);
+    document.querySelector("#result-lines")!.textContent = `${result.stats.lines} / 40 lines cleared${result.outcome === "failed" ? " · Attempt failed" : ""}`;
+    document.querySelector("#result-pieces")!.textContent = `${result.stats.pieces} pieces placed`;
+    document.querySelector("#result-finesse")!.textContent = `Finesse ${finesseSummary(result.finesse)}`;
+    resultPanel.hidden = false;
+    pressed.clear();
+    if (!document.querySelector("dialog[open]")) document.querySelector<HTMLElement>("#sprint-result-title")!.focus({ preventScroll: true });
+  }
 }
 
 function applyInput(input: InputId) {
   if (online) { online.session.input(input); return; }
-  game.apply(input, performance.now());
-  consumeEvents();
+  solo?.apply(input, performance.now());
+  if (solo && display !== solo.game) pressed.clear();
+  display = solo?.game ?? null;
+  refreshHud();
 }
 
 const cell = 30;
@@ -257,13 +356,14 @@ function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: nu
 }
 
 function render() {
+  if (atHome) return;
   if (online && renderOnlineWaiting(document, online.session)) return;
   if (!display) return;
   const width = display.board.length / ROWS;
   document.querySelector<HTMLElement>("#game-view")!.style.setProperty("--board-ratio", String(width / 10));
   if (canvas.getAttribute("aria-label") !== "42tris playfield") canvas.setAttribute("aria-label", "42tris playfield");
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-  holdButton.disabled = display.holdUsed || display.paused || display.topOut || display.starting || (!!online && !online.session.canPlay);
+  holdButton.disabled = display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay);
   holdCanvas.setAttribute("aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
   if (display.held !== null) drawPreview(holdCtx, display.held, 0);
 
@@ -280,18 +380,19 @@ function render() {
 const unmountInput = mountGameplayInput(window, {
   bindings, pressed,
   editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, summary, a, [contenteditable=true]"),
-  blocked: () => pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || (online ? !online.session.canPlay : game.paused),
+  blocked: () => abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
   settingsOpen: () => settingsDialog.open,
   starting: () => display?.starting ?? true,
   menu() {
-    if (online?.detailsOpen) online.closeDetails();
+    if (abandonDialog.open) abandonDialog.close("cancel");
+    else if (online?.detailsOpen) online.closeDetails();
     else if (settingsDialog.open) closeSettings();
-    else if (pauseDialog.open || (!online && game.paused)) resume();
-    else if (!online) pause();
+    else if (pauseDialog.open || (!online && solo?.paused)) resume();
+    else if (!online && solo) pause();
   },
   undo() {
     if (online) online.session.practice("practiceUndo");
-    else if (game.zen && game.undo(performance.now())) { pressed.clear(); consumeEvents(); }
+    else if (solo?.undo(performance.now())) { pressed.clear(); display = solo.game; refreshHud(); }
   },
   restart, input: applyInput, lateRelease: () => online?.session.release(),
 });
@@ -315,15 +416,11 @@ function frame() {
       const label = details.join(" · ");
       if (status.textContent !== label) status.textContent = label;
     }
-  } else {
-    game.tick(performance.now());
-    consumeEvents();
-    if (game.topOut && !game.paused && !game.zen) {
-      const accuracy = finesseAccuracy(game.finesse);
-      finalFinesse.textContent = `Last game finesse: ${accuracy === null ? "—" : `${accuracy.toFixed(1)}%`} · ${game.finesse.faults} faults / ${game.finesse.evaluated} evaluated`;
-      finalFinesse.hidden = false;
-      restart();
-    }
+  } else if (solo) {
+    solo.tick(performance.now());
+    if (display !== solo.game) pressed.clear();
+    display = solo.game;
+    refreshHud();
   }
   render();
   frameId = requestAnimationFrame(frame);
@@ -332,7 +429,4 @@ function frame() {
 let frameId = requestAnimationFrame(frame);
 window.addEventListener("pagehide", e => { cancelAnimationFrame(frameId); online?.session.stop(); if (!e.persisted) unmountInput(); });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
-let hasResume = false;
-try { hasResume = !!sessionStorage.getItem("42tris.resume"); }
-catch { status.textContent += " · Session storage unavailable; refresh cannot resume online play."; }
-if (new URL(location.href).searchParams.has("room") || hasResume) enterOnline();
+if (!atHome) enterOnline();

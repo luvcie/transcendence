@@ -89,7 +89,7 @@ function harness(invite?: string) {
     view.update();
     return renderOnlineWaiting(document as unknown as Document, session);
   };
-  return { document, session, view, cp, render, sent, get returnedLocal() { return returnedLocal; } };
+  return { document, session, view, cp, render, sent, showView, get returnedLocal() { return returnedLocal; } };
 }
 
 test("invitation joins after welcome and displays the existing waiting interface", () => {
@@ -306,5 +306,25 @@ test("room updates preserve form focus and phase changes do not steal focus from
   h.session.receive({ ...h.cp, serverSequence: 2, room: { ...h.cp.room, phase: "roundResult" } });
   h.view.update();
   expect(h.document.focused).toBe(node("#view-title"));
+  h.view.destroy();
+});
+
+
+test("home and mode selection hide gameplay without leaving the connected online room", () => {
+  const h = harness();
+  h.session.receive(h.cp);
+  h.view.update();
+  h.showView("home");
+  expect(h.document.querySelector("#home-view").hidden).toBe(false);
+  expect(h.document.querySelector("#game-view").hidden).toBe(true);
+  expect(h.document.querySelector("#online").hidden).toBe(true);
+  expect(h.document.querySelector("#pause-button").hidden).toBe(true);
+  expect(h.session.room?.code).toBe(h.cp.room.code);
+  expect(h.session.connected).toBe(true);
+  expect(h.sent.some(command => command.type === "leave")).toBe(false);
+  h.showView("playing");
+  expect(h.document.querySelector("#home-view").hidden).toBe(true);
+  expect(h.document.querySelector("#game-view").hidden).toBe(false);
+  expect(h.session.room?.code).toBe(h.cp.room.code);
   h.view.destroy();
 });

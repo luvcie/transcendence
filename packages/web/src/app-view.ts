@@ -1,8 +1,9 @@
 import type { RoomState } from "@42tris/protocol";
 
-export type AppView = "solo" | "lobby" | RoomState["phase"];
+export type AppView = "home" | "solo" | "lobby" | RoomState["phase"];
 
 const titles: Record<AppView, string> = {
+  home: "Choose your game",
   solo: "Singleplayer",
   lobby: "Online lobby",
   waiting: "Waiting room",
@@ -20,7 +21,7 @@ export function onlineView(room: RoomState | null, connected = true): AppView {
 }
 
 export function hasGameView(view: AppView): boolean {
-  return view !== "lobby" && view !== "waiting";
+  return view !== "home" && view !== "lobby" && view !== "waiting";
 }
 
 export function mountAppView(document: Document) {
@@ -35,10 +36,15 @@ export function mountAppView(document: Document) {
     main.setAttribute("data-view", view);
     title.textContent = titles[view];
     game.hidden = !hasGameView(view);
-    online.hidden = view === "solo";
-    document.querySelector("#solo-button")!.setAttribute("aria-current", view === "solo" ? "page" : "false");
-    document.querySelector("#online-button")!.setAttribute("aria-current", view !== "solo" ? "page" : "false");
+    online.hidden = view === "solo" || view === "home";
+    document.querySelector<HTMLElement>("#home-view")!.hidden = view !== "home";
+    document.querySelector("#solo-button")!.setAttribute("aria-current", view === "solo" || view === "home" ? "page" : "false");
+    document.querySelector("#online-button")!.setAttribute("aria-current", view !== "solo" && view !== "home" ? "page" : "false");
     document.querySelector<HTMLElement>("#pause-button")!.hidden = view !== "solo";
-    if (!document.querySelector("dialog[open]")) title.focus({ preventScroll: true });
+    if (!document.querySelector("dialog[open]")) (view === "home" ? document.querySelector<HTMLElement>("#home-title")! : title).focus({ preventScroll: true });
   };
+}
+
+export function initialView(url: string, hasResume: boolean): "home" | "lobby" {
+  return new URL(url).searchParams.has("room") || hasResume ? "lobby" : "home";
 }

@@ -1,7 +1,7 @@
 # 42tris
 
 42tris is a Tetris-inspired game developed for the School 42 transcendence project.
-It has a shared TypeScript game engine, local practice with Zen undo, and
+It has a shared TypeScript game engine, singleplayer Zen and Sprint 40L, and
 server-authoritative multiplayer with competitive sets and online practice.
 
 The monorepo uses Bun workspaces, Elysia for HTTP and WebSockets, Eden for the typed
@@ -35,8 +35,39 @@ Open `http://localhost:5173`. Vite proxies `/api` and `/ws` to the server at
 `127.0.0.1:3000`. Keep the default backend port when using this proxy, or update
 [the Vite configuration](packages/web/vite.config.ts) to match.
 
-Use the Online button to create or join a room. Players ready up, acknowledge the
-initial state, and enter a shared countdown before play starts.
+The homepage offers Zen, Sprint 40L and Multiplayer. Use Multiplayer to create or
+join a room. Players ready up, acknowledge the initial state, and enter a shared
+countdown before play starts.
+
+## Singleplayer
+
+The logo and Singleplayer navigation open mode selection. No game runs on normal
+entry. Settings are unavailable during an unfinished Sprint. Invitation URLs (`?room=ABC234`)
+and reserved online sessions bypass the homepage and restore the online flow;
+invited players still need to ready up themselves.
+
+- **Zen:** endless practice on your saved 4–12 column board (default 10). Ctrl+Z
+  rewinds a placement, including hold, pieces and clear/finesse counters. Undo is
+  always enabled in this mode, with up to 1,000 placements of history. Top-out
+  starts a fresh board automatically. Until its first placement, Ctrl+Z can still
+  return to the previous board. R restarts with a fresh seed and clears history.
+- **Sprint 40L:** clear at least 40 lines on a 10-column board. The first gameplay
+  press starts both gravity and timing; waiting, key releases and menu actions do
+  not start the attempt. Sprint cannot be paused; time continues during focus loss
+  and abandonment confirmation. Completion or top-out keeps a result with milliseconds,
+  lines, pieces and finesse until Retry or Mode selection. Sprint never records
+  undo history. Your Zen width preference is preserved.
+
+Both local modes use the existing one-second practice lock profile, handling,
+gravity, seeded bags and shared clear rules. Sprint results use the shared
+engine's exact winning placement timestamp on a pause-free attempt timeline;
+render frequency cannot extend a finished run. Results are local and temporary.
+
+Leaving active local play asks before discarding progress. Opening the homepage
+from multiplayer keeps the online session connected and playing. Return through
+Multiplayer, or choose a local mode to leave through the existing acknowledged
+leave/forfeit flow. Opening settings in an online match releases local controls
+without pausing the room.
 
 ## Checks and production
 

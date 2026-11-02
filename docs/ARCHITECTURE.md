@@ -26,8 +26,9 @@ configuration and ordered inputs while the server decides which inputs are accep
   also serves the Vite build. State is held in one process with no durable storage
   or coordination between server instances.
 - **[web](../packages/web/)** maps physical keys to core inputs and renders Canvas
-  boards. Local play uses a standalone Game. Online Session owns transport, clock
-  synchronization, pending inputs and prediction reconciliation; opponent boards
+  boards. Local play uses a standalone Game through the singleplayer controller.
+  Online Session owns transport, clock synchronization, pending inputs and
+  prediction reconciliation; opponent boards
   come from authoritative snapshots. UI and skin state do not decide game outcomes.
 
 ## Gameplay flow
@@ -77,8 +78,11 @@ are intentional contracts that contributors need to preserve.
 
 ## Browser views
 
-`web/src/app-view.ts` selects the visible workspace from Solo or the current room
-phase. Lobby and waiting views hide gameplay. Preparation, countdown, play,
+`web/src/app-view.ts` selects the homepage, local gameplay or current room phase.
+Normal entry creates no Game. Invitation links and reserved sessions enter online
+play directly. The homepage doubles as singleplayer mode selection; its mode list
+can grow without adding navigation tabs. Lobby and waiting views hide gameplay.
+Preparation, countdown, play,
 reconnection and results retain the board stage. A lost socket keeps the last
 checkpoint visible until the server supplies a replacement or ends the match.
 
@@ -86,16 +90,53 @@ checkpoint visible until the server supplies a replacement or ends the match.
 The same player list and room settings nodes appear
 inline while waiting and in a Room details dialog during a match. Only the host
 can edit room settings, while waiting or after a set. Forms retain their values
-and listeners when moved into the dialog. Leaving for Solo waits for the server's
-leave acknowledgement before destroying the online session.
+and listeners when moved into the dialog. Opening the homepage keeps the online
+session alive, even across room phase changes. Starting a local mode waits for the server's leave acknowledgement before
+destroying the online session; active matches retain the existing forfeit prompt.
+Leaving an active local game asks for confirmation. Zen pauses during the prompt;
+Sprint continues running.
 
 View changes update the navigation and focus the view heading, unless a menu is
 open. Native controls retain their keyboard behavior. Closing a gameplay dialog
 returns focus to the game. Menus and focus loss release online controls without
-pausing the session; local play still pauses. CSS sizes boards from the remaining
+pausing the session; Zen pauses, while settings are unavailable during Sprint. CSS sizes boards from the remaining
 gameplay area, preserving equal duel boards and a larger local board in groups.
 
 See [core rules](../packages/core/RULES.md) for attacks, lock checkpoints and exact
 restoration, and [match rules](../packages/match/RULES.md) for scheduling, garbage,
 practice semantics, transport behavior and compatibility limits. The implementation
 and existing package tests are the authority when these documents disagree.
+
+## Singleplayer modes and Sprint timing
+
+`web/src/singleplayer.ts` owns the selected mode, Game configuration, local clock
+and terminal Sprint result. Mode definitions select undo, line target and whether
+play waits for input. Zen uses the saved width and enables core history; Sprint
+creates a fresh 10-wide Game with history disabled. The obsolete `42tris.zen`
+preference is removed on startup. Online practice remains controlled by Session
+and Match, independently of local mode selection.
+
+Sprint initializes core at time zero and waits without advancing gravity until
+the first gameplay press. Browser samples are mapped to attempt-relative
+milliseconds using a clock anchor. Sprint cannot pause; Zen pauses re-anchor its clock
+without adding elapsed time.
+Core and inputs use that same timeline. Advancement visits `Game.nextStepAt`
+deadlines in order and drains events after each step and input. The first lock
+whose cumulative lines reach 40 supplies the exact `LockResult.atMs`; advancement
+stops there even when a render callback arrives much later. Top-out freezes a
+failed result at its input or simulation deadline. Winning clears take precedence
+if the following spawn also tops out. No render timestamp becomes the recorded
+completion time. Results copy statistics and finesse and remain frozen until an
+explicit retry creates a fresh controller and seed.
+
+Both local modes retain the practice lock profile. No engine timing or multiplayer
+scheduling contract changes. This attempt-relative input/event timeline and fresh
+configuration are suitable inputs for future replay recording; recording, result
+persistence and leaderboard validation are not implemented.
+
+Zen automatically restarts after top-out using a new deterministic seed. The
+controller retains that board for undo until the replacement's first placement;
+undo can restore it with core's existing timer rebasing and released controls.
+Explicit restart and mode changes discard both histories. Sprint creates neither
+practice history nor a previous-board reference, and its controller rejects undo
+before calling core.

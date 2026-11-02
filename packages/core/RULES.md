@@ -220,9 +220,11 @@ a new game discards it.
 Undo keeps current handling and pause settings, releases held inputs, and rebases
 the restored timer progress to `nowMs`. It drops pending events from the abandoned
 state and emits `restored`, without emitting old attacks again. The browser also
-clears its pressed-key map. Local non-Zen play automatically restarts after top-out,
-while local Zen keeps the board available for undo. Online competitive play waits
-for the server result; online practice retains the board for authoritative undo/reset.
+clears its pressed-key map. The local Zen controller automatically restarts after
+top-out while retaining
+the previous board for undo until the new board's first placement. Local Sprint
+uses no history and freezes on completion or top-out for an explicit retry.
+Online competitive play waits for the server result; online practice retains the board for authoritative undo/reset.
 Zen's local history is not a competitive rollback or wire protocol.
 
 Undo restores the board before received garbage for that turn. It also rewinds
