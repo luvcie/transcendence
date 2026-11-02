@@ -2,6 +2,7 @@ import {
   COLS,
   Game,
   Input,
+  finesseAccuracy,
   Piece,
   type PieceId,
   type InputId,
@@ -34,6 +35,8 @@ const lineCount = document.querySelector("#line-count")!;
 const comboCount = document.querySelector("#combo-count")!;
 const b2bCount = document.querySelector("#b2b-count")!;
 const surgeCount = document.querySelector("#surge-count")!;
+const finesseCount = document.querySelector("#finesse-count")!;
+const finalFinesse = document.querySelector<HTMLParagraphElement>("#final-finesse")!;
 const clearResult = document.querySelector("#clear-result")!;
 const zenStatus = document.querySelector<HTMLParagraphElement>("#zen-status")!;
 const LETTERS = "_ZLOSIJT";
@@ -204,6 +207,8 @@ function refreshHud() {
     ? "Clear a Quad, spin or all clear to start B2B."
     : b2b === 0 ? "Chain started. The next qualifying clear earns the B2B bonus." : `${b2b} back-to-back clears.`);
   surgeCount.textContent = String(surge);
+  const accuracy = finesseAccuracy(display.finesse);
+  finesseCount.textContent = `${accuracy === null ? "—" : `${accuracy.toFixed(1)}%`} · ${display.finesse.faults} faults / ${display.finesse.evaluated} evaluated`;
   const result = display.lastClear;
   const labels: string[] = [];
   if (result) {
@@ -301,7 +306,12 @@ function frame() {
   } else {
     game.tick(performance.now());
     consumeEvents();
-    if (game.topOut && !game.paused && !game.zen) restart();
+    if (game.topOut && !game.paused && !game.zen) {
+      const accuracy = finesseAccuracy(game.finesse);
+      finalFinesse.textContent = `Last game finesse: ${accuracy === null ? "—" : `${accuracy.toFixed(1)}%`} · ${game.finesse.faults} faults / ${game.finesse.evaluated} evaluated`;
+      finalFinesse.hidden = false;
+      restart();
+    }
   }
   render();
   frameId = requestAnimationFrame(frame);

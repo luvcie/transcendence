@@ -218,7 +218,7 @@ test("round and set results retain scores and send explicit next-round/rematch r
         winner: "b", atMs: 0, reason: "forfeit", complete: phase === "setResult" } }] });
     h.view.update();
     expect(node("[data-result]").textContent).toContain("b wins");
-    expect(node("[data-scores]").children.map(c => c.textContent)).toEqual(["a (you): 0", "b: 0"]);
+    expect(node("[data-scores]").children.map(c => c.textContent)).toEqual(["a (you): 0 · Finesse —, 0 faults / 0 evaluated", "b: 0 · Finesse —, 0 faults / 0 evaluated"]);
     expect(node("[data-ready]").textContent).toBe(phase === "roundResult" ? "Ready for next round" : "Ready for rematch");
     node("[data-ready]").dispatchEvent(new Event("click"));
     expect(h.sent.at(-1)).toEqual({ type: "ready", ready: true, handling: DEFAULT_HANDLING });

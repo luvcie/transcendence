@@ -3,6 +3,7 @@ export * from "./board";
 export * from "./rng";
 export * from "./bag";
 export * from "./game";
+export * from "./finesse";
 export { GAME_STATE_VERSION, type GameState } from "./game-state";
 export * from "./handling";
 export * from "./rules";

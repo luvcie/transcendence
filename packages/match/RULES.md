@@ -1,6 +1,6 @@
 # Shared versus simulation
 
-`@42tris/match` runs authoritative games from ordered inputs. Match version 2 uses
+`@42tris/match` runs authoritative games from ordered inputs. Match version 3 uses
 `42tris-league-garbage-v1`, core's exported `LEAGUE_LOCK` and the core attack profile.
 It is a 42tris simulation with pinned League rules, not a TETR.IO replay emulator.
 
@@ -190,7 +190,7 @@ hole state and all RNG states. Only complete frames are checkpoint boundaries.
 Snapshots are detached and JSON-safe. Core Zen undo history remains excluded.
 After restoring a practice checkpoint, prior turns cannot be undone; newly played
 turns build fresh core history. Match does not serialize core's private undo stack.
-Version 2 also stores mode, attacks toggle, frozen handling, withdrawn seats and
+Version 3 also stores mode, attacks toggle, frozen handling, withdrawn seats and
 board epochs. Version 1 checkpoints are rejected rather than silently upgraded.
 
 ## Owner-only client prediction
@@ -348,3 +348,5 @@ Current compatibility limits:
    matches exist only in server memory. A process restart loses them. Network
    transport and reconnect policy are implemented outside this package, as described
    above.
+
+Match version 3 embeds core version 4 finesse counters in each authoritative player snapshot. Round results display those counters; a new round starts new counters.

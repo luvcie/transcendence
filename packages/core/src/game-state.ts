@@ -4,7 +4,7 @@ import { MINOS, type PieceId } from "./pieces";
 import { RULES_VERSION } from "./rules";
 import { LEAGUE_LOCK, lockDelay, validateLockProfile, type LockProfile } from "./lock-profile";
 
-export const GAME_STATE_VERSION = 3;
+export const GAME_STATE_VERSION = 4;
 
 export interface GameFields {
   piece: PieceId;
@@ -37,6 +37,8 @@ export interface GameFields {
   readyMs: number;
   paused: boolean;
   sequence: number;
+  finesseInputs: number;
+  finesseInherited: boolean;
 }
 
 /** Exact continuation state. Zen undo history and controller functions are excluded. */
@@ -59,7 +61,7 @@ const FIELD_KEYS = [
   "lastNow", "observedNow", "fallAcc", "lockElapsed", "leftHeld", "rightHeld", "direction", "moveAt",
   "softHeld", "softAt", "readyMs", "paused", "sequence",
   "lockResets", "rotationResets", "lowestY",
-  "leagueOriginMs", "leagueFrame", "leaguePhase", "leagueLockFrames",
+  "leagueOriginMs", "leagueFrame", "leaguePhase", "leagueLockFrames", "finesseInputs", "finesseInherited",
 ] as const;
 
 function requireState(ok: boolean): asserts ok {
@@ -92,6 +94,7 @@ export function copyLock(result: LockResult): LockResult {
       chainLength: result.stats.chainLength, b2b: result.stats.b2b, surge: result.stats.surge,
       attack: result.stats.attack,
     }),
+    finesse: Object.freeze({ ...result.finesse }),
     attacks: Object.freeze(result.attacks.map(attack => Object.freeze({ kind: attack.kind, lines: attack.lines }))),
   });
 }
@@ -109,6 +112,8 @@ function validateEvent(event: GameEvent, sequence: number, observedNow: number):
     && Array.from(event.rows).every((row, i) => integer(row, 0, 39) && (i === 0 || row > event.rows[i - 1]))
     && ["none", "mini", "full"].includes(event.spin) && typeof event.allClear === "boolean"
     && record(event.stats) && Array.isArray(event.attacks));
+  requireState(record(event.finesse) && integer(event.finesse.evaluated) && integer(event.finesse.faults, 0, event.finesse.evaluated)
+    && integer(event.finesse.points, 0, 5 * event.finesse.evaluated) && event.finesse.evaluated <= event.stats.pieces);
   const stats = event.stats;
   requireState(integer(stats.pieces, 1) && integer(stats.lines) && integer(stats.combo, -1)
     && integer(stats.chainLength) && integer(stats.b2b) && integer(stats.surge) && integer(stats.attack)
@@ -135,10 +140,10 @@ export function readGameState(value: unknown): GameState {
   // A terminal timed lock can retain a few clock-scale rounding bits above 1000ms.
   const delay = lockDelay(s.config.lockProfile);
   const lockLimit = delay + (f.topOut ? 4 * Number.EPSILON * Math.max(delay, f.lastNow) : 0);
-  for (const key of ["topOut", "holdUsed", "lastWasRotation", "leftHeld", "rightHeld", "softHeld", "paused"] as const) {
+  for (const key of ["topOut", "holdUsed", "lastWasRotation", "leftHeld", "rightHeld", "softHeld", "paused", "finesseInherited"] as const) {
     requireState(typeof f[key] === "boolean");
   }
-  requireState(integer(f.piece, 1, 7) && integer(f.rot, 0, 3) && integer(f.x, -3, 9) && integer(f.y, -3, 39)
+  requireState(integer(f.finesseInputs) && integer(f.piece, 1, 7) && integer(f.rot, 0, 3) && integer(f.x, -3, 9) && integer(f.y, -3, 39)
     && integer(f.lockResets, 0, 31) && integer(f.rotationResets, 0, 63) && integer(f.lowestY, -3, 39)
     && number(f.leagueOriginMs) && integer(f.leagueFrame, 1) && number(f.leaguePhase, 0, f.leagueFrame)
     && number(f.leagueLockFrames, 0, f.topOut ? Number.MAX_VALUE : 30)

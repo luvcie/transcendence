@@ -1,4 +1,4 @@
-import type { Handling } from "@42tris/core";
+import { finesseAccuracy, INITIAL_FINESSE, type Handling } from "@42tris/core";
 import { createClient } from "@42tris/protocol/client";
 import type { RoomOptions, ServerMessage } from "@42tris/protocol";
 import { Session } from "./session";
@@ -273,7 +273,11 @@ export function mountOnline(root: HTMLElement, options: {
       ? result && (result.type === "setEnd" || result.type === "roundEnd")
         ? `${result.type === "setEnd" ? "Set" : "Round"}: ${result.winner ? `${playerName(result.winner)} wins` : result.reason === "aborted" ? "aborted; no winner" : "draw"} · ${result.reason === "firstTo" ? `first to ${room.options.firstTo}` : result.reason === "survivor" ? "last player standing" : result.reason}`
         : `${room.phase === "setResult" ? "Set" : "Round"} finished.` : "");
-    const scores = state.roster.map((id, i) => `${playerName(id)}${id === session.playerId ? " (you)" : ""}: ${state.scores[i]}${room.players.find(p => p.playerId === id)?.ready ? " · Ready" : ""}`);
+    const scores = state.roster.map((id, i) => {
+      const finesse = state.players[i].game.lastResult?.finesse ?? INITIAL_FINESSE;
+      const accuracy = finesseAccuracy(finesse);
+      return `${playerName(id)}${id === session.playerId ? " (you)" : ""}: ${state.scores[i]} · Finesse ${accuracy === null ? "—" : `${accuracy.toFixed(1)}%`}, ${finesse.faults} faults / ${finesse.evaluated} evaluated${room.players.find(p => p.playerId === id)?.ready ? " · Ready" : ""}`;
+    });
     const scoreKey = JSON.stringify(scores);
     if (element("[data-scores]").getAttribute("data-score-key") !== scoreKey) {
       element("[data-scores]").setAttribute("data-score-key", scoreKey);

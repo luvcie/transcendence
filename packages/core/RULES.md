@@ -116,11 +116,11 @@ const resumed = Game.fromState(state, null); // An unconnected game.
 game.restoreState(state, null);
 ```
 
-Version 3 stores the board, preview queue, bag permutation/index and signed RNG
+Version 4 stores the board, preview queue, bag permutation/index and signed RNG
 state, configuration, current piece, hold and rotation eligibility. It also stores
 the lock profile, move/rotation reset counters and historical lowest position. It adds
 the league frame origin, next frame index, processed phase and lock duration in frames.
-Versions 1 and 2 are rejected; no implicit migration changes their continuation rules. It stores
+Versions 1 through 3 are rejected; no implicit migration changes their continuation rules. It stores
 held controls, deadlines, accumulators, opening time, pause/top-out flags, last
 result, pending events and sequence. `stats` is derived from the saved last result,
 or the initial counters when no result exists. Inactive infinite deadlines use
@@ -330,3 +330,31 @@ This profile defines reproducible shared-core lock checkpoints without claiming 
 subcell positions or input handling match the client bit for bit.
 
 [Match rules](../match/RULES.md) define the shared versus scheduler and garbage profile.
+
+## Finesse
+
+Finesse uses the empty-field reference, generated from this engine's spawn shapes,
+wall kicks and rotation rules. A fresh left or right press and each clockwise,
+counterclockwise or 180-degree rotation cost one input, including failed actions.
+Auto-repeat, releases, hard drop and hold cost nothing; hold starts a new count.
+For finite ARR the reference permits stopping a held direction at any column.
+For ARR zero it permits a single tap or a hold to the wall. A placement with the
+same occupied cells has the same reference, even if its rotation state differs.
+DAS must be positive. Keybindings do not change logical inputs; the reference
+assumes all three rotation actions are available even if a player unbinds one.
+
+A fault is an evaluated placement with more presses than its reference. The
+accuracy uses Techmino's weighted rate: 5 points for no excess inputs, 2 for one,
+1 for two and 0 for three or more. Accuracy is 100 × points / (5 × evaluated
+pieces); it is unavailable before the first evaluated piece. Faults count
+placements, not surplus presses. Total locked pieces remain in `stats.pieces`.
+
+Roofed placements, classified spins, placements near spawn, placements using
+soft drop, those with controls held across spawn or hold, and turns where handling
+changes are excluded from the evaluated count. Zero-DAS turns are also excluded.
+The reference assumes enough time to move above the stack, so high gravity and
+unusual stacks can still make its judgment less representative of necessary
+inputs. The counter is a finesse practice metric, not proof of a globally optimal
+path through the actual field. No statistics are awarded for excluded placements.
+Counters and the in-progress input count are included in exact snapshots and
+Zen checkpoints. Each match round has independent per-player statistics.

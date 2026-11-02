@@ -5,7 +5,7 @@ import { GARBAGE_DELAY_MS, GARBAGE_PROFILE, GarbageQueue,
 import { compareInputs, hasFrameTimestamp, inputTime, validInput } from "./clock";
 import { settlePlacement } from "./placement";
 
-export const MATCH_VERSION = 2;
+export const MATCH_VERSION = 3;
 
 export interface MatchOptions {
   players: readonly string[];

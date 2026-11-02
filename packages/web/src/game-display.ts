@@ -1,4 +1,4 @@
-import { INITIAL_STATS, type ClearStats, type GameState, type LockResult, type PieceId } from "@42tris/core";
+import { INITIAL_STATS, INITIAL_FINESSE, type ClearStats, type FinesseStats, type GameState, type LockResult, type PieceId } from "@42tris/core";
 
 export interface GameDisplay {
   readonly board: Readonly<Uint8Array>;
@@ -13,6 +13,7 @@ export interface GameDisplay {
   readonly held: PieceId | null;
   readonly holdUsed: boolean;
   readonly stats: Readonly<ClearStats>;
+  readonly finesse: FinesseStats;
   readonly lastClear: LockResult | null;
   readonly zen: boolean;
 }
@@ -24,7 +25,7 @@ export function snapshotDisplay(snapshot: GameState): GameDisplay {
     piece: state.piece, rot: state.rot, x: state.x, y: state.y,
     starting: state.readyMs > 0, topOut: state.topOut, paused: state.paused,
     held: state.held, holdUsed: state.holdUsed,
-    stats: snapshot.lastResult?.stats ?? INITIAL_STATS,
+    stats: snapshot.lastResult?.stats ?? INITIAL_STATS, finesse: snapshot.lastResult?.finesse ?? INITIAL_FINESSE,
     lastClear: snapshot.lastResult, zen: snapshot.zenEnabled,
   };
 }

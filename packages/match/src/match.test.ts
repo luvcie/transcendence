@@ -286,7 +286,7 @@ test("opener boundary is inclusive placement 14 and pending >= sent, not a flat 
     state.players[1].garbage.packets.push(packet(1, 10));
     state.players[1].game.state.sequence = pieces;
     state.players[1].game.lastResult = { type: "lock", sequence: pieces, atMs: 0,
-      piece: Piece.O, rows: [], spin: "none", allClear: false, attacks: [],
+      piece: Piece.O, rows: [], spin: "none", allClear: false, attacks: [], finesse: { evaluated: 0, faults: 0, points: 0 },
       stats: { pieces, lines: 0, combo: -1, chainLength: 0, b2b: 0, surge: 0, attack: 0 } };
     const match = Match.fromState(state);
     input(match, "b");
@@ -431,4 +431,22 @@ test("an outgoing packet is discarded when its recipient dies later in the same 
   expect(events.filter(e => e.type === "queue")).toEqual([]);
   expect(events.filter(e => e.type === "discard").map(e => e.lines)).toEqual([4, 5]);
   expect(match.scores).toEqual({ a: 1, b: 0 });
+});
+
+test("finesse is independent per player and survives a match checkpoint", () => {
+  const match = new Match(options);
+  input(match, "a", 0, 0.1, 0, Input.LeftDown);
+  input(match, "a", 0, 0.2, 1, Input.LeftUp);
+  input(match, "a", 0, 0.3, 2, Input.RightDown);
+  input(match, "a", 0, 0.4, 3, Input.RightUp);
+  match.advanceToFrame(1);
+  const restored = Match.fromState(JSON.parse(JSON.stringify(match.saveState())));
+  for (const game of [match, restored]) {
+    input(game, "a", 1, 0.1, 4);
+    input(game, "b", 1, 0.2, 5);
+    game.advanceToFrame(2);
+    expect(game.playerState("a").lastResult?.finesse).toEqual({ evaluated: 1, faults: 1, points: 1 });
+    expect(game.playerState("b").lastResult?.finesse).toEqual({ evaluated: 1, faults: 0, points: 5 });
+  }
+  expect(restored.saveState()).toEqual(match.saveState());
 });

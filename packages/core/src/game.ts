@@ -1,4 +1,5 @@
 import { Bag } from "./bag";
+import { addFinesse, finessePlacement, INITIAL_FINESSE, type FinesseStats } from "./finesse";
 import { classifySpin, INITIAL_STATS, resolveClear, RULES_VERSION, type Attack, type ClearStats, type Spin } from "./rules";
 import { canPlace, clearRows, COLS, createBoard, place } from "./board";
 import { copyEvent, copyLock, GAME_STATE_VERSION, readGameState, type GameState } from "./game-state";
@@ -35,6 +36,7 @@ export interface LockResult {
   readonly allClear: boolean;
   readonly stats: ClearStats;
   readonly attacks: readonly Attack[];
+  readonly finesse: FinesseStats;
 }
 
 export type GameEvent = LockResult | Readonly<{ type: "restored"; sequence: number; atMs: number }>;
@@ -54,6 +56,8 @@ export class Game {
   private lastResult: LockResult | null = null;
   private events: GameEvent[] = [];
   private sequence = 0;
+  private finesseInputs = 0;
+  private finesseInherited = false;
   private zenEnabled = false;
   private history: ReturnType<Game["capture"]>[] = [];
   private turn: ReturnType<Game["capture"]> | null = null;
@@ -120,6 +124,7 @@ export class Game {
   }
 
   get stats(): ClearStats { return this.lastResult?.stats ?? INITIAL_STATS; }
+  get finesse(): FinesseStats { return this.lastResult?.finesse ?? INITIAL_FINESSE; }
   get lastClear(): LockResult | null { return this.lastResult; }
   get zen(): boolean { return this.zenEnabled; }
   get undoCount(): number { return this.history.length; }
@@ -145,7 +150,7 @@ export class Game {
         leftHeld: this.leftHeld, rightHeld: this.rightHeld, direction: this.direction,
         moveAt: this.moveAt === Infinity ? null : this.moveAt, softHeld: this.softHeld,
         softAt: this.softAt === Infinity ? null : this.softAt, readyMs: this.readyMs, paused: this.paused,
-        sequence: this.sequence,
+        sequence: this.sequence, finesseInputs: this.finesseInputs, finesseInherited: this.finesseInherited,
       },
       lastResult: this.lastResult === null ? null : copyLock(this.lastResult), events: this.events.map(copyEvent),
       zenEnabled: this.zenEnabled, settlementRequired: this.settlement !== null,
@@ -230,7 +235,7 @@ export class Game {
         fallAcc: this.fallAcc, lockElapsed: this.lockElapsed, readyMs: this.readyMs,
         lockResets: this.lockResets, rotationResets: this.rotationResets, lowestY: this.lowestY,
         leagueLockFrames: this.leagueLockFrames,
-        lastResult: this.lastResult,
+        lastResult: this.lastResult, finesseInputs: this.finesseInputs, finesseInherited: this.finesseInherited,
       },
     };
   }
@@ -262,6 +267,7 @@ export class Game {
     if (input === Input.LeftDown || input === Input.RightDown) {
       const left = input === Input.LeftDown;
       if (left ? this.leftHeld : this.rightHeld) return;
+      this.finesseInputs++;
       if (left) this.leftHeld = true;
       else this.rightHeld = true;
       this.direction = left ? -1 : 1;
@@ -278,6 +284,7 @@ export class Game {
       }
     } else if (input === Input.SoftDropDown) {
       if (this.softHeld) return;
+      this.finesseInherited = true;
       this.softHeld = true;
       this.softAt = nowMs + this.handling.sddas * FRAME_MS;
       // Techmino takes two steps on press when SD DAS is zero.
@@ -290,9 +297,10 @@ export class Game {
       this.softHeld = false;
       this.softAt = Infinity;
     }
-    else if (input === Input.RotateCw) this.rotate(1);
-    else if (input === Input.RotateCcw) this.rotate(3);
-    else if (input === Input.Rotate180) this.rotate(2);
+    else if (input === Input.RotateCw || input === Input.RotateCcw || input === Input.Rotate180) {
+      this.finesseInputs++;
+      this.rotate(input === Input.RotateCw ? 1 : input === Input.RotateCcw ? 3 : 2);
+    }
     else if (input === Input.HardDrop) this.hardDrop();
     else if (input === Input.Hold) this.hold();
     this.instantSoftDrop();
@@ -321,6 +329,8 @@ export class Game {
     const result: LockResult = Object.freeze({
       type: "lock", sequence: this.sequence + 1, atMs: this.lastNow, piece: this.piece,
       rows: Object.freeze(rows), spin, allClear, stats, attacks,
+      finesse: addFinesse(this.finesse, finessePlacement(this.board, this.piece, this.rot, this.x, this.y,
+        this.finesseInputs, this.finesseInherited || this.handling.das === 0, spin !== "none", this.handling.arr === 0)),
     });
     let holes: number[];
     this.inSettlement = true;
@@ -435,6 +445,9 @@ export class Game {
       this.tick(this.observedNow);
       if (!this.paused && !this.starting && !this.topOut) this.advanceTo(this.observedNow);
     }
+    if (this.leftHeld || this.rightHeld || this.softHeld || this.handling.das !== handling.das
+      || this.handling.arr !== handling.arr || this.handling.sddas !== handling.sddas
+      || this.handling.sdarr !== handling.sdarr) this.finesseInherited = true;
     this.handling = { ...handling };
     this.releaseInputs();
   }
@@ -640,6 +653,8 @@ export class Game {
 
   private spawn(piece = this.takeNext()): void {
     this.piece = piece;
+    this.finesseInputs = 0;
+    this.finesseInherited = this.leftHeld || this.rightHeld || this.softHeld;
     this.holdUsed = false;
     this.rot = 0;
     this.x = spawnX(this.piece);

@@ -167,6 +167,25 @@ describe("room authority", () => {
     expect(match.frame).toBeGreaterThan(frame);
   });
 
+  test("authoritative finesse survives disconnect and reconnect", () => {
+    const f = fixture();
+    f.start();
+    const cp = f.a.checkpoint();
+    f.a.send({ type: "inputBatch", matchId: cp.matchId!, generation: cp.owner.generation, epoch: cp.owner.epoch,
+      items: [{ seq: 1, frame: cp.clock.currentTargetFrame, subframe: 0.1, input: Input.HardDrop }] });
+    f.advance(500);
+    const before = f.room.match!.playerState(f.a.welcome!.playerId).lastResult!.finesse;
+    expect(before).toEqual({ evaluated: 1, faults: 0, points: 5 });
+    f.rooms.disconnect(f.a.peer.id);
+    const resumed = f.client(f.a.welcome!.resumeToken);
+    f.prepared();
+    const snapshot = resumed.checkpoint().state!;
+    const index = snapshot.roster.indexOf(f.a.welcome!.playerId);
+    expect(snapshot.players[index].game.lastResult!.finesse).toEqual(before);
+    f.advance(500);
+    expect(f.room.match!.playerState(f.a.welcome!.playerId).lastResult!.finesse).toEqual(before);
+  });
+
   test("additional disconnect does not extend the first deadline; FFA withdrawal survives next round", () => {
     const f = fixture(3);
     f.start();
