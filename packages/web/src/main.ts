@@ -3,21 +3,23 @@ import {
   Game,
   Input,
   Piece,
-  MINOS,
-  ROWS,
-  VISIBLE_ROWS,
-  cellAt,
-  canPlace,
   version,
   type PieceId,
   type InputId,
 } from "@42tris/core";
 import { loadHandling, setupHandling, setupGhost, setupZen } from "./settings";
-import { ACTIONS, actionForKey, actionNames, keyLabel, type Action } from "./keybinds";
+import { ACTIONS, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 import { SkinState } from "./skin-state";
 import { setupSettingsTabs, setupSkins } from "./skin-settings";
-import { drawPiecePreview, drawTile, joinedAbove } from "./tile-renderer";
+import { drawPiecePreview } from "./tile-renderer";
+import { drawBoard } from "./board-view";
+import { mountOnline } from "./online-view";
+import { mountGameplayInput } from "./gameplay-input";
+import { renderOnlineWaiting } from "./waiting-view";
+import { snapshotDisplay, type GameDisplay } from "./game-display";
+
+let online: ReturnType<typeof mountOnline> | undefined;
 
 const canvas = document.querySelector<HTMLCanvasElement>("#board")!;
 const status = document.querySelector<HTMLParagraphElement>("#status")!;
@@ -42,7 +44,7 @@ setupSettingsTabs(cancelKeyCapture, setupSkins(skins));
 let showGhost = setupGhost(enabled => { showGhost = enabled; });
 let zen = setupZen(enabled => {
   zen = enabled;
-  game.setZen(enabled);
+  if (!online) game.setZen(enabled);
   refreshHud();
 });
 
@@ -53,7 +55,7 @@ function updateControls() {
 }
 updateControls();
 
-// desynchronized lets chrome skip the compositor queue, lower input latency
+// Desynchronized canvas lets the browser skip the compositor queue, lowering input latency.
 const ctx = canvas.getContext("2d", { desynchronized: true })!;
 
 const PREVIEWS = 5;
@@ -61,16 +63,23 @@ const READY_MS = 250;
 let handling = loadHandling();
 let seed: number;
 let game: Game;
+let display: GameDisplay | null = null;
 restart();
 setupHandling(handling, value => {
   handling = value;
-  game.setHandling(value);
+  if (!online) game.setHandling(value);
 });
 
 const pauseDialog = document.querySelector<HTMLDialogElement>("#pause-dialog")!;
 const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dialog")!;
 
 function pause() {
+  if (online) {
+    online.session.release();
+    pressed.clear();
+    if (!pauseDialog.open && !settingsDialog.open) pauseDialog.showModal();
+    return;
+  }
   if (game.paused) return;
   game.setPaused(true, performance.now());
   consumeEvents();
@@ -82,7 +91,7 @@ function resume() {
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.close();
-  game.setPaused(false, performance.now());
+  if (!online) game.setPaused(false, performance.now());
   document.querySelector<HTMLButtonElement>("#pause-button")!.blur();
 }
 
@@ -93,6 +102,7 @@ function backToPause() {
 }
 
 function restart() {
+  if (online) { online.session.practice("practiceReset"); return; }
   const random = new Uint32Array(1);
   do {
     crypto.getRandomValues(random);
@@ -101,12 +111,39 @@ function restart() {
   game = new Game(seed, 500, PREVIEWS, handling, READY_MS);
   game.setZen(zen);
   game.tick(performance.now());
+  display = game;
   refreshHud();
   status.textContent = `42tris core v${version()} | seed ${seed}`;
   pressed.clear();
 }
 
 document.querySelector("#pause-button")!.addEventListener("click", pause);
+function enterOnline() {
+  cancelKeyCapture();
+  settingsDialog.close();
+  pauseDialog.close();
+  pressed.clear();
+  if (online) return;
+  game.setPaused(true, performance.now());
+  display = null;
+  const root = document.querySelector<HTMLElement>("#online")!;
+  root.hidden = false;
+  document.querySelector("main")!.classList.add("online-layout");
+  document.querySelector("#pause-title")!.textContent = "Online menu · play continues";
+  online = mountOnline(root, {
+    clearKeys: () => pressed.clear(), handling: () => handling, skins,
+    local() {
+      online?.destroy();
+      online = undefined;
+      root.hidden = true;
+      document.querySelector("main")!.classList.remove("online-layout");
+      document.querySelector("#pause-title")!.textContent = "Paused";
+      restart();
+    },
+  });
+}
+document.querySelector("#online-button")!.addEventListener("click", enterOnline);
+document.querySelector("#menu-online")!.addEventListener("click", enterOnline);
 document.querySelector("#resume-button")!.addEventListener("click", resume);
 document.querySelector("#settings-button")!.addEventListener("click", () => {
   pauseDialog.close();
@@ -120,13 +157,23 @@ holdButton.addEventListener("click", () => {
 for (const dialog of [pauseDialog, settingsDialog]) {
   dialog.addEventListener("cancel", e => e.preventDefault());
 }
-window.addEventListener("blur", pause);
+function handleFocusLoss() {
+  if (online) {
+    online.session.release();
+    pressed.clear();
+  } else {
+    pause();
+  }
+}
+
+window.addEventListener("blur", handleFocusLoss);
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) pause();
+  if (document.hidden) handleFocusLoss();
 });
 
 function refreshHud() {
-  const { lines, combo, chainLength, b2b, surge } = game.stats;
+  if (!display) return;
+  const { lines, combo, chainLength, b2b, surge } = display.stats;
   lineCount.textContent = String(lines);
   comboCount.textContent = String(Math.max(0, combo));
   b2bCount.textContent = chainLength === 0 ? "—" : b2b === 0 ? "Ready" : String(b2b);
@@ -134,7 +181,7 @@ function refreshHud() {
     ? "Clear a Quad, spin or all clear to start B2B."
     : b2b === 0 ? "Chain started. The next qualifying clear earns the B2B bonus." : `${b2b} back-to-back clears.`);
   surgeCount.textContent = String(surge);
-  const result = game.lastClear;
+  const result = display.lastClear;
   const labels: string[] = [];
   if (result) {
     const clear = ["", "Single", "Double", "Triple", "Quad"][result.rows.length];
@@ -150,8 +197,9 @@ function refreshHud() {
     if (attack) labels.push(`Attack ${attack}`);
   }
   clearResult.textContent = labels.join(" · ");
-  zenStatus.hidden = !game.zen;
-  zenStatus.textContent = `${game.topOut ? "Top out. " : ""}Zen · Ctrl+Z to undo (${game.undoCount} available)${game.topOut ? " or restart." : ""}`;
+  zenStatus.hidden = !display.zen;
+  zenStatus.textContent = online ? "Online practice · Ctrl+Z to undo; restart resets your board."
+    : `${display.topOut ? "Top out. " : ""}Zen · Ctrl+Z to undo (${game.undoCount} available)${display.topOut ? " or restart." : ""}`;
 }
 
 function consumeEvents() {
@@ -159,127 +207,90 @@ function consumeEvents() {
 }
 
 function applyInput(input: InputId) {
+  if (online) { online.session.input(input); return; }
   game.apply(input, performance.now());
   consumeEvents();
 }
 
 const cell = canvas.width / COLS;
-const hidden = ROWS - VISIBLE_ROWS;
 
 function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: number) {
   drawPiecePreview(context, piece, cell, context.canvas.width, cell * 3, slot * cell * 3, skins.loaded);
 }
 
-function drawActivePiece(y: number, ghost = false) {
-  const minos = MINOS[game.piece][game.rot];
-  for (let i = 0; i < 8; i += 2) {
-    const px = game.x + minos[i];
-    const py = y + minos[i + 1] - hidden;
-    if (py >= 0) drawTile(ctx, game.piece, px * cell, py * cell, cell, skins.loaded, joinedAbove(minos, i), ghost);
-  }
-}
-
 function render() {
+  if (online && renderOnlineWaiting(document, online.session)) return;
+  if (!display) return;
+  if (canvas.getAttribute("aria-label") !== "42tris playfield") canvas.setAttribute("aria-label", "42tris playfield");
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-  holdButton.disabled = game.holdUsed || game.paused || game.topOut || game.starting;
-  holdCanvas.setAttribute("aria-label", game.held === null ? "Hold empty" : `Held piece ${LETTERS[game.held]}`);
-  if (game.held !== null) drawPreview(holdCtx, game.held, 0);
+  holdButton.disabled = display.holdUsed || display.paused || display.topOut || display.starting || (!!online && !online.session.canPlay);
+  holdCanvas.setAttribute("aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
+  if (display.held !== null) drawPreview(holdCtx, display.held, 0);
 
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
   let nextLabel = "Next pieces:";
-  for (let i = 0; i < game.previews.length; i++) {
-    drawPreview(nextCtx, game.previews[i] as PieceId, i);
-    nextLabel += ` ${LETTERS[game.previews[i]]}`;
+  for (let i = 0; i < display.previews.length; i++) {
+    drawPreview(nextCtx, display.previews[i] as PieceId, i);
+    nextLabel += ` ${LETTERS[display.previews[i]]}`;
   }
   nextCanvas.setAttribute("aria-label", nextLabel);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  for (let y = 0; y < VISIBLE_ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
-      const id = cellAt(game.board, x, y + hidden);
-      if (id === 0) continue;
-      drawTile(ctx, id, x * cell, y * cell, cell, skins.loaded, cellAt(game.board, x, y + hidden - 1) === id);
-    }
-  }
-
-  if (!game.starting) {
-    if (showGhost && !game.topOut) {
-      let landingY = game.y;
-      while (canPlace(game.board, game.piece, game.rot, game.x, landingY + 1)) landingY++;
-      if (landingY !== game.y) {
-        ctx.globalAlpha = 0.25;
-        drawActivePiece(landingY, true);
-        ctx.globalAlpha = 1;
-      }
-    }
-    drawActivePiece(game.y);
-  }
-
-  ctx.strokeStyle = "#333";
-  for (let x = 0; x <= COLS; x++) {
-    ctx.beginPath();
-    ctx.moveTo(x * cell + 0.5, 0);
-    ctx.lineTo(x * cell + 0.5, VISIBLE_ROWS * cell);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= VISIBLE_ROWS; y++) {
-    ctx.beginPath();
-    ctx.moveTo(0, y * cell + 0.5);
-    ctx.lineTo(COLS * cell, y * cell + 0.5);
-    ctx.stroke();
-  }
+  drawBoard(ctx, display, skins.loaded, showGhost);
 }
 
-window.addEventListener("keydown", (e) => {
-  if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "z") {
-    if (game.zen && !game.paused && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
-      e.preventDefault();
-      if (!e.repeat && !e.isComposing && game.undo(performance.now())) {
-        pressed.clear();
-        consumeEvents();
-      }
-    }
-    return;
-  }
-  const action = actionForKey(bindings, e.key);
-  if (e.key === "Escape" || (action === "pause" && !settingsDialog.open)) {
-    e.preventDefault();
-    if (e.repeat) return;
+const unmountInput = mountGameplayInput(window, {
+  bindings, pressed,
+  editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, [contenteditable=true]"),
+  blocked: () => pauseDialog.open || settingsDialog.open || (online ? !online.session.canPlay : game.paused),
+  settingsOpen: () => settingsDialog.open,
+  starting: () => display?.starting ?? true,
+  menu() {
     if (settingsDialog.open) backToPause();
-    else if (game.paused) resume();
+    else if (pauseDialog.open || (!online && game.paused)) resume();
     else pause();
-    return;
-  }
-  if (game.paused) return;
-  if (!action || action === "pause") return;
-  e.preventDefault();
-  // Held keys repeat inside the core, not through browser key repeat.
-  if (e.repeat || e.isComposing || pressed.has(e.code)) return;
-  if (action === "restart") {
-    restart();
-    return;
-  }
-  if (game.starting) return;
-  const alreadyHeld = [...pressed.values()].includes(action);
-  pressed.set(e.code, action);
-  const binding = ACTIONS[action];
-  if (!("up" in binding) || !alreadyHeld) applyInput(binding.down);
-});
-window.addEventListener("keyup", (e) => {
-  // Use the physical key recorded on keydown, even if Shift changed its symbol.
-  const action = pressed.get(e.code);
-  pressed.delete(e.code);
-  if (!action || [...pressed.values()].includes(action)) return;
-  const binding = ACTIONS[action];
-  if ("up" in binding) applyInput(binding.up);
+  },
+  undo() {
+    if (online) online.session.practice("practiceUndo");
+    else if (game.zen && game.undo(performance.now())) { pressed.clear(); consumeEvents(); }
+  },
+  restart, input: applyInput, lateRelease: () => online?.session.release(),
 });
 
-function frame(now: number) {
-  game.tick(now);
-  consumeEvents();
-  if (game.topOut && !game.paused && !game.zen) restart();
+function frame() {
+  if (online) {
+    online.update();
+    const session = online?.session;
+    const state = session?.prediction?.gameState();
+    if (state) { display = snapshotDisplay(state); refreshHud(); }
+    else if (session && !session.checkpoint?.state) display = null;
+    if (session) {
+      const room = session.room;
+      const cp = session.checkpoint;
+      const index = cp?.state?.roster.indexOf(session.playerId) ?? -1;
+      const countdown = room?.startsAt === null || room?.startsAt === undefined ? "" : ` · ${Math.max(0, Math.ceil((room.startsAt - session.serverNow()) / 1000))}s`;
+      const missing = room?.players.filter(p => !p.connected && p.deadline !== null).map(p => `${p.name}: ${Math.max(0, Math.ceil((p.deadline! - session.serverNow()) / 1000))}s`).join(", ");
+      const details = [`${session.name} (you)`, room ? `${room.code} · ${room.phase}${countdown}` : "Online lobby"];
+      if (cp?.state && index >= 0) {
+        details.push(`${cp.state.scores[index]} points`);
+        if (cp.state.players[index].game.state.topOut) details.push("Top out");
+      }
+      if (missing) details.push(`Waiting for ${missing}`);
+      if (!session.connected) details.push("Disconnected; frozen");
+      const label = details.join(" · ");
+      if (status.textContent !== label) status.textContent = label;
+    }
+  } else {
+    game.tick(performance.now());
+    consumeEvents();
+    if (game.topOut && !game.paused && !game.zen) restart();
+  }
   render();
-  requestAnimationFrame(frame);
+  frameId = requestAnimationFrame(frame);
 }
 
-requestAnimationFrame(frame);
+let frameId = requestAnimationFrame(frame);
+window.addEventListener("pagehide", e => { cancelAnimationFrame(frameId); online?.session.stop(); if (!e.persisted) unmountInput(); });
+window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
+let hasResume = false;
+try { hasResume = !!sessionStorage.getItem("42tris.resume"); }
+catch { status.textContent += " · Session storage unavailable; refresh cannot resume online play."; }
+if (new URL(location.href).searchParams.has("room") || hasResume) enterOnline();

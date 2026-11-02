@@ -1,0 +1,284 @@
+# Shared versus simulation
+
+`@42tris/match` runs authoritative games from ordered inputs. Match version 2 uses
+`42tris-league-garbage-v1`, core's exported `LEAGUE_LOCK` and the core attack profile.
+It is a 42tris simulation with pinned League rules, not a TETR.IO replay emulator.
+
+```ts
+import { Input } from "@42tris/core";
+import { Match } from "@42tris/match";
+
+const match = new Match({ players: ["alice", "bob"], seed: 108, firstTo: 7 });
+match.submit({ player: "alice", frame: 0, subframe: 0.25, order: 0, input: Input.HardDrop });
+match.advanceToFrame(60); // Process frames [0, 60).
+const events = match.drainEvents();
+const checkpoint = JSON.parse(JSON.stringify(match.saveState()));
+const resumed = Match.fromState(checkpoint);
+```
+
+## Clock and ordering
+
+One frame is `1000 / 60` milliseconds. Inputs retain a subframe in `[0, 1)`.
+`order` is a controller-assigned nonnegative integer, unique within the frame.
+Inputs sort by frame, subframe, then order. Submit all inputs for a frame before
+advancing past it. Late inputs, duplicate orders and unknown players throw.
+The converted millisecond timestamp must remain inside its half-open frame.
+Subframes that round to the right edge are rejected before mutation, even if less
+than one. Restored input backlogs receive the same validation. The scheduler throws
+on a stale or unrepresentable queue head rather than blocking later inputs silently.
+The transport must authenticate player IDs and assign ordering; this package has
+no network authority or rollback policy.
+
+Inputs can carry `epoch: match.playerEpoch(player)`. Submission rejects a supplied
+stale epoch. Omitted epochs bind to the current board at submission, for local
+callers. A network adapter must require the epoch supplied by its client; attaching
+the latest epoch to an old network input would defeat stale-input rejection.
+
+Internal deadlines run before inputs at the same timestamp. Sorted player IDs
+break deadline ties. The scheduler always advances the earliest deadline across
+all games. A deadline exactly at a frame's right boundary belongs to the next frame.
+Input timestamps, rather than arrival batches or render calls, determine the result.
+
+I chose complete-frame commits to group deaths and reconcile crossing attacks.
+Running one player's entire coarse tick first would reorder attacks and garbage insertion.
+This frame boundary does not quantize input times; core deadlines and inputs retain
+their fractional milliseconds. Garbage eligibility uses the actual lock timestamp.
+
+## Configuration and boundary controls
+
+`mode` defaults to `"competitive"`; `"practice"` enables undo and reset. Both modes
+use the shared league lock profile and the same piece seed for each player.
+`handlingByPlayer` accepts partial player-ID mappings of full core `Handling` values.
+Missing players use `DEFAULT_HANDLING`. Unknown IDs and invalid handling throw.
+The constructor copies and freezes each configuration for the entire set.
+Changing the caller's options cannot change a running board. Restoring a checkpoint
+rejects a board whose handling differs from its frozen player configuration.
+
+The following methods run between `advanceToFrame` calls, at a completed-frame
+boundary. Their event timestamp is `match.frame * FRAME_MS`, including zero.
+
+| API | Result |
+| --- | --- |
+| `practiceUndo(player): boolean` | Undo one core turn; false when no history exists. |
+| `practiceReset(player): void` | Replace that board, discard its pending incoming queue and queued inputs. |
+| `setAttacksEnabled(enabled): void` | Enable or disable new outgoing practice attacks. |
+| `releaseControls(player?): void` | Release one player's held controls and discard their queued inputs; omit the ID for everyone. |
+| `forfeit(player): void` | Withdraw a competitive seat for the rest of the set. |
+
+`releaseControls` reapplies the frozen handling at the board's latest observed
+timestamp. It releases held directions and soft drop without processing the next
+frame's boundary, rebasing gravity, resetting the board or advancing the match.
+The server can use it when entering a room pause. The server must also invalidate
+buffered network inputs and resynchronize physical key state on resume. Match does
+not advance from wall-clock time; the server enforces the 40-second pause policy.
+
+## Practice
+
+Practice has no scoring, elimination, round end or set completion. A topped-out
+board remains available for undo/reset; other players continue. Topped-out boards
+are excluded from new target selection. Existing pending garbage remains queued.
+`nextRound` and competitive `forfeit` are unavailable in practice.
+
+`attacksEnabled` defaults to true. False suppresses new outgoing packets, but core
+still computes attacks and local statistics. Defense still cancels the sender's
+incoming queue. Already queued attacks remain eligible for insertion. Turning
+attacks back on permits future placements to send normally. Competitive mode rejects
+disabled attacks and the practice toggle method.
+
+Undo calls core's `undo` at the current boundary. It can rewind received garbage
+on the board when the restored turn predates insertion. It does not restore the
+external garbage queue, hole RNG, routing RNG or sent ledger. Previously inserted
+garbage is not queued again, and already sent attacks remain at their recipients.
+The sent count remains monotonic across undo/reset. Replaying an undone turn is a
+new placement, with a new event sequence and permission to send again.
+
+A successful undo increments the player's board epoch and discards their queued
+inputs. A failed undo changes nothing. Reset also increments the epoch, clears
+history, and creates a board with the round's piece seed and frozen profile/handling.
+The new `Game` starts with `tick(frame * FRAME_MS)`, so its gravity phase starts at
+that boundary rather than at zero. Reset preserves the recipient's hole/RNG state,
+but discards all pending incoming packets without treating them as cancellations.
+It leaves other boards, queued inputs for other players and previously sent attacks
+unchanged. Reset and undo events identify the new epoch; lock events identify the
+epoch that produced the placement.
+
+## Garbage
+
+Core generates ordered attack packets. No match input supplies an attack amount,
+board, target, score or garbage claim. `playerState()` returns a detached view.
+
+At each placement, each attack packet first cancels the sender's existing incoming
+queue FIFO, including packets that have not reached their insertion time. During
+placements 1 through 14, pending lines greater than or equal to total lines sent
+grant an extra defensive budget equal to that attack packet. The normal budget is
+spent first. Remaining defensive budget is discarded; it never becomes outgoing.
+The condition is reevaluated for each Surge, normal or all-clear packet.
+
+Outgoing packets from the current frame are staged. At frame end, opposite
+sender/recipient pairs cancel FIFO, one-for-one, before either side is queued.
+This includes attacks at different subframes of the same frame. Partial packets
+retain their identity and order. Staged packets are not yet in the recipient's
+defensive queue, so same-frame crossings do not gain the opener bonus. This is
+the simulation's authoritative delivery policy; it does not reproduce the client's
+network acknowledgement protocol. It prevents the rejected same-frame passthrough case.
+
+One living opponent is chosen randomly per outgoing placement bundle. All remaining
+packets in that bundle use that opponent, with no broadcast multiplication.
+The roster is sorted and frozen across the set. Piece seeds are identical for all
+players. Routing and each recipient's garbage use separate RNG streams. These are
+42tris splitmix32 streams, not the client's RNG algorithm or bit sequence.
+
+Packets become insertion-eligible at `lock time + 20 frames`, including fractional
+lock time. Non-clearing placements insert up to eight eligible lines before spawn.
+Any line clear blocks insertion. Partial packets remain queued. Phase is zero,
+sequential queue delay is disabled, and insertion is instant.
+
+Eligibility comparison allows at most `4 * Number.EPSILON * max(abs(lock time),
+abs(eligible time), 20 * FRAME_MS)` milliseconds of clock error. This covers rounding
+differences between frame/subframe conversion and adding the delay to a send time.
+It is not a fixed millisecond grace period. A placement earlier by more than that
+bound cannot insert the packet. Saved eligible timestamps remain unchanged.
+
+A recipient has one hole column. It is generated on first insertion, then rerolled
+when a packet finishes, including a fully canceled packet. Rows inside a packet
+share that column. Partial insertion preserves it. Repeated columns are allowed.
+There is no within-packet messiness. Hole values are chosen at consumption, not
+preassigned when a packet is sent. Cancellation therefore affects later hole progression.
+
+Events record generated locks, sends, crossing cancellation, queue admission,
+defensive cancellation, insertion holes, discards, eliminations and round results.
+Packets retain attack kind and identity. `sent` counts outgoing lines before crossing
+cancellation, separately from core's generated attack count. Eliminated recipients'
+remaining packets are discarded. Attacks already sent by an eliminated sender can
+still reach a living opponent.
+
+## Rounds and continuation
+
+Competitive deaths are resolved together at frame end. Zero survivors produce a draw and no
+points. One survivor gains one point. Reaching `firstTo` completes the set; default
+is seven. There is no ten-minute cutoff or win-by-two rule.
+
+`nextRound(newSeed)` requires an ended round, an unfinished set and a different
+signed 32-bit seed. It increments the round ID and resets the round clock, games,
+queues and RNG streams. Scores and packet sequence survive. Pending event records
+retain their round IDs, even across a round transition.
+
+The original `roster` remains fixed. `activePlayers` is the subset still eligible
+for this set. `forfeit(player)` withdraws a seat, releases its controls, drops its
+queued inputs and pending incoming garbage, and stops stepping that board.
+Previously sent attacks remain in recipients' queues. Withdrawn seats do not respawn
+or receive targets in later rounds. Board epochs increase on each new round.
+
+A current-round last survivor receives one point. With two or more eligible seats,
+normal FT rules continue across rounds. With one eligible seat, forfeit completes
+the set immediately, even below the FT threshold; a duel cannot farm absent-player
+rounds. Forfeit between rounds never awards a second point for the ended round.
+Repeated forfeit of the same seat is a no-op. If the final eligible seat also leaves,
+a new `setEnd` event marks the set aborted, superseding its previous set result;
+existing scores remain unchanged. A new set requires a new Match instance.
+
+`roundEnd.reason` is `survivor`, `draw` or `forfeit`. Completed sets also emit `setEnd`
+with reason `firstTo`, `forfeit` or `aborted`, and a winner ID or null.
+
+Match checkpoints are trusted controller data, not a client message schema.
+`fromState` checks version, roster, frame, mode, frozen handling, player epochs,
+eligibility and input backlog, and delegates core validation to `Game`.
+It does not fully validate the match ledger or events from arbitrary JSON.
+Checkpoints include clocks, input backlog, events, scores, packet sequence, queues,
+hole state and all RNG states. Only complete frames are checkpoint boundaries.
+Snapshots are detached and JSON-safe. Core Zen undo history remains excluded.
+After restoring a practice checkpoint, prior turns cannot be undone; newly played
+turns build fresh core history. Match does not serialize core's private undo stack.
+Version 2 also stores mode, attacks toggle, frozen handling, withdrawn seats and
+board epochs. Version 1 checkpoints are rejected rather than silently upgraded.
+
+## Owner-only client prediction
+
+`OwnerPrediction` restores only the owner's `Game` and garbage queue from a full
+authoritative `MatchState`. It does not construct, step or route attacks to opponent
+games. Opponent inputs in the checkpoint are ignored. Known incoming packets retain
+their identity, remaining lines, eligibility timestamps and recipient hole RNG.
+
+```ts
+import { OwnerPrediction } from "@42tris/match";
+
+const prediction = new OwnerPrediction(authoritativeState, ownerId);
+for (const input of unresolvedOwnerInputs) prediction.submit(input);
+prediction.advanceToTime(renderTargetMs);
+const board = prediction.gameState();
+const effects = prediction.drainEvents();
+```
+
+Use round-relative simulation milliseconds for `renderTargetMs`, starting at
+`authoritativeState.frame * FRAME_MS`. Do not pass an absolute browser clock.
+The client chooses the prediction horizon from its synchronized simulation clock
+and stops advancing that clock during a room pause.
+
+| API | Contract |
+| --- | --- |
+| `new OwnerPrediction(state, ownerId)` | Copy the owner's board, ledger, frozen handling, mode and epoch; enqueue their existing authoritative backlog. |
+| `submit(input)` | Accept an ordered owner input using Match's frame/subframe conversion and validation. Reject other owners, stale epochs, late times and duplicate orders. |
+| `advanceToFrame(frame)` | Process complete half-open frames exactly as Match does for the owner. |
+| `advanceToTime(targetMs)` | Process owner deadlines and queued inputs through the requested time, inclusive. Tick at that time without rounding up to a future frame. |
+| `gameState()` | Return a detached renderable `GameState`. |
+| `saveState()` | Return a detached local ledger with frame, time, owner epoch, board, garbage, predicted sent count and remaining owner inputs. This is not a `MatchState`. |
+| `drainEvents()` | Return local lock, cancellation, insertion, discard and informational outgoing events. |
+
+`frame` counts completed frames. At an exact frame boundary, `advanceToTime` also
+processes that boundary's deadlines and zero-subframe inputs, while `advanceToFrame`
+excludes them. Times cannot go backward. After advancing inside a frame, the next
+`advanceToFrame` target must be at or beyond the current time. Inputs submitted at
+an already visited timestamp must follow previously consumed inputs in order.
+
+Match and prediction call the same `settlePlacement` helper for opener defense,
+FIFO cancellation, outgoing line accounting, clear blocking and garbage insertion.
+Both use `GarbageQueue` for packet eligibility, cap and hole progression. There is
+no second prediction implementation of those rules.
+
+Prediction's `outgoing` events contain attack kind and lines, with no target,
+packet ID or server routing. The predicted sent count assumes a recipient exists
+when the authoritative snapshot has a living, non-withdrawn opponent. That eligibility
+is not simulated forward. The prediction never manufactures future incoming attacks,
+crossing cancellations, opponent deaths, scores, forfeits or round results. Unknown
+external interactions can therefore make its board or sent ledger differ from the
+server until the next correction. Withdrawn owners and ended snapshots do not advance.
+
+On every authoritative correction, discard the prediction object and construct a
+new one. Replay only unresolved owner inputs for the corrected round and epoch,
+excluding inputs already present in the snapshot backlog. Do not merge a predicted
+ledger into authoritative state, or send predicted outgoing effects as attack claims.
+New inputs should include the owner's current epoch. `round`, `epoch`, `owner`,
+`mode`, `attacksEnabled` and frozen `handling` are available on the predictor.
+
+Practice undo/reset, attacks-toggle changes, control release and forfeits remain
+authoritative requests. The predictor exposes no speculative versions of those
+operations. Network checkpoints do not contain Zen history. After a reset or undo,
+the replacement predictor restores the authoritative epoch and core clock origin;
+old-epoch inputs must not be replayed against it.
+
+## Evidence and compatibility gaps
+
+The public [client source](https://tetr.io/js/tetrio.js) was rechecked from the saved
+source on 2026-10-29. Core's `RULES.md` records the pinned source hash. Observed
+behavior guided an independent implementation; no client functions were copied.
+
+The opener condition is `piecesplaced <= openerphase` and `pending >= sent`.
+The source increments placed pieces before resolving attacks. It spends normal
+attack before the extra defensive budget. The preset sets opener phase to 14,
+garbage speed to 20, cap to eight, combo blocking and zero passthrough. Engine
+defaults supply phase zero, nonsequential queue, instant entry, packet messiness
+one, inner messiness zero and no repeated-column avoidance.
+
+The following work remains explicit:
+
+1. Core supplies lock timing through `LEAGUE_LOCK` and `nextStepAt`; match has no
+   separate lock timer. See `packages/core/RULES.md` for the current timing contract
+   and its limits relative to the client's fractional falling model.
+2. Match retains 42tris gravity (500ms per cell) and handling. League gravity ramps,
+   later garbage multipliers, fractional kick depth and the client's acknowledgement
+   protocol are not implemented. Do not label this profile full League conformance.
+3. Practice history before an exact checkpoint is unavailable after restoration.
+   The server must communicate that limit if it reloads a practice session.
+4. The future server must implement the 40-second whole-room reconnect pause,
+   authenticated input ordering and persistence. Disconnect sessions, Elysia/Eden
+   and online UI are outside this package.

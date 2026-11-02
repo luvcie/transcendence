@@ -70,6 +70,17 @@
       #skin-form label { display: block; margin-bottom: 8px; }
       .skin-input { display: flex; gap: 8px; }
       #custom-skin { min-width: 0; flex: 1; background: #111; color: #eee; border: 1px solid #666; padding: 6px; }
+      #online { border-top: 1px solid #666; margin-top: 24px; }
+      #online form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+      #online input:not([type=checkbox]) { background: #111; color: #eee; border: 1px solid #666; padding: 8px; max-width: 180px; }
+      [data-opponents] { display: flex; flex-wrap: wrap; gap: 16px; }
+      [data-opponents] section { width: 120px; overflow-wrap: anywhere; }
+      [data-opponents] canvas { outline: 1px solid #444; }
+      @media (min-width: 1050px) {
+        main.online-layout { width: 1000px; display: grid; grid-template-columns: 600px 368px; column-gap: 32px; }
+        main.online-layout > * { grid-column: 1; }
+        main.online-layout > #online { grid-column: 2; grid-row: 1 / span 10; margin-top: 0; align-self: start; }
+      }
 
     </style>
   </head>
@@ -98,12 +109,15 @@
       <p id="zen-status" class="hint" hidden></p>
       <p id="controls" class="controls"></p>
       <button id="pause-button">Pause / Esc</button>
+      <button id="online-button">Online play</button>
+      <section id="online" hidden aria-label="Online room"></section>
     </main>
     <dialog id="pause-dialog" aria-labelledby="pause-title">
       <h1 id="pause-title">Paused</h1>
       <div class="actions">
         <button id="resume-button" autofocus>Resume</button>
         <button id="settings-button">Settings</button>
+        <button id="menu-online">Online play</button>
       </div>
     </dialog>
     <dialog id="settings-dialog" aria-labelledby="settings-title">

@@ -3,9 +3,11 @@
   "private": true,
   "workspaces": ["packages/*"],
   "scripts": {
-    "dev": "bun run --cwd packages/web dev",
+    "dev": "bun scripts/dev.ts",
+    "start": "bun run --cwd packages/server start",
     "build": "bun run --cwd packages/web build",
-    "check": "bun run --cwd packages/web check",
+    "check": "bun run --cwd packages/web check && bun run --cwd packages/match check && bun run --cwd packages/protocol check && bun run --cwd packages/server check && tsc --noEmit --strict --target ES2022 --module ESNext --moduleResolution bundler --moduleDetection force --skipLibCheck packages/core/src/index.ts scripts/dev.ts",
     "test": "bun test packages"
-  }
+  },
+  "devDependencies": { "typescript": "5.9.3", "@types/bun": "1.4.4" }
 }

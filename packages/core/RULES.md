@@ -1,8 +1,9 @@
 # 42tris rules
 
 `42tris-tl-s2-v1` adopts Tetra League Season 2 clears and attacks while keeping
-42tris handling, gravity and its one-second lock delay. It does not implement
-incoming garbage, cancellation or the rest of Tetra League's match settings.
+42tris handling and gravity. Practice retains its one-second lock delay. A controller can supply
+explicit incoming garbage rows at settlement. The core has no default garbage
+rules, cancellation, routing, eligibility or other Tetra League match settings.
 
 References checked on 2026-10-28:
 
@@ -32,11 +33,23 @@ The profile fixes these choices explicitly, independent of future client updates
 
 ## Core consumers
 
-Give `Game.apply` and `Game.tick` monotonically increasing times in milliseconds
-(equal timestamps are allowed). Advance with the same seed, configuration and
+Give `Game.apply`, `Game.tick`, `setPaused` and `undo` finite, nonnegative,
+monotonically increasing times in milliseconds (equal timestamps are allowed).
+Invalid timestamps throw before any mutation, including while paused, topped out,
+or when undo has no history. Even ignored calls observe valid timestamps.
+Advance with the same seed, configuration and
 ordered inputs to reproduce a game. Render ticks do not advance accumulators
 between simulation deadlines, so render frequency does not change lock events.
 Input and pause boundaries account for the remaining elapsed time.
+`setZen(true)` and `setHandling` process pending simulation deadlines before
+accounting for residual time at the latest observed timestamp. This also applies
+when that timestamp came from an unsuccessful undo or a no-op pause call. Paused
+and topped-out games do not advance.
+
+The browser samples `performance.now()` inside its frame callback, as it does for
+restart, input, pause/resume and undo. It does not pass the RAF timestamp to core:
+that timestamp can precede an input processed before the callback runs. Sampling
+at the call preserves monotonic ordering without relaxing core validation.
 
 Drain events after both `apply` and `tick`, and before discarding a game on restart.
 A lock result records its simulation time, cleared row indices before compaction,
@@ -48,6 +61,109 @@ The attack counter measures generated lines, before any future cancellation.
 an established B2B chain from no chain, even though both display B2B 0. Event values
 are immutable and sequence numbers increase throughout a game instance's lifetime.
 A future match controller supplies player identity and handles attack routing.
+
+## Exact snapshots
+
+`GameState` and `GAME_STATE_VERSION` are exported from `@42tris/core`.
+`saveState()` returns detached, JSON-safe data. Restore with an explicit controller:
+
+```ts
+const state = JSON.parse(JSON.stringify(game.saveState()));
+const resumed = Game.fromState(state, null); // An unconnected game.
+// Or update an existing instance with the same preview count:
+game.restoreState(state, null);
+```
+
+Version 3 stores the board, preview queue, bag permutation/index and signed RNG
+state, configuration, current piece, hold and rotation eligibility. It also stores
+the lock profile, move/rotation reset counters and historical lowest position. It adds
+the league frame origin, next frame index, processed phase and lock duration in frames.
+Versions 1 and 2 are rejected; no implicit migration changes their continuation rules. It stores
+held controls, deadlines, accumulators, opening time, pause/top-out flags, last
+result, pending events and sequence. `stats` is derived from the saved last result,
+or the initial counters when no result exists. Inactive infinite deadlines use
+`null`. Charged ARR=0 also uses `null`; direction and held flags distinguish it.
+
+`lastNow` is the last simulation boundary. `observedNow` is the latest external
+timestamp, including paused RAF ticks. Render-only ticks can leave these unequal.
+Restoration preserves both clocks exactly. It does not rebase time, release
+controls, advance sequence, call settlement or emit an event. Continue with times
+at or after `observedNow`. Deliberate restoration can replace a newer game with an
+older state; it is not an external timestamp call.
+
+Restore validates versions, array shapes, cell and piece IDs, bag permutation,
+integer counters, finite numeric ranges, control/deadline consistency, event
+ordering and piece bounds before mutating the target. Unknown properties are
+ignored. Invalid state throws. Restored data and later snapshots share no mutable
+arrays, configuration or result objects with the source. Lock results remain
+deeply frozen. An existing target must have the saved preview count; `fromState`
+constructs that count automatically.
+
+Held directions with finite ARR require a finite movement deadline. A null
+movement deadline is valid for a held direction only with charged ARR=0. Held
+soft drop requires a finite soft-drop deadline, and held controls require an
+initialized simulation clock. Terminal timed locks can retain floating-point
+rounding above 1,000ms. Validation allows four clock-scale epsilon units only
+for top-out states and preserves the saved value exactly; active timer limits
+and external timestamp rejection have no tolerance.
+
+Snapshots exclude Zen history and its current turn checkpoint. Restoration clears
+old history and preserves the Zen flag. If playable, the restored position becomes
+the next undo baseline. This avoids copying up to 1,000 histories into each exact
+checkpoint. Use exact snapshots for continuation and the turn history for Zen undo;
+the two have deliberately different clocks, controls and event semantics.
+
+Functions cannot cross JSON. `settlementRequired` records whether a controller was
+attached. `fromState(state, callback)` and `restoreState(state, callback)` require
+an explicit callback argument, or explicit `null` for an unconnected snapshot.
+A snapshot that requires settlement rejects `null` or a missing callback. The
+controller must restore its own state and external ledger separately.
+
+## Placement settlement
+
+The constructor accepts an optional sixth argument, `SettlePlacement`. Existing
+constructor defaults and the signed seed API are unchanged:
+
+```ts
+const game = new Game(seed, 500, 5, DEFAULT_HANDLING, 0, placement => {
+  controller.recordGenerated(placement.result);
+  return controller.takeIncomingHoles(); // For example [0, 9], not a line count.
+});
+```
+
+The core calls this synchronous function once per placement, after spin
+classification, placement, row clearing and attack calculation, before spawning.
+This includes every timed lock in a coarse tick and locks nested inside `apply`.
+The frozen `PlacementSettlement` contains only `x`, `y`, `rot` and the frozen
+`LockResult`. The result describes the placement before incoming garbage. It has
+no mutable board or Game reference. While the callback runs, the Game still holds
+the previous committed board, counters and result. Use the supplied result for
+this placement, rather than reading the Game. During settlement, `apply`, `tick`,
+`undo`, `restoreState`, `setZen`, `setHandling`, `setPaused`, `drainEvents` and
+`saveState` on that Game throw before mutation. A callback is not a completed
+checkpoint boundary. If the controller catches this rejection, the original
+placement can still settle normally. An uncaught rejection uses the fail-closed
+path below. Direct writes to public Game fields or arrays from the callback are
+unsupported; the method guard does not intercept them.
+
+Return an array of integer hole columns, 0 through 9, in insertion order. The
+first row rises above later rows. Every row shifts the 10-by-40 board up one row
+and inserts cell 8 across the bottom, with cell 0 at the hole. Occupied cells
+shifted off the top cause top-out. The core still inserts all returned rows and
+records the placement result, but consumes no next piece and performs no spawn.
+If there is no overflow, normal spawn collision checks run after insertion.
+Incoming rows do not alter the generated attack counter or this placement's clear
+and all-clear calculation.
+
+I chose staged placement over rolling back a committed lock because a callback
+can already have changed an external attack ledger. If the callback throws,
+returns a promise, or returns invalid holes, the core throws and fails closed:
+top-out is set and controls are released. No part of that placement's staged
+board, result, sequence, queue or history is committed. Earlier successful locks
+in the same tick remain committed. Input movement and elapsed time are not rolled
+back. A later tick cannot retry the failed callback. The controller must recover
+its own side effects before restoring a prior snapshot; the core cannot make an
+external ledger transactional.
 
 ## Zen checkpoints
 
@@ -64,3 +180,105 @@ state and emits `restored`, without emitting old attacks again. The browser also
 clears its pressed-key map. Normal mode automatically restarts after top-out, while
 Zen keeps the board available for undo. Zen's local history is not a competitive
 rollback or wire protocol.
+
+Undo restores the board before received garbage for that turn. It also rewinds
+local generated attack stats, but cannot retract attacks already recorded or sent
+by an external controller. Settlement is not called during undo. Controllers that
+use Zen must account for this distinction in their own ledgers.
+
+## Lock profiles and shared scheduling
+
+The seventh constructor argument selects `PRACTICE_LOCK` (default) or `LEAGUE_LOCK`.
+Their version strings are `42tris-practice-lock-v1` and `42tris-league-lock-v2`.
+Practice retains its existing 1,000ms unlimited-refresh behavior.
+
+### Fall checkpoints
+
+I replaced the fixed 31-frame deadline because a subframe Fall can cross the strict
+30-frame threshold before frame 31. League simulation processes complete 60Hz frames,
+configured handling deadlines, and the residual segment before each input. Each segment
+processes held shifts before Fall, then the input acts on the resulting piece.
+
+`tick` processes canonical frame and handling deadlines only. Arbitrary render ticks
+do not create extra Fall segments. `apply` also processes its fractional input checkpoint.
+An equal-time `tick` followed by `apply` processes each segment once. Other APIs that
+account for residual time, such as pausing, also create a checkpoint.
+
+`nextStepAt` includes the next canonical league frame even when airborne. Controllers
+must process these deadlines globally before dispatching an input to its target game.
+An exhausted reset count does not create a zero-time deadline. A later positive Fall
+segment checks exhaustion. The public timestamp unit remains milliseconds.
+
+The lock timer accumulates the full segment duration, in frames, once on the first
+failed positive Fall chunk. Successful chunks earlier in that Fall do not reduce the
+charge. Successful falling preserves the timer. Thirty blocked whole frames survive;
+an input checkpoint at 30.25 frames locks before dispatching that input. Without an
+intervening checkpoint, the next evaluation is frame 31. This is a strict comparison,
+not a 500ms or 516.667ms deadline.
+
+Two floating-point corrections preserve this checkpoint model. If division rounds a
+phase up to the next frame while its millisecond boundary is still pending, the
+phase is clamped to the double immediately below that frame. The next frame index
+does not change. The pending boundary later processes the remaining positive duration;
+snapshots still require `leaguePhase < leagueFrame`.
+
+After adding blocked duration, an overshoot above 30 within
+`8 * Number.EPSILON * max(30, phase)` frames is normalized to 30. This bounds the
+rounding neighborhood of phase division, subtraction and duration accumulation. It avoids
+locking early after a fractional reset such as frame 2.2 followed by frame 32.2.
+It also means true overshoots inside that numerical neighborhood are indistinguishable
+from rounding and wait for another checkpoint. A 0.25-frame overshoot and a tested
+1e-10-frame overshoot at frame 32.2 both lock. The normalized timer is saved unchanged;
+snapshot validation does not admit active timers above 30.
+
+Every successful lateral move or rotation increments the reset count, including airborne
+actions. Failed actions do not count; a successful 180 counts once. Counts saturate at
+31 moves/rotations and 63 rotations. Resulting counts below 15 clear the timer. The
+15th action preserves it. Exhaustion forces a lock during the next Fall if one cell
+down is blocked.
+
+The integer board retains fractional falling progress in `fallAcc / gravityMs`.
+Depth renewal compares `y + fallAcc / gravityMs` against the old historical marker,
+then stores its ceiling. Thus fractional progress past that marker renews both counts,
+even before a whole row changes. It preserves the lock timer. Each Fall computes its
+distance once: configured gravity/soft drop plus `0.5 * duration * max(0, rotations - 30)`
+cells. Depth renewal mid-Fall does not reduce that distance. Soft drop does not multiply
+the rotation term. Values within eight machine epsilons of a whole cell snap to that
+cell to avoid losing an integer descent to floating-point accumulation.
+
+Hold and spawn clear per-piece timers, progress, counts and historical depth. They
+preserve the global frame phase. If a checkpoint locks, its remaining distance is
+discarded; the next piece receives only subsequent segments. Pause/resume and Zen undo
+rebase the canonical frame origin to their timestamp. Undo restores per-piece timers
+and releases controls. Exact JSON snapshots preserve the frame phase without rebasing.
+
+### Evidence and remaining differences
+
+The cached client cited above contains these relevant methods:
+
+| Method | Observed behavior used here |
+| --- | --- |
+| `_ProcessSubframe` | `ProcessAllShift(duration)` and `Fall(duration)` precede keydown/up. |
+| `_InternalLocking` | Adds supplied duration and tests `locking > locktime`. |
+| `Fall` | Forces exhausted grounded pieces, adds rotation distance once, charges full duration on first failed chunk. |
+| `_InternalShift`, `_InternalRotate` | Cap counts and clear the timer only while the resulting count is below the reset limit. |
+| `_InternalFall` | Renews counts past old `hy`, sets `hy = ceil(newY)`, and preserves locking. |
+
+`lock-profile.test.ts` exercises those checkpoint rules, fractional snapshots, and coarse
+versus canonical stepping. These are source-derived unit fixtures, not differential
+replays against the client.
+
+This profile is not full TETR.IO conformance. The client uses fractional piece coordinates,
+millionth-cell rounding and epsilon offsets in `_InternalFall`. Our integer-board projection
+and residual accumulator do not reproduce those coordinates exactly. Fractional landings,
+spawn offsets and collision boundaries can therefore differ. Client rotation candidates
+also change fractional Y behavior after a separate `totalRotations` counter exceeds 30.
+Core retains its integer SRS+ candidates and does not implement that separate counter.
+
+Configured 42tris DAS, ARR, soft-drop press behavior and gravity remain supported. Their
+deadlines are additional checkpoints; they do not reproduce all TETR.IO handling options
+or its soft-drop multiplier. These differences matter for cross-engine replay comparison.
+This profile defines reproducible shared-core lock checkpoints without claiming that
+subcell positions or input handling match the client bit for bit.
+
+`packages/match/RULES.md` defines the shared versus scheduler and garbage profile.
