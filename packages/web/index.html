@@ -16,7 +16,7 @@
       .view-heading { flex-shrink: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; padding: 14px 0; }
       .view-heading h1 { margin: 0; font-size: 18px; }
       #status { margin: 0; color: #aaa; font-size: 12px; overflow-wrap: anywhere; }
-      #game-view { flex: 1; min-height: 360px; container-type: size; --board-ratio: 1; --board: min(300px, calc((100cqw - 24px) / 2), calc((100cqh - 90px) / 2)); }
+      #game-view { flex: 1; min-height: 360px; container-type: size; --board-ratio: 1; --board: min(300px, calc((100cqw - 24px) / max(2, 1 + var(--board-ratio))), calc((100cqh - 90px) / 2)); }
       .match-stage { display: flex; justify-content: center; align-items: start; }
       .playfield { width: calc(var(--board) * (1 + var(--board-ratio)) + 24px); flex: none; }
       .game-footer { max-width: 1000px; margin: 12px auto 0; }
@@ -146,7 +146,7 @@
       .garbage-fill { position: absolute; bottom: 0; width: 100%; height: var(--garbage, 0%); background: #ef5350; }
       .match-stage > [data-opponents] { display: none; }
       main.match-active { container-type: inline-size; }
-      .match-active .match-stage { --board: min(300px, calc((100cqw - 68px) / 4.2), calc((100cqh - 90px) / 2)); display: flex; justify-content: center; align-items: start; gap: 28px; }
+      .match-active .match-stage { --board: min(300px, calc((100cqw - 68px) / max(4.2, 2.2 + 2 * var(--board-ratio))), calc((100cqh - 90px) / 2)); display: flex; justify-content: center; align-items: start; gap: 28px; }
       .match-active .playfield { width: calc(var(--board) * (1 + var(--board-ratio)) + 24px); flex: none; grid-template-columns: calc(var(--board) / 2) calc(var(--board) * var(--board-ratio)) calc(var(--board) / 2); }
       .match-active .match-stage > [data-opponents] { display: grid; gap: 16px; }
       .opponent { min-width: 0; }
@@ -157,8 +157,8 @@
       .opponent-field { display: grid; align-items: start; }
       .match-active[data-layout=duel] .opponent-field { width: calc(var(--board) * (1 + var(--board-ratio)) + 24px); grid-template-columns: calc(var(--board) / 2) calc(var(--board) * var(--board-ratio)) calc(var(--board) / 2); gap: 12px; }
       .match-active[data-layout=duel] .opponent-label { margin-left: calc(var(--board) / 2 + 12px); }
-      .match-active[data-layout=group] .match-stage { --board: min(300px, calc((100cqh - 90px) / 2), calc((100cqw - 68px) / 4)); }
-      .match-active[data-layout=group] [data-opponents] { --small-board: min(120px, calc((100cqh - 190px) / 4), calc((100cqw - var(--board) * 2 - 118px) / 4)); grid-template-columns: repeat(var(--opponent-columns), calc(var(--small-board) * var(--board-ratio))); gap: 14px 18px; }
+      .match-active[data-layout=group] .match-stage { --board: min(300px, calc((100cqh - 90px) / 2), calc((100cqw - 68px) / max(4, 3 + var(--board-ratio)))); }
+      .match-active[data-layout=group] [data-opponents] { --small-board: min(120px, calc((100cqh - 190px) / 4), calc((100cqw - var(--board) * max(2, 1 + var(--board-ratio)) - 118px) / 4)); grid-template-columns: repeat(var(--opponent-columns), calc(var(--small-board) * var(--board-ratio))); gap: 14px 18px; }
       .match-active[data-layout=group] .opponent-field { grid-template-columns: calc(var(--small-board) * var(--board-ratio)); }
       .match-active[data-layout=group] .opponent .preview-panel { display: none; }
       .match-active[data-layout=group] .garbage-meter { width: 5px; }
@@ -173,9 +173,9 @@
         .room-bar { padding: 12px; }
         .room-bar .actions { width: 100%; }
         .view-heading { padding: 12px 0; }
-        .match-active .match-stage { --board: min(240px, calc((100cqw - 32px) / 4.2), calc((100cqh - 90px) / 2)); }
-        .match-active[data-layout=group] .match-stage { --board: min(260px, calc((100cqh - 90px) / 2), calc((100cqw - 32px) / 3.4)); }
-        .match-active[data-layout=group] [data-opponents] { --small-board: min(90px, calc((100cqw - var(--board) * 2 - 42px) / 2)); grid-template-columns: repeat(2, calc(var(--small-board) * var(--board-ratio))); }
+        .match-active .match-stage { --board: min(240px, calc((100cqw - 32px) / max(4.2, 2.2 + 2 * var(--board-ratio))), calc((100cqh - 90px) / 2)); }
+        .match-active[data-layout=group] .match-stage { --board: min(260px, calc((100cqh - 90px) / 2), calc((100cqw - 32px) / max(3.4, 2.4 + var(--board-ratio)))); }
+        .match-active[data-layout=group] [data-opponents] { --small-board: min(90px, calc((100cqw - var(--board) * max(2, 1 + var(--board-ratio)) - 42px) / 2)); grid-template-columns: repeat(2, calc(var(--small-board) * var(--board-ratio))); }
 
         .match-active .match-stage { gap: 12px; }
         .match-active .playfield, .match-active[data-layout=duel] .opponent-field { gap: 4px; }
@@ -241,10 +241,6 @@
       </div>
       <section id="settings-general" role="tabpanel" aria-labelledby="tab-general" tabindex="0">
       <h2>Practice</h2>
-      <label>Singleplayer board width <select id="solo-width" aria-describedby="solo-width-help">
-        <option value="10">10 wide</option><option value="9">9 wide</option><option value="8">8 wide</option><option value="7">7 wide</option><option value="6">6 wide</option><option value="5">5 wide</option><option value="4">4 wide</option>
-      </select></label>
-      <p id="solo-width-help" class="hint">Applies on the next restart. Saved on this device.</p>
       <label><input id="zen-mode" type="checkbox" aria-describedby="zen-help"> Zen</label>
       <p id="zen-help" class="hint">Ctrl+Z undoes one placed piece, including its hold and clears. Keeps the last 1,000 placements while enabled. Disabling Zen clears undo history.</p>
       <p id="zen-note" class="hint" role="status">Zen preference is saved on this device.</p>
@@ -282,6 +278,11 @@
         <p id="skin-note" class="hint" role="status"></p>
         <div id="skin-list"></div>
       </section>
+      <h2>Custom</h2>
+      <label>Singleplayer board width <select id="solo-width" aria-describedby="solo-width-help">
+        <option value="12">12 wide</option><option value="11">11 wide</option><option value="10" selected>10 wide</option><option value="9">9 wide</option><option value="8">8 wide</option><option value="7">7 wide</option><option value="6">6 wide</option><option value="5">5 wide</option><option value="4">4 wide</option>
+      </select></label>
+      <p id="solo-width-help" class="hint">Applies on the next restart.</p>
       <div class="actions">
         <button id="settings-back">Back</button>
       </div>

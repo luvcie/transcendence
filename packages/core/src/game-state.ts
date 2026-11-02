@@ -147,7 +147,7 @@ export function readGameState(value: unknown): GameState {
   for (const key of ["topOut", "holdUsed", "lastWasRotation", "leftHeld", "rightHeld", "softHeld", "paused", "finesseInherited"] as const) {
     requireState(typeof f[key] === "boolean");
   }
-  requireState(integer(f.finesseInputs) && integer(f.piece, 1, 7) && integer(f.rot, 0, 3) && integer(f.x, -3, 9) && integer(f.y, -3, 39)
+  requireState(integer(f.finesseInputs) && integer(f.piece, 1, 7) && integer(f.rot, 0, 3) && integer(f.x, -3, width - 1) && integer(f.y, -3, 39)
     && integer(f.lockResets, 0, 31) && integer(f.rotationResets, 0, 63) && integer(f.lowestY, -3, 39)
     && number(f.leagueOriginMs) && integer(f.leagueFrame, 1) && number(f.leaguePhase, 0, f.leagueFrame)
     && number(f.leagueLockFrames, 0, f.topOut ? Number.MAX_VALUE : 30)

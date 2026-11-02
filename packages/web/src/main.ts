@@ -68,7 +68,7 @@ const READY_MS = 250;
 const widthSelect = document.querySelector<HTMLSelectElement>("#solo-width")!;
 try {
   const saved = Number(localStorage.getItem("42tris.boardWidth"));
-  if (Number.isInteger(saved) && saved >= 4 && saved <= 10) widthSelect.value = String(saved);
+  if (Number.isInteger(saved) && saved >= 4 && saved <= 12) widthSelect.value = String(saved);
 } catch { /* Use the default when storage is unavailable. */ }
 widthSelect.addEventListener("change", () => {
   try { localStorage.setItem("42tris.boardWidth", widthSelect.value); } catch { /* Selection remains available for this session. */ }

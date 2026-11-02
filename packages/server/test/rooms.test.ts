@@ -13,7 +13,7 @@ interface TestClient {
   checkpoint(): Checkpoint;
 }
 
-function fixture(count = 2, mode: "competitive" | "practice" = "competitive", firstTo = 2) {
+function fixture(count = 2, mode: "competitive" | "practice" = "competitive", firstTo = 2, width?: number) {
   let now = 0;
   const rooms = new Rooms(() => now);
   const clients: TestClient[] = [];
@@ -31,7 +31,7 @@ function fixture(count = 2, mode: "competitive" | "practice" = "competitive", fi
     return c;
   }
   const a = client();
-  a.send({ type: "create", requestId: "one", options: { firstTo, mode, attacksEnabled: true, maxPlayers: 8 } });
+  a.send({ type: "create", requestId: "one", options: { firstTo, mode, attacksEnabled: true, maxPlayers: 8, ...(width === undefined ? {} : { width }) } });
   const room = [...rooms.rooms.values()][0];
   for (let i = 1; i < count; i++) client().send({ type: "join", code: room.code });
   function advance(ms: number) { now += ms; rooms.tick(); }
@@ -490,9 +490,20 @@ test("four-wide room configuration survives join, reconnect, and a rematch", () 
 test("room commands reject unsupported widths and retain the ten-wide default", () => {
   const f = fixture();
   expect(f.room.options.width).toBe(10);
-  for (const width of [3, 11, 4.5]) {
+  for (const width of [3, 13, 4.5]) {
     f.a.send({ type: "configure", options: { firstTo: 2, mode: "competitive", attacksEnabled: true, width } });
     expect(f.a.messages.at(-1)).toMatchObject({ code: "INVALID_MESSAGE" });
     expect(f.room.options.width).toBe(10);
   }
+});
+
+test.each([11, 12])("%i-wide room settings reach joined and reconnecting players", width => {
+  const f = fixture(2, "competitive", 2, width);
+  expect(f.room.options.width).toBe(width);
+  expect(f.clients[1].messages.filter(m => m.type === "roomState").at(-1)).toMatchObject({ room: { options: { width } } });
+  f.start();
+  expect(f.a.checkpoint().state!.players.every(p => p.game.config.width === width)).toBe(true);
+  f.rooms.disconnect(f.clients[1].peer.id);
+  const resumed = f.client(f.clients[1].welcome!.resumeToken);
+  expect(resumed.checkpoint().state!.width).toBe(width);
 });

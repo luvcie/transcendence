@@ -9,14 +9,14 @@ const game = (width: number, settlement: SettlePlacement | null = null) =>
   new Game(108, 500, 5, DEFAULT_HANDLING, 0, settlement, undefined, width);
 
 test("all supported widths spawn every piece, including the I, within the field", () => {
-  for (let width = 4; width <= 10; width++) {
+  for (let width = 4; width <= 12; width++) {
     const board = createBoard(width);
     for (let piece = 1; piece <= 7; piece++) {
       expect(canPlace(board, piece as 1, 0, spawnX(piece as 1, width), SPAWN_Y)).toBe(true);
     }
   }
   expect(game(10).saveState().config.width).toBe(10);
-  for (const width of [3, 11, 4.5, NaN]) expect(() => game(width)).toThrow();
+  for (const width of [3, 13, 4.5, NaN]) expect(() => game(width)).toThrow();
 });
 
 test("four-wide walls, kicks, drops and clears use the board dimensions", () => {
@@ -72,4 +72,32 @@ test("four-wide finesse and Zen undo retain placement statistics", () => {
   expect(g.undo(0)).toBe(true);
   expect(g.finesse.evaluated).toBe(0);
   expect(g.width).toBe(4);
+});
+
+test.each([11, 12])("%i-wide movement, finesse, garbage and restoration", width => {
+  const rotated = game(width);
+  Object.assign(rotated, { piece: Piece.I, x: spawnX(Piece.I, width) });
+  rotated.apply(Input.RotateCw, 0);
+  rotated.apply(Input.RightDown, 0);
+  rotated.tick(2000);
+  rotated.apply(Input.Rotate180, 2000);
+  expect(rotated.rot).toBe(3);
+  expect(canPlace(rotated.board, rotated.piece, rotated.rot, rotated.x, rotated.y)).toBe(true);
+  expect(Game.fromState(rotated.saveState(), null).saveState()).toEqual(rotated.saveState());
+  const g = game(width, () => [width - 1]);
+  Object.assign(g, { piece: Piece.O, x: spawnX(Piece.O, width) });
+  g.apply(Input.RightDown, 0);
+  g.tick(2000);
+  g.apply(Input.RightUp, 2000);
+  expect(g.x).toBe(width - 2);
+  const restored = Game.fromState(JSON.parse(JSON.stringify(g.saveState())), () => [width - 1]);
+  for (const instance of [g, restored]) instance.apply(Input.HardDrop, 2000);
+  expect(restored.saveState()).toEqual(g.saveState());
+  expect(g.board.slice(-width)[width - 1]).toBe(0);
+  expect(g.board.slice(-width).filter(cell => cell === 8)).toHaveLength(width - 1);
+  const board = createBoard(width);
+  const x = spawnX(Piece.T, width);
+  expect(finessePlacement(board, Piece.T, 0, x, 38, 0, false, false, false)).toBe(5);
+  expect(finessePlacement(board, Piece.T, 0, x, 38, 1, false, false, false)).toBe(2);
+  expect(finessePlacement(board, Piece.T, 0, width - 3, 38, 1, false, false, true)).toBe(5);
 });

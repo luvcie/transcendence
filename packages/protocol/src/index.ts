@@ -6,7 +6,7 @@ const text = (maxLength: number) => t.String({ minLength: 1, maxLength });
 const object = <T extends Record<string, import("elysia").TSchema>>(properties: T) => t.Object(properties, { additionalProperties: false });
 export const NameSchema = t.String({ minLength: 1, maxLength: 24, pattern: "^[^<>\\x00-\\x1f\\x7f]+$" });
 export const HandlingSchema = object({ das: t.Number({ minimum: 0, maximum: 20 }), arr: t.Number({ minimum: 0, maximum: 15 }), sddas: t.Number({ minimum: 0, maximum: 10 }), sdarr: t.Number({ minimum: 0, maximum: 4 }) });
-export const RoomOptionsSchema = object({ firstTo: integer(1, 100), width: t.Optional(integer(4, 10)), maxPlayers: t.Optional(integer(2, 8)), mode: t.Union([t.Literal("competitive"), t.Literal("practice")]), attacksEnabled: t.Boolean() });
+export const RoomOptionsSchema = object({ firstTo: integer(1, 100), width: t.Optional(integer(4, 12)), maxPlayers: t.Optional(integer(2, 8)), mode: t.Union([t.Literal("competitive"), t.Literal("practice")]), attacksEnabled: t.Boolean() });
 export const InputItemSchema = object({ seq: integer(1), frame: integer(), subframe: t.Number({ minimum: 0, exclusiveMaximum: 1 }), input: t.Union([t.Literal(0), t.Literal(1), t.Literal(2), t.Literal(3), t.Literal(4), t.Literal(5), t.Literal(6), t.Literal(7), t.Literal(8), t.Literal(9), t.Literal(10)]) });
 export const ClientCommandSchema = t.Union([
   object({ type: t.Literal("hello"), resumeToken: t.Optional(text(128)), guestProfileId: t.Optional(text(128)), name: NameSchema }),

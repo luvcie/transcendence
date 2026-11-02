@@ -37,11 +37,11 @@ of future client updates:
 
 ## Board, pieces and handling
 
-The board is 4 to 10 columns (default 10) by 40 rows. Rows 0 through 19 are hidden; rows 20 through
+The board is 4 to 12 columns (default 10) by 40 rows. Rows 0 through 19 are hidden; rows 20 through
 39 are visible. Cell 0 is empty, IDs 1 through 7 are Z, L, O, S, I, J, T, and 8 is
 garbage. Pieces use a seeded splitmix32 RNG and a Fisher-Yates seven-bag shuffle.
 Default gravity is 500ms per cell with five previews. Spawn uses rotation 0 at
-`y = 18`, with `x = 4` for O and `x = 3` otherwise on a 10-wide board. Narrow boards shift the spawn left by `floor((width - 10) / 2)`. Spawn collision or garbage
+`y = 18`, with `x = 4` for O and `x = 3` otherwise on a 10-wide board. Other widths shift the spawn by `floor((width - 10) / 2)`. Spawn collision or garbage
 overflow causes top-out; merely occupying hidden rows does not.
 
 Hold is available once per placement. An empty hold consumes the next preview;

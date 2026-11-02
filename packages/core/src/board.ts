@@ -6,7 +6,7 @@ export const ROWS = 40;
 export const VISIBLE_ROWS = 20;
 
 export function validateBoardWidth(width: number): void {
-  if (!Number.isInteger(width) || width < 4 || width > 10) throw new RangeError("Board width must be an integer from 4 to 10");
+  if (!Number.isInteger(width) || width < 4 || width > 12) throw new RangeError("Board width must be an integer from 4 to 12");
 }
 
 export function createBoard(width = COLS): Uint8Array {

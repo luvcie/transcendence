@@ -54,7 +54,7 @@ export function mountOnline(root: HTMLElement, options: {
           <form data-options>
             <div class="option-fields"><label class="input-label">First to <input name="firstTo" type="number" min="1" max="100" value="3" required></label>
               <label class="input-label">Max players <input name="maxPlayers" type="number" min="2" max="8" value="4" required></label>
-              <label class="input-label">Board width <select name="width">${[10, 9, 8, 7, 6, 5, 4].map(width => `<option value="${width}">${width} wide</option>`).join("")}</select></label></div>
+              <label class="input-label">Board width <select name="width">${[12, 11, 10, 9, 8, 7, 6, 5, 4].map(width => `<option value="${width}"${width === 10 ? " selected" : ""}>${width} wide</option>`).join("")}</select></label></div>
             <div class="option-toggles"><label><input name="practice" type="checkbox"> Practice (no scoring)</label>
               <label><input name="attacks" type="checkbox" checked disabled> Attacks enabled</label></div>
             <button data-create class="primary">Create room</button><button data-configure hidden>Save room settings</button>
