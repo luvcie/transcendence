@@ -93,6 +93,16 @@ export function setupHandling(handling: Handling, onChange: (value: Handling) =>
     refresh.forEach(update => update());
     save();
   });
+  const finesseButton = document.querySelector<HTMLButtonElement>("#finesse-handling")!;
+  let appliedTimer: ReturnType<typeof setTimeout>;
+  finesseButton.addEventListener("click", () => {
+    Object.assign(handling, { das: 4.9, arr: 0, sddas: 0, sdarr: 0 });
+    refresh.forEach(update => update());
+    save();
+    finesseButton.classList.add("applied");
+    clearTimeout(appliedTimer);
+    appliedTimer = setTimeout(() => finesseButton.classList.remove("applied"), 1200);
+  });
 }
 
 export function setupZen(onChange: (enabled: boolean) => void): boolean {

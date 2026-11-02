@@ -22,6 +22,12 @@
       button { background: #252525; color: #eee; border: 1px solid #666; padding: 10px 16px; cursor: pointer; }
       button:hover { background: #383838; }
       button:disabled { opacity: .5; cursor: default; }
+      #finesse-handling { display: inline-grid; }
+      #finesse-handling span { grid-area: 1 / 1; transition: opacity 120ms ease; }
+      #finesse-handling .applied-label { opacity: 0; }
+      #finesse-handling.applied .preset-label { opacity: 0; }
+      #finesse-handling.applied .applied-label { opacity: 1; }
+      @media (prefers-reduced-motion: reduce) { #finesse-handling span { transition: none; } }
       .playfield { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: start; gap: 12px; }
       .preview-panel { min-width: 0; }
       .preview-panel p { margin: 0; padding: 2px 4px; background: #eee; color: #111; text-transform: uppercase; }
@@ -141,6 +147,7 @@
       <p id="storage-note" class="hint" role="status">Changes are saved on this device.</p>
       <div class="actions">
         <button id="reset-handling">Reset handling</button>
+        <button id="finesse-handling"><span class="preset-label">Handling for finesse players</span><span class="applied-label" aria-hidden="true">Applied</span></button>
       </div>
       <h2>Keybinds</h2>
       <p class="hint">Click a key, then press its replacement. Two keys per action. Esc always pauses or goes back, and cancels key assignment.</p>
