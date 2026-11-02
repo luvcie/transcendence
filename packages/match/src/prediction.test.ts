@@ -259,3 +259,20 @@ test("FFA withdrawal stops only that owner's prediction and preserves remaining 
   match.advanceToFrame(3);
   expectOwner(remaining, match);
 });
+
+test("four-wide prediction shares garbage holes and survives checkpoint restoration", () => {
+  const state = new Match({ ...options, width: 4 }).saveState();
+  state.players[0].garbage.packets.push({ id: 1, from: "b", to: "a", lines: 3,
+    kind: "normal", atMs: 0, eligibleAtMs: 0 });
+  const match = Match.fromState(state);
+  const prediction = new OwnerPrediction(state, "a");
+  const action = input("a", 1, Input.HardDrop);
+  match.submit(action); prediction.submit(action);
+  match.advanceToFrame(2); prediction.advanceToFrame(2);
+  expectOwner(prediction, match);
+  const inserted = prediction.drainEvents().filter(e => e.type === "insert");
+  expect(inserted).toHaveLength(1);
+  expect(inserted[0].holes.every(hole => hole >= 0 && hole < 4)).toBe(true);
+  expect(Match.fromState(match.saveState()).saveState()).toEqual(match.saveState());
+  expect(() => new Match({ ...options, width: 3 })).toThrow();
+});

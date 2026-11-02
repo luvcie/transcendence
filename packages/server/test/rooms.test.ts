@@ -460,3 +460,39 @@ describe("room authority", () => {
     expect(f.a.checkpoint().owner.resolvedThroughSeq).toBe(2);
   });
 });
+
+test("four-wide room configuration survives join, reconnect, and a rematch", () => {
+  const f = fixture(2, "competitive", 1);
+  f.a.send({ type: "configure", options: { firstTo: 1, mode: "competitive", attacksEnabled: true, maxPlayers: 8, width: 4 } });
+  expect(f.room.options.width).toBe(4);
+  expect(f.clients[1].messages.filter(m => m.type === "roomState").at(-1)).toMatchObject({ room: { options: { width: 4 } } });
+  f.start();
+  expect(f.room.match!.saveState().players.every(p => p.game.config.width === 4)).toBe(true);
+  f.a.send({ type: "configure", options: { firstTo: 1, mode: "competitive", attacksEnabled: true, maxPlayers: 8, width: 10 } });
+  expect(f.room.options.width).toBe(4);
+  expect(f.a.messages.at(-1)).toMatchObject({ code: "WRONG_PHASE" });
+  f.rooms.disconnect(f.clients[1].peer.id);
+  const resumed = f.client(f.clients[1].welcome!.resumeToken);
+  expect(resumed.checkpoint().state!.width).toBe(4);
+  f.prepared();
+  for (let i = 0; i < 25 && f.room.phase === "playing"; i++) {
+    const cp = resumed.checkpoint();
+    resumed.send({ type: "inputBatch", matchId: cp.matchId!, generation: cp.owner.generation, epoch: cp.owner.epoch,
+      items: [{ seq: cp.owner.nextSeq, frame: cp.clock.currentTargetFrame, subframe: 0.25, input: Input.HardDrop }] });
+    f.advance(120);
+  }
+  expect(f.room.phase).toBe("setResult");
+  f.a.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+  resumed.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+  expect(f.room.match!.saveState().width).toBe(4);
+});
+
+test("room commands reject unsupported widths and retain the ten-wide default", () => {
+  const f = fixture();
+  expect(f.room.options.width).toBe(10);
+  for (const width of [3, 11, 4.5]) {
+    f.a.send({ type: "configure", options: { firstTo: 2, mode: "competitive", attacksEnabled: true, width } });
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "INVALID_MESSAGE" });
+    expect(f.room.options.width).toBe(10);
+  }
+});

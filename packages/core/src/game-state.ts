@@ -1,3 +1,4 @@
+import { COLS, ROWS, validateBoardWidth } from "./board";
 import type { GameEvent, LockResult } from "./game";
 import { FRAME_MS, validateHandling, type Handling } from "./handling";
 import { MINOS, type PieceId } from "./pieces";
@@ -48,7 +49,7 @@ export interface GameState {
   board: number[];
   previews: number[];
   bag: { rng: number; pieces: number[]; index: number };
-  config: { gravityMs: number; handling: Handling; lockProfile: LockProfile };
+  config: { width: number; gravityMs: number; handling: Handling; lockProfile: LockProfile };
   state: GameFields;
   lastResult: LockResult | null;
   events: GameEvent[];
@@ -127,8 +128,11 @@ function validateEvent(event: GameEvent, sequence: number, observedNow: number):
 export function readGameState(value: unknown): GameState {
   requireState(record(value));
   const s = value as GameState;
+  requireState(record(s.config));
+  const width = s.config.width === undefined ? COLS : s.config.width;
+  validateBoardWidth(width);
   requireState(s.version === GAME_STATE_VERSION && s.rulesVersion === RULES_VERSION
-    && cells(s.board, 400, 0, 8) && Array.isArray(s.previews) && s.previews.length > 0
+    && cells(s.board, width * ROWS, 0, 8) && Array.isArray(s.previews) && s.previews.length > 0
     && cells(s.previews, s.previews.length, 1, 7) && record(s.bag)
     && integer(s.bag.rng, -0x80000000, 0x7fffffff) && cells(s.bag.pieces, 7, 1, 7)
     && new Set(s.bag.pieces).size === 7 && integer(s.bag.index, 0, 7)
@@ -164,7 +168,7 @@ export function readGameState(value: unknown): GameState {
   }
   const minos = MINOS[f.piece][f.rot];
   for (let i = 0; i < minos.length; i += 2) {
-    requireState(integer(f.x + minos[i], 0, 9) && integer(f.y + minos[i + 1], 0, 39));
+    requireState(integer(f.x + minos[i], 0, width - 1) && integer(f.y + minos[i + 1], 0, 39));
   }
   requireState(Array.isArray(s.events));
   if (s.lastResult !== null) {
@@ -182,7 +186,7 @@ export function readGameState(value: unknown): GameState {
   return {
     version: GAME_STATE_VERSION, rulesVersion: RULES_VERSION,
     board: [...s.board], previews: [...s.previews], bag: { rng: s.bag.rng, pieces: [...s.bag.pieces], index: s.bag.index },
-    config: { gravityMs: s.config.gravityMs, lockProfile: s.config.lockProfile, handling: {
+    config: { width, gravityMs: s.config.gravityMs, lockProfile: s.config.lockProfile, handling: {
       das: s.config.handling.das, arr: s.config.handling.arr, sddas: s.config.handling.sddas, sdarr: s.config.handling.sdarr,
     } },
     state, lastResult: s.lastResult === null ? null : copyLock(s.lastResult), events: s.events.map(copyEvent),

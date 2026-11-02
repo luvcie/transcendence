@@ -1,4 +1,4 @@
-import { DEFAULT_HANDLING, FRAME_MS, Game, LEAGUE_LOCK, Rng, validateHandling,
+import { DEFAULT_HANDLING, FRAME_MS, Game, LEAGUE_LOCK, Rng, validateHandling, validateBoardWidth,
   type GameState, type Handling, type InputId, type LockResult } from "@42tris/core";
 import { GARBAGE_DELAY_MS, GARBAGE_PROFILE, GarbageQueue,
   type GarbageState, type Packet, type QueueRecord } from "./garbage";
@@ -9,6 +9,7 @@ export const MATCH_VERSION = 3;
 
 export interface MatchOptions {
   players: readonly string[];
+  width?: number;
   seed: number;
   firstTo?: number;
   handlingByPlayer?: Readonly<Record<string, Handling>>;
@@ -55,6 +56,7 @@ export interface MatchState {
   garbageProfile: typeof GARBAGE_PROFILE;
   roster: string[];
   firstTo: number;
+  width: number;
   mode: "competitive" | "practice";
   attacksEnabled: boolean;
   handlingByPlayer: Record<string, Handling>;
@@ -74,6 +76,7 @@ export interface MatchState {
 export class Match {
   readonly roster: readonly string[];
   readonly firstTo: number;
+  readonly width: number;
   readonly mode: "competitive" | "practice";
   readonly handlingByPlayer: Readonly<Record<string, Readonly<Handling>>>;
   private attacks = true;
@@ -97,6 +100,8 @@ export class Match {
     if (!Number.isSafeInteger(options.seed) || options.seed < -0x80000000 || options.seed > 0x7fffffff) {
       throw new RangeError("Seed must be a signed 32-bit integer");
     }
+    this.width = options.width === undefined ? 10 : options.width;
+    validateBoardWidth(this.width);
     this.firstTo = options.firstTo ?? 7;
     if (!Number.isSafeInteger(this.firstTo) || this.firstTo < 1) throw new RangeError("Invalid firstTo");
     this.roster = Object.freeze([...options.players].sort());
@@ -148,7 +153,7 @@ export class Match {
     for (const [index, id] of this.roster.entries()) {
       const previous = this.players.get(id);
       const game = this.createGame(id, 0);
-      this.players.set(id, { game, garbage: new GarbageQueue(this.roundSeed ^ Math.imul(index + 1, 0x74ab3)),
+      this.players.set(id, { game, garbage: new GarbageQueue(this.roundSeed ^ Math.imul(index + 1, 0x74ab3), this.width),
         sent: 0, eliminated: previous?.withdrawn ?? false, withdrawn: previous?.withdrawn ?? false,
         epoch: previous ? previous.epoch + 1 : 0 });
     }
@@ -156,7 +161,7 @@ export class Match {
 
   private createGame(id: string, nowMs: number): Game {
     const game = new Game(this.roundSeed, 500, 5, this.handlingByPlayer[id], 0,
-      p => this.settle(id, p.result), LEAGUE_LOCK);
+      p => this.settle(id, p.result), LEAGUE_LOCK, this.width);
     game.tick(nowMs);
     if (this.mode === "practice") game.setZen(true);
     return game;
@@ -368,7 +373,7 @@ export class Match {
 
   saveState(): MatchState {
     return structuredClone({ version: MATCH_VERSION, garbageProfile: GARBAGE_PROFILE,
-      roster: [...this.roster], firstTo: this.firstTo, round: this.round, seed: this.seed,
+      roster: [...this.roster], firstTo: this.firstTo, width: this.width, round: this.round, seed: this.seed,
       mode: this.mode, attacksEnabled: this.attacks, handlingByPlayer: this.handlingByPlayer,
       frame: this.frame, ended: this.ended, complete: this.complete, scores: this.points,
       routingRng: this.routing.save(), packetSequence: this.packetSequence, inputs: this.inputs, events: this.events,
@@ -393,7 +398,7 @@ export class Match {
       throw new RangeError("Invalid checkpoint mode or handling");
     }
     const match = new Match({ players: s.roster, firstTo: s.firstTo, seed: s.seed,
-      mode: s.mode, attacksEnabled: s.attacksEnabled, handlingByPlayer: s.handlingByPlayer });
+      mode: s.mode, attacksEnabled: s.attacksEnabled, handlingByPlayer: s.handlingByPlayer, width: s.width === undefined ? 10 : s.width });
     if (s.players.length !== match.roster.length || s.scores.length !== match.roster.length
       || s.roster.some((id, i) => id !== match.roster[i])) throw new RangeError("Invalid checkpoint roster");
     match.roundNumber = s.round;
@@ -413,11 +418,12 @@ export class Match {
         || match.mode === "practice" && (p.withdrawn || p.eliminated || s.ended || s.complete || s.scores[i] !== 0)) {
         throw new RangeError("Checkpoint mode and player state differ");
       }
+      if ((p.game.config.width ?? 10) !== match.width || (p.garbage.hole !== null && (p.garbage.hole < 0 || p.garbage.hole >= match.width))) throw new RangeError("Checkpoint width differs");
       for (const key of ["das", "arr", "sddas", "sdarr"] as const) {
         if (p.game.config.handling[key] !== match.handlingByPlayer[id][key]) throw new RangeError("Checkpoint handling differs");
       }
       match.players.set(id, { game: Game.fromState(p.game, placement => match.settle(id, placement.result)),
-        garbage: GarbageQueue.fromState(p.garbage), sent: p.sent, eliminated: p.eliminated,
+        garbage: GarbageQueue.fromState(p.garbage, match.width), sent: p.sent, eliminated: p.eliminated,
         withdrawn: p.withdrawn, epoch: p.epoch });
     }
     for (const input of s.inputs) match.submit(input);

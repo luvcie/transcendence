@@ -53,7 +53,8 @@ export function mountOnline(root: HTMLElement, options: {
           <h2 data-options-title>Create a room</h2><p data-settings hidden></p>
           <form data-options>
             <div class="option-fields"><label class="input-label">First to <input name="firstTo" type="number" min="1" max="100" value="3" required></label>
-              <label class="input-label">Max players <input name="maxPlayers" type="number" min="2" max="8" value="4" required></label></div>
+              <label class="input-label">Max players <input name="maxPlayers" type="number" min="2" max="8" value="4" required></label>
+              <label class="input-label">Board width <select name="width">${[10, 9, 8, 7, 6, 5, 4].map(width => `<option value="${width}">${width} wide</option>`).join("")}</select></label></div>
             <div class="option-toggles"><label><input name="practice" type="checkbox"> Practice (no scoring)</label>
               <label><input name="attacks" type="checkbox" checked disabled> Attacks enabled</label></div>
             <button data-create class="primary">Create room</button><button data-configure hidden>Save room settings</button>
@@ -91,7 +92,7 @@ export function mountOnline(root: HTMLElement, options: {
   form.addEventListener("submit", e => {
     e.preventDefault();
     const firstTo = field("practice").checked ? 3 : Number(field("firstTo").value);
-    const roomOptions: RoomOptions = { firstTo, maxPlayers: Number(field("maxPlayers").value),
+    const roomOptions: RoomOptions = { firstTo, maxPlayers: Number(field("maxPlayers").value), width: Number(field("width").value),
       mode: field("practice").checked ? "practice" : "competitive", attacksEnabled: field("attacks").checked };
     if (session.room) session.send({ type: "configure", options: roomOptions });
     else session.send({ type: "create", requestId: crypto.randomUUID(), options: roomOptions });
@@ -214,7 +215,7 @@ export function mountOnline(root: HTMLElement, options: {
     if (missing.length) phase += ` · Waiting for ${missing.map(p => `${p.name}: ${Math.max(0, Math.ceil((p.deadline! - session.serverNow()) / 1000))}s`).join(", ")}`;
     if (!session.connected) phase += " · Connection lost; boards frozen";
     text("[data-phase]", phase);
-    text("[data-settings]", `${room.options.mode} · ${room.options.mode === "practice" ? "No scoring" : `First to ${room.options.firstTo}`} · ${room.players.length}/${room.options.maxPlayers} players · Attacks ${room.options.attacksEnabled ? "on" : "off"}`);
+    text("[data-settings]", `${room.options.width} wide · ${room.options.mode} · ${room.options.mode === "practice" ? "No scoring" : `First to ${room.options.firstTo}`} · ${room.players.length}/${room.options.maxPlayers} players · Attacks ${room.options.attacksEnabled ? "on" : "off"}`);
     text("[data-player-count]", `${room.players.length}/${room.options.maxPlayers}`);
     text("[data-waiting-hint]", room.players.length < 2 ? "Invite at least one more player, then ready up."
       : room.players.every(p => p.connected && p.ready) ? "Everyone is ready. Preparing the match…" : "The match starts when every connected player is ready.");
@@ -237,6 +238,7 @@ export function mountOnline(root: HTMLElement, options: {
     const settingsKey = room.code + JSON.stringify(room.options);
     if (settingsKey !== optionsKey) {
       optionsKey = settingsKey;
+      field("width").value = String(room.options.width);
       field("firstTo").value = String(room.options.firstTo);
       field("maxPlayers").value = String(room.options.maxPlayers);
       field("practice").checked = room.options.mode === "practice";

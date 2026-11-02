@@ -1,7 +1,7 @@
 import { Bag } from "./bag";
 import { addFinesse, finessePlacement, INITIAL_FINESSE, type FinesseStats } from "./finesse";
 import { classifySpin, INITIAL_STATS, resolveClear, RULES_VERSION, type Attack, type ClearStats, type Spin } from "./rules";
-import { canPlace, clearRows, COLS, createBoard, place } from "./board";
+import { canPlace, clearRows, COLS, createBoard, place, validateBoardWidth } from "./board";
 import { copyEvent, copyLock, GAME_STATE_VERSION, readGameState, type GameState } from "./game-state";
 import { kicksFor } from "./kicks";
 import { DEFAULT_HANDLING, FRAME_MS, validateHandling, type Handling } from "./handling";
@@ -62,7 +62,8 @@ export class Game {
   private history: ReturnType<Game["capture"]>[] = [];
   private turn: ReturnType<Game["capture"]> | null = null;
 
-  readonly board: Uint8Array = createBoard();
+  readonly board: Uint8Array;
+  readonly width: number;
   // upcoming pieces in deal order, refilled from the bag as pieces spawn
   readonly previews: Uint8Array;
   dealt = 0;
@@ -104,7 +105,10 @@ export class Game {
   private inSettlement = false;
 
   constructor(seed: number, gravityMs = 500, previewCount = 5, handling: Handling = DEFAULT_HANDLING, readyMs = 0,
-    settlement: SettlePlacement | null = null, lockProfile: LockProfile = PRACTICE_LOCK) {
+    settlement: SettlePlacement | null = null, lockProfile: LockProfile = PRACTICE_LOCK, width = COLS) {
+    validateBoardWidth(width);
+    this.width = width;
+    this.board = createBoard(width);
     validateLockProfile(lockProfile);
     this.lockProfile = lockProfile;
     validateHandling(handling);
@@ -119,7 +123,7 @@ export class Game {
     this.previews = new Uint8Array(previewCount);
     for (let i = 0; i < previewCount; i++) this.previews[i] = this.bag.next();
     this.piece = this.starting ? this.previews[0] as PieceId : this.takeNext();
-    this.x = spawnX(this.piece);
+    this.x = spawnX(this.piece, this.width);
     this.y = SPAWN_Y;
   }
 
@@ -136,7 +140,7 @@ export class Game {
       version: GAME_STATE_VERSION, rulesVersion: RULES_VERSION,
       board: [...this.board], previews: [...this.previews],
       bag: { rng: bag.rng, pieces: [...bag.pieces], index: bag.index },
-      config: { gravityMs: this.gravityMs, lockProfile: this.lockProfile, handling: {
+      config: { width: this.width, gravityMs: this.gravityMs, lockProfile: this.lockProfile, handling: {
         das: this.handling.das, arr: this.handling.arr, sddas: this.handling.sddas, sdarr: this.handling.sdarr,
       } },
       state: {
@@ -159,7 +163,7 @@ export class Game {
 
   static fromState(value: unknown, settlement: SettlePlacement | null): Game {
     const state = readGameState(value);
-    const game = new Game(0, state.config.gravityMs, state.previews.length, state.config.handling);
+    const game = new Game(0, state.config.gravityMs, state.previews.length, state.config.handling, 0, null, state.config.lockProfile, state.config.width);
     game.restoreState(state, settlement);
     return game;
   }
@@ -171,6 +175,7 @@ export class Game {
       || s.settlementRequired && typeof settlement !== "function") {
       throw new TypeError("Restore requires an explicit settlement callback (or null for an unconnected game)");
     }
+    if (s.config.width !== this.width) throw new RangeError("Board width differs from GameState");
     if (s.previews.length !== this.previews.length) throw new RangeError("Preview count differs from GameState");
     this.board.set(s.board);
     this.previews.set(s.previews);
@@ -338,8 +343,8 @@ export class Game {
       const incoming = this.settlement ? this.settlement(Object.freeze({ result, x: this.x, y: this.y, rot: this.rot })) : [];
       if (!Array.isArray(incoming)) throw new RangeError("Settlement must return an array of hole columns");
       holes = Array.from(incoming);
-      if (!holes.every(hole => Number.isInteger(hole) && hole >= 0 && hole < COLS)) {
-        throw new RangeError("Settlement must return hole columns 0..9");
+      if (!holes.every(hole => Number.isInteger(hole) && hole >= 0 && hole < this.width)) {
+        throw new RangeError("Settlement must return hole columns within the board");
       }
     } catch (error) {
       // A controller may already have sent attacks. Stop rather than retrying that side effect.
@@ -351,10 +356,10 @@ export class Game {
     }
     let overflow = false;
     for (const hole of holes) {
-      overflow ||= board.subarray(0, COLS).some(cell => cell !== 0);
-      board.copyWithin(0, COLS);
-      board.fill(GARBAGE, board.length - COLS);
-      board[board.length - COLS + hole] = 0;
+      overflow ||= board.subarray(0, this.width).some(cell => cell !== 0);
+      board.copyWithin(0, this.width);
+      board.fill(GARBAGE, board.length - this.width);
+      board[board.length - this.width + hole] = 0;
     }
     if (this.turn) {
       if (this.history.length === UNDO_LIMIT) this.history.shift();
@@ -657,7 +662,7 @@ export class Game {
     this.finesseInherited = this.leftHeld || this.rightHeld || this.softHeld;
     this.holdUsed = false;
     this.rot = 0;
-    this.x = spawnX(this.piece);
+    this.x = spawnX(this.piece, this.width);
     this.y = SPAWN_Y;
     this.lastWasRotation = false;
     this.lastKickIndex = 0;

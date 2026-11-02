@@ -1,4 +1,4 @@
-import { canPlace, COLS, createBoard } from "./board";
+import { canPlace, ROWS, createBoard } from "./board";
 import { kicksFor } from "./kicks";
 import { MINOS, SPAWN_Y, spawnX, type PieceId } from "./pieces";
 
@@ -15,9 +15,9 @@ export function finesseAccuracy(stats: FinesseStats): number | null {
 }
 
 // Empty-field reference: one press can move any distance, as with DAS/ARR.
-function reference(piece: PieceId, instant: boolean): Map<string, number> {
-  const board = createBoard();
-  const queue = [{ x: spawnX(piece), rot: 0, cost: 0 }];
+function reference(piece: PieceId, instant: boolean, width: number): Map<string, number> {
+  const board = createBoard(width);
+  const queue = [{ x: spawnX(piece, width), rot: 0, cost: 0 }];
   const visited = new Map<string, number>();
   for (let i = 0; i < queue.length; i++) {
     const { x, rot, cost } = queue[i];
@@ -54,26 +54,32 @@ function shapeKey(piece: PieceId, rot: number, x: number): string {
   const minY = Math.min(minos[1], minos[3], minos[5], minos[7]);
   return Array.from({ length: 4 }, (_, i) => `${x + minos[i * 2]},${minos[i * 2 + 1] - minY}`).sort().join(";");
 }
-const references = [false, true].map(instant => Array.from({ length: 7 }, (_, i) => {
-  const piece = (i + 1) as PieceId;
-  const shapes = new Map<string, number>();
-  for (const [position, cost] of reference(piece, instant)) {
-    const [x, rot] = position.split(",").map(Number);
-    const key = shapeKey(piece, rot, x);
-    shapes.set(key, Math.min(shapes.get(key) ?? Infinity, cost));
+const references = new Map<string, Map<string, number>>();
+function referenceShapes(piece: PieceId, instant: boolean, width: number): Map<string, number> {
+  const cacheKey = `${piece},${instant},${width}`;
+  let shapes = references.get(cacheKey);
+  if (!shapes) {
+    shapes = new Map();
+    for (const [position, cost] of reference(piece, instant, width)) {
+      const [x, rot] = position.split(",").map(Number);
+      const key = shapeKey(piece, rot, x);
+      shapes.set(key, Math.min(shapes.get(key) ?? Infinity, cost));
+    }
+    references.set(cacheKey, shapes);
   }
   return shapes;
-}));
+}
 
 export function finessePlacement(board: Uint8Array, piece: PieceId, rot: number, x: number, y: number,
   inputs: number, inherited: boolean, spin: boolean, instant: boolean): number | null {
   if (inherited || spin || y <= SPAWN_Y + 2) return null;
+  const width = board.length / ROWS;
   const minos = MINOS[piece][rot];
   for (let i = 0; i < minos.length; i += 2) {
     const cx = x + minos[i], cy = y + minos[i + 1];
-    for (let row = 0; row < cy; row++) if (board[row * COLS + cx]) return null;
+    for (let row = 0; row < cy; row++) if (board[row * width + cx]) return null;
   }
-  const optimal = references[Number(instant)][piece - 1].get(shapeKey(piece, rot, x));
+  const optimal = referenceShapes(piece, instant, width).get(shapeKey(piece, rot, x));
   if (optimal === undefined) return null;
   const extra = Math.max(0, inputs - optimal);
   return extra === 0 ? 5 : Math.max(0, 3 - extra);

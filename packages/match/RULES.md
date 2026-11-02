@@ -140,7 +140,7 @@ differences between frame/subframe conversion and adding the delay to a send tim
 It is not a fixed millisecond grace period. A placement earlier by more than that
 bound cannot insert the packet. Saved eligible timestamps remain unchanged.
 
-A recipient has one hole column. It is generated on first insertion, then rerolled
+All players use the match width, an integer from 4 through 10 (default 10), frozen for the set and stored in checkpoints. A recipient has one hole column within that width. It is generated on first insertion, then rerolled
 when a packet finishes, including a fully canceled packet. Rows inside a packet
 share that column. Partial insertion preserves it. Repeated columns are allowed.
 There is no within-packet messiness. Hole values are chosen at consumption, not

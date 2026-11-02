@@ -1,5 +1,5 @@
 import {
-  COLS,
+  ROWS,
   Game,
   Input,
   finesseAccuracy,
@@ -65,6 +65,14 @@ const ctx = canvas.getContext("2d", { desynchronized: true })!;
 
 const PREVIEWS = 5;
 const READY_MS = 250;
+const widthSelect = document.querySelector<HTMLSelectElement>("#solo-width")!;
+try {
+  const saved = Number(localStorage.getItem("42tris.boardWidth"));
+  if (Number.isInteger(saved) && saved >= 4 && saved <= 10) widthSelect.value = String(saved);
+} catch { /* Use the default when storage is unavailable. */ }
+widthSelect.addEventListener("change", () => {
+  try { localStorage.setItem("42tris.boardWidth", widthSelect.value); } catch { /* Selection remains available for this session. */ }
+});
 let handling = loadHandling();
 let seed: number;
 let game: Game;
@@ -128,12 +136,12 @@ function restart() {
     crypto.getRandomValues(random);
   } while (random[0] === seed);
   seed = random[0];
-  game = new Game(seed, 500, PREVIEWS, handling, READY_MS);
+  game = new Game(seed, 500, PREVIEWS, handling, READY_MS, null, undefined, Number(widthSelect.value));
   game.setZen(zen);
   game.tick(performance.now());
   display = game;
   refreshHud();
-  status.textContent = "Singleplayer";
+  status.textContent = `Singleplayer · ${game.width} wide`;
   pressed.clear();
 }
 
@@ -240,7 +248,7 @@ function applyInput(input: InputId) {
   consumeEvents();
 }
 
-const cell = canvas.width / COLS;
+const cell = 30;
 
 function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: number) {
   drawPiecePreview(context, piece, cell, context.canvas.width, cell * 3, slot * cell * 3, skins.loaded);
@@ -249,6 +257,8 @@ function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: nu
 function render() {
   if (online && renderOnlineWaiting(document, online.session)) return;
   if (!display) return;
+  const width = display.board.length / ROWS;
+  document.querySelector<HTMLElement>("#game-view")!.style.setProperty("--board-ratio", String(width / 10));
   if (canvas.getAttribute("aria-label") !== "42tris playfield") canvas.setAttribute("aria-label", "42tris playfield");
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
   holdButton.disabled = display.holdUsed || display.paused || display.topOut || display.starting || (!!online && !online.session.canPlay);

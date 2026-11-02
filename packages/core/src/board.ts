@@ -5,12 +5,17 @@ export const COLS = 10;
 export const ROWS = 40;
 export const VISIBLE_ROWS = 20;
 
-export function createBoard(): Uint8Array {
-  return new Uint8Array(COLS * ROWS);
+export function validateBoardWidth(width: number): void {
+  if (!Number.isInteger(width) || width < 4 || width > 10) throw new RangeError("Board width must be an integer from 4 to 10");
+}
+
+export function createBoard(width = COLS): Uint8Array {
+  validateBoardWidth(width);
+  return new Uint8Array(width * ROWS);
 }
 
 export function cellAt(board: Uint8Array, x: number, y: number): number {
-  return board[y * COLS + x];
+  return board[y * (board.length / ROWS) + x];
 }
 
 export function canPlace(
@@ -20,12 +25,13 @@ export function canPlace(
   x: number,
   y: number,
 ): boolean {
+  const width = board.length / ROWS;
   const m = MINOS[piece][rot & 3];
   for (let i = 0; i < 8; i += 2) {
     const cx = x + m[i];
     const cy = y + m[i + 1];
-    if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) return false;
-    if (board[cy * COLS + cx] !== 0) return false;
+    if (cx < 0 || cx >= width || cy < 0 || cy >= ROWS) return false;
+    if (board[cy * width + cx] !== 0) return false;
   }
   return true;
 }
@@ -37,27 +43,29 @@ export function place(
   x: number,
   y: number,
 ): void {
+  const width = board.length / ROWS;
   const m = MINOS[piece][rot & 3];
   for (let i = 0; i < 8; i += 2) {
-    board[(y + m[i + 1]) * COLS + (x + m[i])] = piece;
+    board[(y + m[i + 1]) * width + (x + m[i])] = piece;
   }
 }
 
 export function clearRows(board: Uint8Array): { rows: number[]; garbage: boolean } {
+  const width = board.length / ROWS;
   const rows: number[] = [];
   let garbage = false;
   let target = ROWS - 1;
   for (let y = ROWS - 1; y >= 0; y--) {
-    const start = y * COLS;
-    const row = board.subarray(start, start + COLS);
+    const start = y * width;
+    const row = board.subarray(start, start + width);
     if (row.every(cell => cell !== 0)) {
       rows.push(y);
       garbage ||= row.includes(GARBAGE);
     } else {
-      if (target !== y) board.copyWithin(target * COLS, start, start + COLS);
+      if (target !== y) board.copyWithin(target * width, start, start + width);
       target--;
     }
   }
-  board.fill(0, 0, (target + 1) * COLS);
+  board.fill(0, 0, (target + 1) * width);
   return { rows: rows.reverse(), garbage };
 }

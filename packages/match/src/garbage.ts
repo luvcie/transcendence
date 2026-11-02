@@ -30,7 +30,7 @@ export class GarbageQueue {
   private rng: Rng;
   private hole: number | null = null;
 
-  constructor(seed: number) { this.rng = new Rng(seed); }
+  constructor(seed: number, private readonly width = 10) { this.rng = new Rng(seed); }
 
   get pending(): number { return this.packets.reduce((n, p) => n + p.lines, 0); }
 
@@ -55,7 +55,7 @@ export class GarbageQueue {
       // Two frame-to-ms conversions and a delay addition can disagree by a few ULPs.
       const clockError = 4 * Number.EPSILON * Math.max(Math.abs(atMs), Math.abs(packet.eligibleAtMs), GARBAGE_DELAY_MS);
       if (packet.eligibleAtMs - atMs > clockError) break;
-      if (this.hole === null) this.hole = this.rng.nextBelow(10);
+      if (this.hole === null) this.hole = this.rng.nextBelow(this.width);
       const count = Math.min(packet.lines, GARBAGE_CAP - holes.length);
       const rows = Array<number>(count).fill(this.hole);
       holes.push(...rows);
@@ -68,15 +68,15 @@ export class GarbageQueue {
 
   private finishPacket(): void {
     this.packets.shift();
-    this.hole = this.rng.nextBelow(10);
+    this.hole = this.rng.nextBelow(this.width);
   }
 
   saveState(): GarbageState {
     return { packets: this.packets.map(p => ({ ...p })), rng: this.rng.save(), hole: this.hole };
   }
 
-  static fromState(state: GarbageState): GarbageQueue {
-    const queue = new GarbageQueue(state.rng);
+  static fromState(state: GarbageState, width = 10): GarbageQueue {
+    const queue = new GarbageQueue(state.rng, width);
     queue.hole = state.hole;
     queue.packets.push(...state.packets.map(p => ({ ...p })));
     return queue;

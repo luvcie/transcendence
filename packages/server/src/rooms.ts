@@ -112,7 +112,7 @@ export class Rooms {
       if ((command.options.maxPlayers ?? 4) < room.seats.length || command.options.mode === "competitive" && !command.options.attacksEnabled) {
         this.error(peer, "INVALID_OPTIONS"); return;
       }
-      room.options = { ...command.options, maxPlayers: command.options.maxPlayers ?? 4 };
+      room.options = { ...command.options, maxPlayers: command.options.maxPlayers ?? 4, width: command.options.width ?? 10 };
       for (const s of room.seats) s.ready = false;
       room.touchedAt = this.now();
       this.changed(room);
@@ -207,7 +207,7 @@ export class Rooms {
 
   private create(seat: Seat, command: Extract<ClientCommand, { type: "create" }>): void {
     const peer = seat.peer!;
-    const optionsKey = JSON.stringify([command.options.firstTo, command.options.maxPlayers ?? 4, command.options.mode, command.options.attacksEnabled]);
+    const optionsKey = JSON.stringify([command.options.firstTo, command.options.maxPlayers ?? 4, command.options.width ?? 10, command.options.mode, command.options.attacksEnabled]);
     if (seat.lastCreate?.requestId === command.requestId) {
       if (seat.lastCreate.options !== optionsKey) this.error(peer, "INVALID_OPTIONS", "requestId reused", command.requestId);
       else if (seat.room?.code === seat.lastCreate.code) peer.send({ type: "roomState", room: this.view(seat.room), serverNow: this.now(), requestId: command.requestId });
@@ -219,7 +219,7 @@ export class Rooms {
     if (command.options.mode === "competitive" && !command.options.attacksEnabled) { this.error(peer, "INVALID_OPTIONS"); return; }
     let code: string;
     do { code = Array.from(crypto.getRandomValues(new Uint8Array(6)), n => CODE_ALPHABET[n % 32]).join(""); } while (this.rooms.has(code));
-    const room: Room = { code, ownerId: seat.id, options: { ...command.options, maxPlayers: command.options.maxPlayers ?? 4 }, seats: [seat], revision: 0,
+    const room: Room = { code, ownerId: seat.id, options: { ...command.options, maxPlayers: command.options.maxPlayers ?? 4, width: command.options.width ?? 10 }, seats: [seat], revision: 0,
       phase: "waiting", matchId: null, preparationId: 0, startsAt: null, prepareDeadline: null, origin: null,
       pausedAt: null, pausedTotal: 0, frozenTime: 0, order: 0, eventSequence: 0, events: [], touchedAt: this.now(), emptyAt: null };
     seat.room = room;
@@ -258,7 +258,7 @@ export class Rooms {
         room.match.nextRound(nextSeed);
       } else {
         const seats = room.seats;
-        room.match = new Match({ players: seats.map(s => s.id), seed: seed(), firstTo: room.options.firstTo, mode: room.options.mode,
+        room.match = new Match({ players: seats.map(s => s.id), seed: seed(), firstTo: room.options.firstTo, width: room.options.width, mode: room.options.mode,
           attacksEnabled: room.options.attacksEnabled, handlingByPlayer: Object.fromEntries(seats.map(s => [s.id, s.handling])) });
         room.matchId = opaque();
         room.events = [];

@@ -1,4 +1,4 @@
-import { COLS, ROWS, VISIBLE_ROWS, MINOS, canPlace, cellAt, type GameState } from "@42tris/core";
+import { ROWS, VISIBLE_ROWS, MINOS, canPlace, cellAt, type GameState } from "@42tris/core";
 import type { LoadedSkin } from "./skin-loader";
 import { drawTile, joinedAbove } from "./tile-renderer";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
@@ -10,11 +10,13 @@ export function drawSnapshot(ctx: CanvasRenderingContext2D, state: GameState, sk
 }
 
 export function drawBoard(ctx: CanvasRenderingContext2D, game: BoardView, skin?: LoadedSkin, ghost = true) {
-  const cell = ctx.canvas.width / COLS;
+  const width = game.board.length / ROWS;
+  if (ctx.canvas.width !== width * 30) ctx.canvas.width = width * 30;
+  const cell = ctx.canvas.width / width;
   const hidden = ROWS - VISIBLE_ROWS;
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   for (let y = 0; y < VISIBLE_ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
+    for (let x = 0; x < width; x++) {
       const id = cellAt(game.board, x, y + hidden);
       if (id) drawTile(ctx, id, x * cell, y * cell, cell, skin, cellAt(game.board, x, y + hidden - 1) === id);
     }
@@ -41,11 +43,11 @@ export function drawBoard(ctx: CanvasRenderingContext2D, game: BoardView, skin?:
   }
   ctx.strokeStyle = "#333";
   ctx.beginPath();
-  for (let x = 0; x <= COLS; x++) {
+  for (let x = 0; x <= width; x++) {
     ctx.moveTo(x * cell + .5, 0); ctx.lineTo(x * cell + .5, VISIBLE_ROWS * cell);
   }
   for (let y = 0; y <= VISIBLE_ROWS; y++) {
-    ctx.moveTo(0, y * cell + .5); ctx.lineTo(COLS * cell, y * cell + .5);
+    ctx.moveTo(0, y * cell + .5); ctx.lineTo(width * cell, y * cell + .5);
   }
   ctx.stroke();
 }

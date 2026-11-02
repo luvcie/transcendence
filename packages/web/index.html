@@ -16,11 +16,11 @@
       .view-heading { flex-shrink: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; padding: 14px 0; }
       .view-heading h1 { margin: 0; font-size: 18px; }
       #status { margin: 0; color: #aaa; font-size: 12px; overflow-wrap: anywhere; }
-      #game-view { flex: 1; min-height: 360px; container-type: size; --board: min(300px, calc((100cqw - 24px) / 2), calc((100cqh - 90px) / 2)); }
+      #game-view { flex: 1; min-height: 360px; container-type: size; --board-ratio: 1; --board: min(300px, calc((100cqw - 24px) / 2), calc((100cqh - 90px) / 2)); }
       .match-stage { display: flex; justify-content: center; align-items: start; }
-      .playfield { width: calc(var(--board) * 2 + 24px); flex: none; }
+      .playfield { width: calc(var(--board) * (1 + var(--board-ratio)) + 24px); flex: none; }
       .game-footer { max-width: 1000px; margin: 12px auto 0; }
-      main:not(.match-active) .game-footer { width: min(100%, calc(var(--board) * 2 + 24px)); }
+      main:not(.match-active) .game-footer { width: min(100%, calc(var(--board) * (1 + var(--board-ratio)) + 24px)); }
       #view-title:focus, #game-view:focus { outline: none; }
       .game-feedback { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; }
       .game-feedback p { margin: 0; }
@@ -39,7 +39,7 @@
       #finesse-handling.applied .preset-label { opacity: 0; }
       #finesse-handling.applied .applied-label { opacity: 1; }
       @media (prefers-reduced-motion: reduce) { #finesse-handling span { transition: none; } }
-      .playfield { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); align-items: start; gap: 12px; }
+      .playfield { display: grid; grid-template-columns: calc(var(--board) / 2) calc(var(--board) * var(--board-ratio)) calc(var(--board) / 2); align-items: start; gap: 12px; }
       .preview-panel { min-width: 0; }
       .preview-panel p { margin: 0; padding: 2px 4px; background: #eee; color: #111; text-transform: uppercase; }
       #board { min-width: 0; }
@@ -147,7 +147,7 @@
       .match-stage > [data-opponents] { display: none; }
       main.match-active { container-type: inline-size; }
       .match-active .match-stage { --board: min(300px, calc((100cqw - 68px) / 4.2), calc((100cqh - 90px) / 2)); display: flex; justify-content: center; align-items: start; gap: 28px; }
-      .match-active .playfield { width: calc(var(--board) * 2 + 24px); flex: none; grid-template-columns: calc(var(--board) / 2) var(--board) calc(var(--board) / 2); }
+      .match-active .playfield { width: calc(var(--board) * (1 + var(--board-ratio)) + 24px); flex: none; grid-template-columns: calc(var(--board) / 2) calc(var(--board) * var(--board-ratio)) calc(var(--board) / 2); }
       .match-active .match-stage > [data-opponents] { display: grid; gap: 16px; }
       .opponent { min-width: 0; }
       .opponent-label { margin: 6px 0 0; overflow-wrap: anywhere; font-size: 12px; }
@@ -155,11 +155,11 @@
       .opponent-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .opponent-score { display: block; font-size: 11px; line-height: 1.3; }
       .opponent-field { display: grid; align-items: start; }
-      .match-active[data-layout=duel] .opponent-field { width: calc(var(--board) * 2 + 24px); grid-template-columns: calc(var(--board) / 2) var(--board) calc(var(--board) / 2); gap: 12px; }
+      .match-active[data-layout=duel] .opponent-field { width: calc(var(--board) * (1 + var(--board-ratio)) + 24px); grid-template-columns: calc(var(--board) / 2) calc(var(--board) * var(--board-ratio)) calc(var(--board) / 2); gap: 12px; }
       .match-active[data-layout=duel] .opponent-label { margin-left: calc(var(--board) / 2 + 12px); }
       .match-active[data-layout=group] .match-stage { --board: min(300px, calc((100cqh - 90px) / 2), calc((100cqw - 68px) / 4)); }
-      .match-active[data-layout=group] [data-opponents] { --small-board: min(120px, calc((100cqh - 190px) / 4), calc((100cqw - var(--board) * 2 - 118px) / 4)); grid-template-columns: repeat(var(--opponent-columns), var(--small-board)); gap: 14px 18px; }
-      .match-active[data-layout=group] .opponent-field { grid-template-columns: var(--small-board); }
+      .match-active[data-layout=group] [data-opponents] { --small-board: min(120px, calc((100cqh - 190px) / 4), calc((100cqw - var(--board) * 2 - 118px) / 4)); grid-template-columns: repeat(var(--opponent-columns), calc(var(--small-board) * var(--board-ratio))); gap: 14px 18px; }
+      .match-active[data-layout=group] .opponent-field { grid-template-columns: calc(var(--small-board) * var(--board-ratio)); }
       .match-active[data-layout=group] .opponent .preview-panel { display: none; }
       .match-active[data-layout=group] .garbage-meter { width: 5px; }
       @media (max-width: 700px) {
@@ -175,11 +175,11 @@
         .view-heading { padding: 12px 0; }
         .match-active .match-stage { --board: min(240px, calc((100cqw - 32px) / 4.2), calc((100cqh - 90px) / 2)); }
         .match-active[data-layout=group] .match-stage { --board: min(260px, calc((100cqh - 90px) / 2), calc((100cqw - 32px) / 3.4)); }
-        .match-active[data-layout=group] [data-opponents] { --small-board: min(90px, calc((100cqw - var(--board) * 2 - 42px) / 2)); grid-template-columns: repeat(2, var(--small-board)); }
+        .match-active[data-layout=group] [data-opponents] { --small-board: min(90px, calc((100cqw - var(--board) * 2 - 42px) / 2)); grid-template-columns: repeat(2, calc(var(--small-board) * var(--board-ratio))); }
 
         .match-active .match-stage { gap: 12px; }
         .match-active .playfield, .match-active[data-layout=duel] .opponent-field { gap: 4px; }
-        .match-active .playfield, .match-active[data-layout=duel] .opponent-field { width: calc(var(--board) * 2 + 8px); }
+        .match-active .playfield, .match-active[data-layout=duel] .opponent-field { width: calc(var(--board) * (1 + var(--board-ratio)) + 8px); }
         .match-active[data-layout=duel] .opponent-label { margin-left: calc(var(--board) / 2 + 4px); }
         .match-active[data-layout=group] [data-opponents] { gap: 8px 10px; }
       }
@@ -241,6 +241,10 @@
       </div>
       <section id="settings-general" role="tabpanel" aria-labelledby="tab-general" tabindex="0">
       <h2>Practice</h2>
+      <label>Singleplayer board width <select id="solo-width" aria-describedby="solo-width-help">
+        <option value="10">10 wide</option><option value="9">9 wide</option><option value="8">8 wide</option><option value="7">7 wide</option><option value="6">6 wide</option><option value="5">5 wide</option><option value="4">4 wide</option>
+      </select></label>
+      <p id="solo-width-help" class="hint">Applies on the next restart. Saved on this device.</p>
       <label><input id="zen-mode" type="checkbox" aria-describedby="zen-help"> Zen</label>
       <p id="zen-help" class="hint">Ctrl+Z undoes one placed piece, including its hold and clears. Keeps the last 1,000 placements while enabled. Disabling Zen clears undo history.</p>
       <p id="zen-note" class="hint" role="status">Zen preference is saved on this device.</p>

@@ -49,6 +49,6 @@ for (let p = 1; p <= 7; p++) {
 // guideline spawn: just above the visible rows, may get tuned later
 export const SPAWN_Y = 18;
 
-export function spawnX(piece: PieceId): number {
-  return piece === Piece.O ? 4 : 3;
+export function spawnX(piece: PieceId, width = 10): number {
+  return Math.floor((width - 10) / 2) + (piece === Piece.O ? 4 : 3);
 }

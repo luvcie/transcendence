@@ -62,7 +62,7 @@ The server owns accepted inputs, routing, scores, undo/reset and forfeits. Predi
 outgoing events are informational and never become attack claims. Connection generation
 invalidates buffered network controls; board epoch invalidates inputs after undo,
 reset or round changes. Reconciliation must respect both, plus match and round identity.
-Handling stays frozen for a set.
+Handling and board width stay frozen for a set. Room settings supply the width to Match, and core and match checkpoints retain it for restoration and prediction.
 
 Exact snapshots preserve simulation clocks, controls and RNG state, but omit Zen undo
 history and settlement functions. Restore controllers explicitly and restore their

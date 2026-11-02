@@ -1,4 +1,4 @@
-import { canPlace, COLS, ROWS } from "./board";
+import { canPlace, ROWS } from "./board";
 import { Piece, type PieceId } from "./pieces";
 
 export const RULES_VERSION = "42tris-tl-s2-v1";
@@ -30,10 +30,11 @@ export function classifySpin(
   board: Uint8Array, piece: PieceId, rot: number, x: number, y: number,
   lastWasRotation: boolean, lastKickIndex: number,
 ): Spin {
+  const width = board.length / ROWS;
   if (!lastWasRotation) return "none";
   if (piece === Piece.T && !canPlace(board, piece, rot, x, y + 1)) {
     const occupied = (cx: number, cy: number) =>
-      cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS || board[cy * COLS + cx] !== 0;
+      cx < 0 || cx >= width || cy < 0 || cy >= ROWS || board[cy * width + cx] !== 0;
     // Clockwise corners, starting at the top left. Rotation selects the front pair.
     const corners = [occupied(x, y), occupied(x + 2, y), occupied(x + 2, y + 2), occupied(x, y + 2)];
     if (corners.filter(Boolean).length >= 3) {

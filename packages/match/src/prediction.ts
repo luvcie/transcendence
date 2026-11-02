@@ -59,6 +59,8 @@ export class OwnerPrediction {
       || (state.mode !== "practice" && state.mode !== "competitive") || typeof state.attacksEnabled !== "boolean") {
       throw new RangeError("Invalid prediction configuration");
     }
+    const width = state.width ?? 10;
+    if ((p.game.config.width ?? 10) !== width || (p.garbage.hole !== null && (p.garbage.hole < 0 || p.garbage.hole >= width))) throw new RangeError("Checkpoint width differs");
     const handling = state.handlingByPlayer[owner];
     validateHandling(handling);
     for (const key of ["das", "arr", "sddas", "sdarr"] as const) {
@@ -78,7 +80,7 @@ export class OwnerPrediction {
     this.stopped = state.ended || state.complete || p.withdrawn;
     // Snapshot eligibility only: never step an opponent to guess future targeting or death.
     this.hasRecipient = state.players.some((other, i) => i !== index && !other.withdrawn && !other.game.state.topOut);
-    this.ledger = { garbage: GarbageQueue.fromState(p.garbage), sent: p.sent };
+    this.ledger = { garbage: GarbageQueue.fromState(p.garbage, width), sent: p.sent };
     this.game = Game.fromState(p.game, placement => this.settle(placement.result));
     for (const input of state.inputs) if (input.player === owner) this.submit(input);
   }

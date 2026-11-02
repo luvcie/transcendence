@@ -212,7 +212,7 @@ test("malformed state is rejected before mutating a target Game", () => {
 
 test("constructor defaults and signed seeds remain unchanged; invalid numeric config is rejected", () => {
   const defaults = new Game(-1).saveState();
-  expect(defaults.config).toEqual({ gravityMs: 500, handling: DEFAULT_HANDLING, lockProfile: "42tris-practice-lock-v1" });
+  expect(defaults.config).toEqual({ width: 10, gravityMs: 500, handling: DEFAULT_HANDLING, lockProfile: "42tris-practice-lock-v1" });
   expect(defaults.previews).toHaveLength(5);
   expect(defaults.state.readyMs).toBe(0);
   expect(new Game(-1).saveState()).toEqual(new Game(0xffffffff).saveState());
