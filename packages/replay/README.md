@@ -2,10 +2,11 @@
 
 This package implements the replay format, bounded decoding, corruption checks,
 Sprint reconstruction/result verification, Sprint recording and competitive Match
-reconstruction/result verification. Deterministic execution lives in the drivers.
+reconstruction/result verification and playback. Deterministic execution lives in the drivers.
 Sprint playback is implemented in `packages/web/src/sprint-playback.ts` on top of
-`SprintDriver`; competitive recording is implemented in `MatchRecorder`; Match playback,
-server integration and export UI are not implemented yet.
+`SprintDriver`; competitive recording is implemented in `MatchRecorder` and
+competitive playback in `MatchPlayback`. A multiplayer replay viewer and export UI
+are not implemented yet.
 
 ## Format and decoding
 
@@ -164,6 +165,39 @@ timer still starts at the first gameplay input. Playback never writes to the sto
 replay, never touches the live recorder and owns no animation loop or DOM handlers;
 the web layer starts and stops it with the results screen.
 
+## Match playback
+
+`MatchPlayback.create(input, options)` strictly decodes and checks the checksum,
+then verifies the entire competitive journal and requires a completed set before
+returning a controller. The decoded journal is detached from the caller. Playback
+enforces the byte limit on the detached JSON encoding, as well as the structural
+and simulation limits; decode limits can be passed in the playback options.
+
+`state` returns a detached `MatchState` in roster order, including all boards,
+input queues, garbage, scores and lifecycle flags. `positionFrames` and
+`durationFrames` count actual frames reached across all rounds, not the current
+round's frame. `advance(elapsedMs)` accumulates elapsed presentation time at 60 Hz
+and the selected 0.5, 1, 2 or 4 speed; `play`, `pause`, `setSpeed`, `restart` and
+`seek(frame)` control the single shared timeline. The controller owns no timer.
+
+Operations with no frame cost execute in journal order at their boundary, including
+round transitions. Thus the state at a transition position is already the next
+round's state, and recorded countdowns or disconnect pauses are not invented.
+The viewer can add a presentation delay using the returned `roundEnd` events.
+`advance`, forward `seek` and `restart` return newly generated `MatchEvent`s;
+`initialEvents` contains events at position zero. Forward seeks return all events
+crossed, including multiple events at a single boundary. A backward seek
+reconstructs from the beginning and returns no historical events; advancing again
+returns events encountered after the new position. Restart returns the frame-zero
+events again. No snapshots are cached and
+verification happens only on creation. Seeking to a boundary applies all zero-cost
+operations at that position, so intermediate journal states at that same frame are
+not independently seekable.
+
+Skins and display names are not in this replay format. M3-B needs a separate,
+roster-keyed presentation metadata source for original skins and optional viewer
+overrides; these must not affect simulation or the state digest.
+
 ## Terminal verification
 
 `verifySprintReplayExecution(replay)` executes a decoded Sprint replay, reconstructs
@@ -220,9 +254,8 @@ authentication either. Deterministic verification is not anti-cheat enforcement.
 
 ## Remaining work
 
-- Server integration of competitive Match recording (M2-B2), Match playback, export
-  UI, persistence and shareable links remain separate milestones. Online practice
-  recording remains strictly disabled at the source.
+- Multiplayer replay viewer, export UI, persistence and shareable links remain
+  separate milestones. Online practice recording remains disabled at the source.
 - Add optional bounded metadata and presentation annotations when their consumers
   exist. Match countdowns, disconnect waits and pause durations remain presentation
   annotations outside this simulation driver.

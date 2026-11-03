@@ -19,6 +19,7 @@ import {
   MATCH_MODE_VERSION,
   MAX_MATCH_FRAMES,
   MatchDriver,
+  MatchPlayback,
   ReplayError,
   SHA256_ALGORITHM,
   computeFinalStateDigest,
@@ -714,5 +715,169 @@ describe("Match execution determinism", () => {
     expect(verification.complete).toBe(true);
     expect(verification.finalStateDigest).toBe(payload.end.finalStateDigest);
     expect(execute(journal.initial, replay.records, 5).state).toEqual(journal.match.saveState());
+  });
+});
+
+
+describe("competitive Match playback", () => {
+  test("replays multi-round journals at every frame, with ordered events and safe backward seeks", async () => {
+    const journal = new Journal({ players: ["a", "b"], seed: 108, firstTo: 2 });
+    journal.submit("a", Input.LeftDown, 2, 0.5);
+    journal.submit("a", Input.HardDrop, 2, 0.5);
+    journal.advance(5);
+    journal.release("a");
+    topOutRound(journal, ["b"]);
+    const boundary = journal.match.frame;
+    journal.nextRound(109);
+    topOutRound(journal, ["b"]);
+    const replay = await sealed(await journal.payload());
+    const original = structuredClone(replay);
+    const playback = await MatchPlayback.create(replay, { paused: true });
+    const states = [playback.state];
+    const events = [...playback.initialEvents];
+    for (let frame = 1; frame <= playback.durationFrames; frame++) {
+      events.push(...playback.seek(frame));
+      states.push(playback.state);
+    }
+    expect(events).toEqual(journal.events);
+    expect(states[0].inputs.map(input => input.frame)).toEqual([2, 2]);
+    expect(states[1].inputs).toEqual(states[0].inputs);
+    expect(states[3].inputs).toEqual([]);
+    expect(playback.state).toEqual(journal.match.saveState());
+    expect(await computeFinalStateDigest(playback.state)).toBe(replay.end.finalStateDigest);
+    expect(states[boundary].round).toBe(2);
+    expect(states[boundary].seed).toBe(109);
+    expect(states[boundary].scores).toEqual([1, 0]);
+    for (const frame of [boundary + 1, boundary, boundary - 1, 0, playback.durationFrames]) {
+      playback.seek(frame);
+      expect(playback.state).toEqual(states[frame]);
+    }
+    const detached = playback.state;
+    detached.players[0].game.board[0] = 99;
+    expect(playback.state).toEqual(states.at(-1));
+    expect(replay).toEqual(original);
+    expect(playback.seek(0)).toEqual([]);
+    expect(playback.seek(playback.durationFrames)).toEqual(journal.events.slice(playback.initialEvents.length));
+    expect(playback.seek(playback.durationFrames)).toEqual([]);
+    expect(playback.restart()).toEqual(playback.initialEvents);
+    replay.records.length = 0;
+    playback.seek(playback.durationFrames);
+    expect(playback.state).toEqual(journal.match.saveState());
+  });
+
+  test("2 to 8 players, forfeits, and a zero-duration set are synchronized", async () => {
+    for (const players of [["a", "b"], ["a", "b", "c"], ["a", "b", "c", "d", "e", "f", "g", "h"]]) {
+      const journal = new Journal({ players, seed: 7, firstTo: 1 });
+      topOutRound(journal, players.slice(1));
+      const playback = await MatchPlayback.create(await sealed(await journal.payload()));
+      playback.seek(playback.durationFrames);
+      expect(playback.state).toEqual(journal.match.saveState());
+      expect(playback.state.roster).toEqual(players);
+    }
+    const journal = new Journal({ players: ["a", "b"], seed: 7, firstTo: 3 });
+    journal.forfeit("a");
+    const playback = await MatchPlayback.create(await sealed(await journal.payload()));
+    expect(playback.durationFrames).toBe(0);
+    expect(playback.complete).toBe(true);
+    expect(playback.initialEvents).toEqual(journal.events);
+    expect(playback.state).toEqual(journal.match.saveState());
+  });
+
+  test("speed, pause, resume, restart and differently divided updates produce the same state and events", async () => {
+    const journal = new Journal({ players: ["a", "b"], seed: 108, firstTo: 1 });
+    topOutRound(journal, ["b"]);
+    const replay = await sealed(await journal.payload());
+    for (const speed of [0.5, 1, 2, 4] as const) {
+      const playback = await MatchPlayback.create(replay, { speed });
+      const events = [...playback.initialEvents];
+      playback.pause();
+      expect(playback.advance(10000)).toEqual([]);
+      expect(playback.positionFrames).toBe(0);
+      playback.play();
+      for (let i = 0; i < playback.durationFrames * 4; i++) events.push(...playback.advance(FRAME_MS / (4 * speed)));
+      expect(playback.complete).toBe(true);
+      expect(events).toEqual(journal.events);
+      expect(playback.state).toEqual(journal.match.saveState());
+      const restartEvents = playback.restart();
+      expect(restartEvents).toEqual(playback.initialEvents);
+      playback.advance(playback.durationFrames * FRAME_MS / speed + FRAME_MS);
+      expect(playback.state).toEqual(journal.match.saveState());
+    }
+  });
+
+  test("equivalent elapsed time reaches the same intermediate state at every speed", async () => {
+    const journal = new Journal({ players: ["a", "b"], seed: 108, firstTo: 1 });
+    topOutRound(journal, ["b"]);
+    const replay = await sealed(await journal.payload());
+    const reference = await MatchPlayback.create(replay, { paused: true });
+    const frame = Math.floor(reference.durationFrames / 2);
+    reference.seek(frame);
+    for (const speed of [0.5, 1, 2, 4] as const) {
+      const playback = await MatchPlayback.create(replay, { speed });
+      for (let i = 0; i < frame * 4; i++) playback.advance(FRAME_MS / (4 * speed));
+      expect(playback.positionFrames).toBe(frame);
+      expect(playback.state).toEqual(reference.state);
+    }
+  });
+
+  test("partial advances, early termination and garbage events match unchunked execution", async () => {
+    const journal = new Journal({ players: ["a", "b"], seed: 108, firstTo: 1 });
+    botRound(journal, { a: "score", b: "tower" }, { b: 5 });
+    const payload = await journal.payload();
+    const last = payload.records.at(-1);
+    if (last?.op.type !== "advance") throw new Error("Expected final advance");
+    last.op.toFrame = MAX_MATCH_FRAMES;
+    const replay = await sealed(payload);
+    const playback = await MatchPlayback.create(replay);
+    const events = [...playback.initialEvents];
+    let sawPendingGarbage = false;
+    while (!playback.complete) {
+      events.push(...playback.advance(FRAME_MS));
+      sawPendingGarbage ||= playback.state.players.some(player => player.garbage.packets.length > 0);
+    }
+    expect(sawPendingGarbage).toBe(true);
+    expect(events).toEqual(journal.events);
+    const unchunked = await MatchPlayback.create(replay);
+    expect([...unchunked.initialEvents, ...unchunked.advance((unchunked.durationFrames + 1) * FRAME_MS)]).toEqual(events);
+    for (const type of ["send", "queue", "cancel", "insert"] as const) expect(events.some(event => event.type === type)).toBe(true);
+    expect(playback.state).toEqual(journal.match.saveState());
+  });
+
+  test("rejects corrupted, incompatible, practice, incomplete and semantically forged replays", async () => {
+    const journal = new Journal({ players: ["a", "b"], seed: 7, firstTo: 1 });
+    journal.advance(2);
+    const incomplete = await sealed(await journal.payload("stopped"));
+    await expectRejects(() => MatchPlayback.create(incomplete), "unsupported");
+    topOutRound(journal, ["b"]);
+    const payload = await journal.payload();
+    const valid = await sealed(payload);
+    const bytes = new TextEncoder().encode(JSON.stringify(valid)).length;
+    await expectRejects(() => MatchPlayback.create(valid, { maxBytes: bytes - 1 }), "resource-limit");
+    expect((await MatchPlayback.create(valid, { maxBytes: bytes })).id).toBe(valid.id);
+    await expectRejects(() => MatchPlayback.create(valid, { maxOperations: 1 }), "resource-limit");
+    await expectRejects(() => MatchPlayback.create(valid, { maxMatchFrames: 1 }), "resource-limit");
+    const changing = structuredClone(valid);
+    const coreState = changing.versions.coreState;
+    let reads = 0;
+    Object.defineProperty(changing.versions, "coreState", {
+      enumerable: true,
+      get: () => ++reads < 4 ? coreState : 999,
+    });
+    await expectRejects(() => MatchPlayback.create(changing), "unsupported");
+    const corrupted = structuredClone(valid);
+    corrupted.id = "changed";
+    await expectRejects(() => MatchPlayback.create(corrupted), "integrity");
+    const malformed = structuredClone(valid);
+    (malformed.records[0] as { seq: number }).seq = 999;
+    await expectRejects(() => MatchPlayback.create(malformed), "malformed");
+    const incompatible = structuredClone(valid);
+    incompatible.versions.format = 99 as typeof incompatible.versions.format;
+    await expectRejects(() => MatchPlayback.create(incompatible), "unsupported");
+    const practice = structuredClone(valid);
+    (practice.initial as { mode: string }).mode = "practice";
+    await expectRejects(() => MatchPlayback.create(practice), "unsupported");
+    const forged = structuredClone(payload);
+    forged.end.finalStateDigest = "0".repeat(64);
+    await expectRejects(async () => MatchPlayback.create(await sealed(forged)), "simulation-mismatch");
   });
 });

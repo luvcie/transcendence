@@ -1,3 +1,4 @@
+export * from "./match-playback";
 export * from "./match-driver";
 export * from "./match-recorder";
 export * from "./solo-driver";
