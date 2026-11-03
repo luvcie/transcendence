@@ -3,6 +3,8 @@ import { DEFAULT_HANDLING, FRAME_MS, Input } from "@42tris/core";
 import { OwnerPrediction } from "@42tris/match";
 import type { Checkpoint, ClientCommand, ServerMessage } from "@42tris/protocol";
 import { Rooms, type Peer } from "../src/rooms";
+import { createApp } from "../src/app";
+import { decodeReplayJson, MatchPlayback, type MatchRecorderOptions } from "@42tris/replay";
 
 interface TestClient {
   peer: Peer;
@@ -13,9 +15,9 @@ interface TestClient {
   checkpoint(): Checkpoint;
 }
 
-function fixture(count = 2, mode: "competitive" | "practice" = "competitive", firstTo = 2, width?: number) {
+function fixture(count = 2, mode: "competitive" | "practice" = "competitive", firstTo = 2, width?: number, replayOptions?: MatchRecorderOptions) {
   let now = 0;
-  const rooms = new Rooms(() => now);
+  const rooms = new Rooms(() => now, replayOptions);
   const clients: TestClient[] = [];
   function client(token?: string, skin?: string): TestClient {
     const messages: ServerMessage[] = [];
@@ -34,13 +36,14 @@ function fixture(count = 2, mode: "competitive" | "practice" = "competitive", fi
   a.send({ type: "create", requestId: "one", options: { firstTo, mode, attacksEnabled: true, maxPlayers: 8, ...(width === undefined ? {} : { width }) } });
   const room = [...rooms.rooms.values()][0];
   for (let i = 1; i < count; i++) client().send({ type: "join", code: room.code });
-  function advance(ms: number) { now += ms; rooms.tick(); }
+  function elapse(ms: number) { now += ms; }
+  function advance(ms: number) { elapse(ms); rooms.tick(); }
   function prepared() {
     for (const c of clients) if (room.seats.some(s => s.peer?.id === c.peer.id)) c.send({ type: "prepared", matchId: room.matchId!, preparationId: room.preparationId });
     advance(3000);
   }
   function start() { for (const c of clients) c.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING }); prepared(); }
-  return { rooms, clients, a, room, client, advance, start, prepared };
+  return { rooms, clients, a, room, client, elapse, advance, start, prepared };
 }
 
 describe("room authority", () => {
@@ -798,5 +801,157 @@ describe("competitive replay integration", () => {
     expect(f.room.match?.mode).toBe("practice");
     expect(f.room.recorder).toBeUndefined();
     expect(f.rooms.completedReplay(f.room.code)).toBeNull();
+  });
+});
+
+describe("competitive replay retrieval", () => {
+  function completed(replayOptions?: MatchRecorderOptions) {
+    const f = fixture(2, "competitive", 1, undefined, replayOptions);
+    f.start();
+    f.clients[1].send({ type: "leave" });
+    expect(f.room.phase).toBe("setResult");
+    return f;
+  }
+
+  function request(f: ReturnType<typeof fixture>, token?: string, code = f.room.code, query = "") {
+    const app = createApp({ rooms: f.rooms, scheduled: false });
+    return app.handle(new Request(`http://localhost/api/rooms/${code}/replay${query}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }));
+  }
+
+  test("only the completed verified artifact is served; reads do not finalize or mutate it", async () => {
+    const f = completed();
+    const token = f.a.welcome!.resumeToken;
+    const recorder = f.room.recorder!;
+    expect(recorder.status).toBe("finalizing");
+    expect(f.rooms.replayAccess(f.room.code, token)).toEqual({ status: "pending" });
+    const pending = await request(f, token);
+    expect(pending.status).toBe(202);
+    expect(await pending.json()).toEqual({ status: "pending" });
+    const replay = await recorder.completion;
+    expect(replay).not.toBeNull();
+    const state = f.room.match!.saveState();
+    const response = await request(f, token);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("vary")).toBe("Authorization");
+    const json = await response.text();
+    expect(json).toBe(recorder.json!);
+    expect(await decodeReplayJson(json)).toEqual(replay!);
+    expect((await MatchPlayback.create(JSON.parse(json))).id).toBe(f.room.matchId!);
+    expect((await request(f, token)).status).toBe(200);
+    expect(recorder.replay).toBe(replay);
+    expect(f.room.match!.saveState()).toEqual(state);
+    expect(f.a.checkpoint()).not.toHaveProperty("replay");
+  });
+
+  test("room code, player id, profile id and another guest never authorize access", async () => {
+    const f = completed();
+    await f.room.recorder!.completion;
+    const stranger = f.client(); // Same guestProfileId as every fixture participant.
+    stranger.send({ type: "create", requestId: "other", options: { firstTo: 1, mode: "competitive", attacksEnabled: true } });
+    for (const token of [undefined, "guessed", f.a.welcome!.playerId, stranger.welcome!.resumeToken]) {
+      const response = await request(f, token);
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ status: "unauthorized" });
+    }
+    const spoof = await request(f, undefined, f.room.code,
+      `?playerId=${f.a.welcome!.playerId}&resumeToken=${f.a.welcome!.resumeToken}&guestProfileId=same-profile`);
+    expect(spoof.status).toBe(403);
+    expect(await spoof.json()).toEqual({ status: "unauthorized" });
+    expect((await request(f, f.clients[1].welcome!.resumeToken)).status).toBe(403);
+    const late = f.client();
+    late.send({ type: "join", code: f.room.code });
+    expect(late.checkpoint().room.code).toBe(f.room.code);
+    expect((await request(f, late.welcome!.resumeToken)).status).toBe(403);
+    expect((await request(f, late.welcome!.resumeToken, stranger.checkpoint().room.code)).status).toBe(403);
+  });
+
+  test("incomplete, abandoned, failed and practice recordings expose no journal", async () => {
+    const f = fixture();
+    const token = f.a.welcome!.resumeToken;
+    expect((await request(f, token)).status).toBe(404);
+    f.start();
+    expect((await request(f, token)).status).toBe(404);
+    f.room.recorder!.abandon();
+    expect((await request(f, token)).status).toBe(404);
+    for (const options of [{ maxOperations: 1 }, { maxBytes: 1 }]) {
+      const failed = completed(options);
+      expect(failed.room.recorder!.status).toBe("failed");
+      const response = await request(failed, failed.a.welcome!.resumeToken);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ status: "failed" });
+    }
+    const practice = fixture(2, "practice");
+    for (const start of [false, true]) {
+      if (start) practice.start();
+      const response = await request(practice, practice.a.welcome!.resumeToken);
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ status: "unavailable" });
+      expect(practice.room.recorder).toBeUndefined();
+    }
+    // Switching the lobby to practice also hides a retained competitive artifact.
+    const changed = completed();
+    await changed.room.recorder!.completion;
+    changed.a.send({ type: "configure", options: { firstTo: 1, mode: "practice", attacksEnabled: true } });
+    expect((await request(changed, changed.a.welcome!.resumeToken)).status).toBe(404);
+  });
+
+  test("reconnect preserves ownership; reservation expiry and room destruction revoke access", async () => {
+    const f = completed();
+    await f.room.recorder!.completion;
+    const token = f.a.welcome!.resumeToken;
+    f.rooms.disconnect(f.a.peer.id);
+    expect((await request(f, token)).status).toBe(200);
+    const resumed = f.client(token);
+    expect(resumed.welcome!.playerId).toBe(f.a.welcome!.playerId);
+    expect((await request(f, token)).status).toBe(200);
+    f.rooms.disconnect(resumed.peer.id);
+    f.advance(40_000);
+    expect((await request(f, token)).status).toBe(403);
+    f.advance(20_000);
+    const response = await request(f, token);
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ status: "unavailable" });
+    expect((await request(f, token, "AAAAAA")).status).toBe(404);
+  });
+
+  test("a new set drops old access even if old verification finishes later", async () => {
+    for (const finishFirst of [false, true]) {
+      const f = completed();
+      const old = f.room.recorder!;
+      if (finishFirst) await old.completion;
+      const replacement = f.client();
+      replacement.send({ type: "join", code: f.room.code });
+      for (const c of [f.a, replacement]) c.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+      expect(f.room.recorder).not.toBe(old);
+      await old.completion;
+      const response = await request(f, f.a.welcome!.resumeToken);
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ status: "unavailable" });
+    }
+  });
+
+  test("reservation and room expiry apply before scheduler cleanup, and reads do not extend TTL", async () => {
+    const f = completed();
+    await f.room.recorder!.completion;
+    const token = f.a.welcome!.resumeToken;
+    f.rooms.disconnect(f.a.peer.id);
+    f.elapse(40_000);
+    expect(f.rooms.replayAccess(f.room.code, token)).toEqual({ status: "unauthorized" });
+    f.elapse(20_000);
+    expect(f.rooms.rooms.has(f.room.code)).toBe(true);
+    expect(f.rooms.replayAccess(f.room.code, token)).toEqual({ status: "unavailable" });
+
+    const idle = completed();
+    await idle.room.recorder!.completion;
+    const idleToken = idle.a.welcome!.resumeToken;
+    idle.elapse(15 * 60_000 - 1);
+    expect(idle.rooms.replayAccess(idle.room.code, idleToken).status).toBe("ready");
+    idle.elapse(1);
+    expect(idle.rooms.replayAccess(idle.room.code, idleToken)).toEqual({ status: "unavailable" });
+    idle.advance(0);
+    expect(idle.rooms.rooms.has(idle.room.code)).toBe(false);
   });
 });

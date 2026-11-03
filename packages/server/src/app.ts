@@ -45,6 +45,15 @@ export function createApp(options: ServerOptions = {}) {
       attempts.set(ip, attempt);
     })
     .get("/api/health", () => ({ ok: true as const, protocol: 1 as const, serverNow: rooms.now() }))
+    .get("/api/rooms/:code/replay", ({ params, request }) => {
+      const authorization = request.headers.get("authorization");
+      const access = rooms.replayAccess(params.code, authorization?.startsWith("Bearer ") ? authorization.slice(7) : undefined);
+      const status = { ready: 200, pending: 202, failed: 409, unavailable: 404, unauthorized: 403 }[access.status];
+      return new Response(access.status === "ready" ? access.json : JSON.stringify(access), {
+        status,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "Vary": "Authorization" },
+      });
+    })
     .ws("/ws", {
       body: ClientCommandSchema,
       response: ServerMessageSchema,

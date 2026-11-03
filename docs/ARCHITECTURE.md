@@ -142,3 +142,64 @@ undo can restore it with core's existing timer rebasing and released controls.
 Explicit restart and mode changes discard both histories. Sprint creates neither
 practice history nor a previous-board reference, and its controller rejects undo
 before calling core.
+
+### Competitive replay retrieval (M3-B1)
+
+`GET /api/rooms/:code/replay` accepts `Authorization: Bearer <resumeToken>`.
+Use the token from the WebSocket `welcome` message (the browser session stores it
+under `42tris.resume`). Tokens belong in the header, never the URL. There are no
+public replay links, cookies, new credentials, or permanent replay storage.
+
+| HTTP | Body | Meaning |
+| --- | --- | --- |
+| 200 | Original competitive `MatchReplay` JSON | Completed and deterministically verified |
+| 202 | `{"status":"pending"}` | Set completed; recorder is still sealing/verifying |
+| 409 | `{"status":"failed"}` | Recorder exceeded a resource limit or failed verification |
+| 404 | `{"status":"unavailable"}` | No completed artifact, abandoned recording, practice mode, missing/expired room |
+| 403 | `{"status":"unauthorized"}` | Missing/invalid session token or ineligible seat |
+
+Every response uses `Cache-Control: no-store` and `Vary: Authorization`. Non-200
+status envelopes are described by `ReplayAccessStatusSchema` in the protocol.
+Missing credentials always return 403; a recognized session requesting a missing
+room receives 404. An unrelated session cannot read an existing room's artifact
+or its recording status.
+
+Authorization resolves the existing opaque resume token to its server-owned Seat,
+requires that Seat still belong to this Room, and checks its ID against the
+current Match's immutable original roster. Room codes, guest profile IDs and
+client-supplied player IDs prove nothing. Joining after a set finishes does not
+grant access. Reconnect retains the Seat ID and token; disconnected participants
+can retrieve during their existing 40-second reservation. Leaving or expiry of
+that reservation revokes access. A returning original Seat that rejoins the same
+room remains an original participant; a replacement Seat has a new ID and cannot
+inherit access. Token secrecy remains the existing guest-session security boundary;
+anyone holding a participant's bearer token has that participant's authority.
+
+Retrieval only reads the current recorder's cached JSON, which has already passed
+the strict decoder, byte/resource limits and deterministic execution verification.
+It does not call `finish`, construct a recorder, or run verification. Incomplete
+journals are never returned. Both room configuration and Match mode must be
+competitive, so changing the lobby to practice also hides a retained competitive
+artifact. Practice never creates a recorder. Replay journals stay out of routine
+checkpoints and broadcasts.
+
+A new set replaces the recorder and Match ID during `Rooms.prepare(room, false)`;
+completion of an older recorder cannot restore access to its artifact. Existing
+room cleanup drops it after 60 seconds empty or 15 minutes idle in a result/lobby
+phase. Requests enforce those same room expiry conditions even before the next
+scheduler tick. No retrieval extends room or session lifetime.
+
+M3-B2 should issue this GET from the browser and pass a successful JSON body to
+`MatchPlayback.create`. It can request again on demand after a pending response;
+M3-B1 adds no polling or broadcast infrastructure and no viewer UI. If the browser
+uses a separate development origin, use its existing same-origin `/api` proxy;
+this endpoint does not enable cross-origin credential access.
+
+For original appearance, capture a detached, immutable map of
+`playerId -> selected built-in skin ID` in the non-resume branch of
+`Rooms.prepare`, alongside the initial Match roster and before any later skin
+changes or reconnects. Key it by that exact roster, retain it with that set's
+artifact, authorize it identically, and replace/drop it with the recorder. Do not
+read mutable Seat skins at retrieval time. This presentation metadata belongs
+outside MatchState, replay journals and replay digests. Capturing and returning
+it is deferred to M3-B2.

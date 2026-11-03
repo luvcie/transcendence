@@ -292,3 +292,37 @@ test("malformed-message spam consumes transport rate budget", async () => {
   for (let i = 0; i < 100; i++) a.socket.send("invalid JSON");
   expect(await reason).toBe("RATE_LIMIT");
 });
+
+test("HTTP replay retrieval uses the real websocket guest session and original roster", async () => {
+  const s = await server();
+  const a = await client(s.url);
+  const b = await client(s.url);
+  a.send({ type: "create", requestId: "replay-access", options: { firstTo: 1, mode: "competitive", attacksEnabled: true } });
+  const created = await a.wait("roomState");
+  const code = created.room.code;
+  b.send({ type: "join", code });
+  await b.wait("roomState");
+  for (const c of [a, b]) c.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+  const prep = await a.wait("checkpoint", m => m.room.phase === "preparing");
+  for (const c of [a, b]) c.send({ type: "prepared", matchId: prep.matchId!, preparationId: prep.room.preparationId });
+  await a.wait("roomState", m => m.room.phase === "countdown");
+  s.advance(3000);
+  b.send({ type: "leave" });
+  await b.wait("left");
+  await s.rooms.rooms.get(code)!.recorder!.completion;
+  const url = `${s.url}/api/rooms/${code}/replay`;
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${a.welcome.resumeToken}` } });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual(s.rooms.completedReplay(code));
+  for (const headers of [new Headers(), new Headers({ Authorization: `Bearer ${b.welcome.resumeToken}` })]) {
+    const denied = await fetch(url, { headers });
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toEqual({ status: "unauthorized" });
+  }
+  const late = await client(s.url);
+  late.send({ type: "join", code });
+  await late.wait("roomState");
+  const denied = await fetch(url, { headers: { Authorization: `Bearer ${late.welcome.resumeToken}` } });
+  expect(denied.status).toBe(403);
+  expect(await denied.json()).toEqual({ status: "unauthorized" });
+});

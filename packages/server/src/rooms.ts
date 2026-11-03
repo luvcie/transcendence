@@ -1,7 +1,7 @@
 import { DEFAULT_HANDLING, FRAME_MS, type Handling } from "@42tris/core";
 import { Match } from "@42tris/match";
 import { MatchRecorder, type MatchRecorderOptions, type MatchReplay } from "@42tris/replay";
-import { ClientCommandSchema, type Checkpoint, type ClientCommand, type ErrorCode, type InputItem, type RoomOptions, type RoomPhase, type RoomState, type ServerMessage } from "@42tris/protocol";
+import { ClientCommandSchema, type Checkpoint, type ClientCommand, type ErrorCode, type InputItem, type ReplayAccessStatus, type RoomOptions, type RoomPhase, type RoomState, type ServerMessage } from "@42tris/protocol";
 import { Value } from "@sinclair/typebox/value";
 
 export interface Peer {
@@ -51,6 +51,7 @@ export interface Room {
   phase: RoomPhase;
   match?: Match;
   recorder?: MatchRecorder;
+  replayInitializationFailed?: boolean;
   matchId: string | null;
   preparationId: number;
   startsAt: number | null;
@@ -81,6 +82,25 @@ export class Rooms {
 
   completedReplay(code: string): MatchReplay | null {
     return this.rooms.get(code)?.recorder?.replay ?? null;
+  }
+
+  replayAccess(code: string, token?: string): { status: "ready"; json: string } | { status: ReplayAccessStatus } {
+    const seat = token ? this.sessions.get(token) : undefined;
+    if (!seat) return { status: "unauthorized" };
+    const room = this.rooms.get(code);
+    if (!room) return { status: "unavailable" };
+    if (this.expired(room, this.now())) return { status: "unavailable" };
+    // Membership alone permits late joiners. The immutable Match roster binds
+    // participation to the server-owned seat, never a supplied player/profile id.
+    if (seat.room !== room || seat.deadline !== null && seat.deadline <= this.now()) return { status: "unauthorized" };
+    if (room.options.mode !== "competitive" || !room.match || room.match.mode !== "competitive") return { status: "unavailable" };
+    if (!room.match.roster.includes(seat.id)) return { status: "unauthorized" };
+    const recorder = room.recorder;
+    if (room.replayInitializationFailed || recorder?.status === "failed") return { status: "failed" };
+    if (!room.match.complete || room.phase !== "setResult") return { status: "unavailable" };
+    if (recorder?.status === "finalizing") return { status: "pending" };
+    if (recorder?.status !== "complete" || !recorder.json || recorder.replay?.id !== room.matchId) return { status: "unavailable" };
+    return { status: "ready", json: recorder.json };
   }
 
   connect(peer: Peer): boolean {
@@ -269,13 +289,14 @@ export class Rooms {
     if (!resume) {
       room.recorder?.abandon();
       room.recorder = undefined;
+      room.replayInitializationFailed = false;
       const seats = room.seats;
       room.match = new Match({ players: seats.map(s => s.id), seed: seed(), firstTo: room.options.firstTo, width: room.options.width, mode: room.options.mode,
         attacksEnabled: room.options.attacksEnabled, handlingByPlayer: Object.fromEntries(seats.map(s => [s.id, s.handling])) });
       room.matchId = opaque();
       if (room.options.mode === "competitive") {
         try { room.recorder = new MatchRecorder(room.match, room.matchId, { ...this.replayOptions, manualCompletion: true }); }
-        catch (error) { console.error("Replay recorder initialization failed", error); }
+        catch (error) { room.replayInitializationFailed = true; console.error("Replay recorder initialization failed", error); }
       }
       room.events = [];
       room.roundDurations = [];
@@ -451,6 +472,11 @@ export class Rooms {
     this.changed(room);
   }
 
+  private expired(room: Room, now: number): boolean {
+    return room.emptyAt !== null && now - room.emptyAt >= 60_000
+      || ["waiting", "roundResult", "setResult"].includes(room.phase) && now - room.touchedAt >= 15 * 60_000;
+  }
+
   tick(): void {
     const now = this.now();
     for (const connection of this.connections.values()) {
@@ -507,9 +533,7 @@ export class Rooms {
         this.collect(room);
         this.result(room);
       }
-      const emptyExpired = room.emptyAt !== null && now - room.emptyAt >= 60_000;
-      const idleExpired = ["waiting", "roundResult", "setResult"].includes(room.phase) && now - room.touchedAt >= 15 * 60_000;
-      if (emptyExpired || idleExpired) {
+      if (this.expired(room, now)) {
         for (const s of room.seats) { s.room = undefined; s.ready = false; s.peer?.send({ type: "left" }); }
         room.recorder?.abandon();
         room.recorder = undefined;

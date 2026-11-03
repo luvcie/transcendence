@@ -32,6 +32,12 @@ export type ClientCommand = Static<typeof ClientCommandSchema>;
 export type RoomOptions = Required<Static<typeof RoomOptionsSchema>>;
 export type InputItem = Static<typeof InputItemSchema>;
 export type RoomPhase = "waiting" | "preparing" | "countdown" | "playing" | "paused" | "roundResult" | "setResult";
+// GET /api/rooms/:code/replay returns the competitive replay JSON on 200.
+// All other responses use this small envelope (never a replay journal).
+export const ReplayAccessStatusSchema = object({ status: t.Union([
+  t.Literal("pending"), t.Literal("failed"), t.Literal("unavailable"), t.Literal("unauthorized"),
+]) });
+export type ReplayAccessStatus = Static<typeof ReplayAccessStatusSchema>["status"];
 export type ErrorCode = "INVALID_MESSAGE" | "HELLO_REQUIRED" | "ALREADY_CONNECTED" | "SESSION_EXPIRED" | "CAPACITY" | "RATE_LIMIT" | "ROOM_NOT_FOUND" | "ROOM_FULL" | "ROOM_BUSY" | "NOT_IN_ROOM" | "NOT_OWNER" | "WRONG_PHASE" | "INVALID_OPTIONS" | "STALE_INPUT" | "SEQ_GAP" | "SEQ_CONFLICT" | "SEQ_EXPIRED" | "INPUT_REJECTED" | "INTERNAL_ERROR";
 export interface RoomState {
   code: string;
