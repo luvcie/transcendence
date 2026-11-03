@@ -14,6 +14,7 @@ export interface SessionOptions {
   connect(callbacks: { open(): void; message(message: ServerMessage): void; close(): void }): Transport;
   clearKeys(): void;
   skin?(): string;
+  schedule?(callback: () => void, delay: number): () => void;
 }
 type Pending = InputItem & { sent: boolean };
 // Attempts at 0, 600, 1800, 4200 and 8200 ms cover a half-open lease's
@@ -37,6 +38,7 @@ export class Session {
   private retryAt = Infinity;
   private openedAt = 0;
   private lastFlush = -Infinity;
+  private cancelFlush?: () => void;
   private lastPing = -Infinity;
   private probes = new Map<string, number>();
   private offset = 0;
@@ -93,6 +95,7 @@ export class Session {
     this.invalidate();
   }
   private open() {
+    this.invalidate();
     const serial = ++this.serial;
     this.socket?.close();
     this.connected = false;
@@ -160,12 +163,14 @@ export class Session {
   }
   serverNow() { return this.options.now() + this.offset; }
   private invalidate() {
+    this.cancelScheduledFlush();
     this.pending = [];
     this.gap = false;
     this.prediction = null;
     this.options.clearKeys();
   }
   release() {
+    this.cancelScheduledFlush();
     this.options.clearKeys();
     if (!this.connected || !this.checkpoint?.state || this.releasing) return;
     this.pending = [];
@@ -207,14 +212,32 @@ export class Session {
     this.flushInputs(this.options.now());
   }
   private flushInputs(now: number) {
-    if (!this.canPlay || now - this.lastFlush < 34) return;
+    if (!this.canPlay) { this.cancelScheduledFlush(); return; }
     const items = this.pending.filter(i => !i.sent).slice(0, 32);
-    if (!items.length) return;
+    if (!items.length) { this.cancelScheduledFlush(); return; }
+    if (now - this.lastFlush < 34) { this.scheduleFlush(now); return; }
+    this.cancelScheduledFlush();
     this.send({ type: "inputBatch", matchId: this.checkpoint!.matchId!,
       generation: this.checkpoint!.owner.generation, epoch: this.checkpoint!.owner.epoch,
       items: items.map(({ sent: _, ...item }) => item) });
     items.forEach(i => { i.sent = true; });
     this.lastFlush = now;
+    if (this.pending.some(i => !i.sent)) this.scheduleFlush(now);
+  }
+  private cancelScheduledFlush() {
+    this.cancelFlush?.();
+    this.cancelFlush = undefined;
+  }
+  private scheduleFlush(now: number) {
+    if (this.cancelFlush) return;
+    const schedule = this.options.schedule ?? ((callback, delay) => {
+      const timer = setTimeout(callback, delay);
+      return () => clearTimeout(timer);
+    });
+    this.cancelFlush = schedule(() => {
+      this.cancelFlush = undefined;
+      this.flushInputs(this.options.now());
+    }, Math.max(0, Math.ceil(this.lastFlush + 34 - now)));
   }
   private rebuild() {
     const cp = this.checkpoint;
@@ -266,6 +289,7 @@ export class Session {
         if (message.room.players.find(p => p.playerId === this.playerId)?.name === this.name) this.previousName = null;
         this.room = message.room;
         this.invite = "";
+        if (!this.canPlay) this.cancelScheduledFlush();
         if (message.room.phase !== "playing") this.options.clearKeys();
         break;
       case "checkpoint": {
@@ -298,6 +322,8 @@ export class Session {
           for (const item of this.pending) if (item.seq >= message.owner.nextSeq) item.sent = false;
         }
         this.rebuild();
+        if (!this.canPlay || !this.pending.some(i => !i.sent)) this.cancelScheduledFlush();
+        else if (!this.cancelFlush) this.scheduleFlush(this.options.now());
         if (message.room.phase !== "playing") this.options.clearKeys();
         const preparation = `${message.matchId}:${message.room.preparationId}`;
         if (message.room.phase === "preparing" && this.prediction && this.prepared !== preparation) {
@@ -352,6 +378,7 @@ export class Session {
           this.notice = this.status;
         } else if (message.code === "SEQ_GAP") {
           this.gap = true;
+          this.cancelScheduledFlush();
           this.resync();
         } else if (["INPUT_REJECTED", "STALE_INPUT", "SEQ_EXPIRED", "RATE_LIMIT"].includes(message.code)
           || message.code === "WRONG_PHASE" && this.pending.length > 0) this.release();
@@ -381,7 +408,7 @@ export class Session {
       this.send({ type: "ping", nonce });
       this.lastPing = now;
     }
-    if (this.checkpoint?.state && now - this.receivedAt >= 2000) { this.resync(); return; }
+    if (this.checkpoint?.state && now - this.receivedAt >= 2000) { this.cancelScheduledFlush(); this.resync(); return; }
     if (this.canPlay) {
       this.prediction!.advanceToTime(this.target());
       this.flushInputs(now);

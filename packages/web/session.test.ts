@@ -20,10 +20,16 @@ function checkpoint(): Checkpoint {
 }
 function harness() {
   let now = 0, clears = 0;
+  const timers = new Map<object, { at: number; callback: () => void }>();
   const sent: ClientCommand[] = [];
   const sockets: Parameters<SessionOptions["connect"]>[0][] = [];
   const credentials = storage();
   const session = new Session({ now: () => now, storage: credentials, profile: storage(), clearKeys: () => { clears++; },
+    schedule(callback, delay) {
+      const key = {};
+      timers.set(key, { at: now + delay, callback });
+      return () => { timers.delete(key); };
+    },
     connect(callbacks) { sockets.push(callbacks); return { send: command => { sent.push(command); }, close() {} }; } });
   session.start();
   sockets[0].open();
@@ -32,7 +38,17 @@ function harness() {
   const cp = checkpoint();
   session.receive(cp);
   return { session, sent, sockets, credentials, cp, welcome, time: (value: number) => { now = value; }, clears: () => clears,
-    receive: (message: ServerMessage) => session.receive(message) };
+    receive: (message: ServerMessage) => session.receive(message), timers,
+    advance(value: number) {
+      for (;;) {
+        const next = [...timers.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+        if (!next || next[1].at > value) break;
+        now = next[1].at;
+        timers.delete(next[0]);
+        next[1].callback();
+      }
+      now = value;
+    } };
 }
 
 describe("invitation links", () => {
@@ -102,6 +118,86 @@ test("renames are normalized, retained on reconnect, and rolled back on server e
 });
 
 describe("owner session", () => {
+  test("flushes rapid press and release at the throttle boundary without a frame", () => {
+    const h = harness();
+    h.time(5); h.session.input(Input.LeftDown);
+    h.time(6); h.session.input(Input.LeftUp); h.session.input(Input.RightDown); h.session.input(Input.RightUp);
+    expect(h.timers.size).toBe(1);
+    h.advance(38);
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(1);
+    h.advance(39);
+    const batches = h.sent.filter(c => c.type === "inputBatch");
+    expect(batches.map(b => b.items.map(i => i.input))).toEqual([[Input.LeftDown], [Input.LeftUp, Input.RightDown, Input.RightUp]]);
+    expect(batches.flatMap(b => b.items.map(i => i.seq))).toEqual([1, 2, 3, 4]);
+    expect(h.timers.size).toBe(0);
+  });
+  test.each(["tick", "input"] as const)("%s flush cancels the trailing timer", trigger => {
+    const h = harness();
+    h.session.input(Input.LeftDown);
+    h.time(1); h.session.input(Input.LeftUp);
+    h.time(34);
+    if (trigger === "tick") h.session.tick();
+    else h.session.input(Input.RightDown);
+    expect(h.timers.size).toBe(0);
+    const before = h.sent.filter(c => c.type === "inputBatch").length;
+    h.advance(100);
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(before);
+  });
+  test.each(["disconnect", "stop", "release", "phase", "generation", "round", "gap", "reconnect"] as const)("%s cancels a pending flush", action => {
+    const h = harness();
+    h.session.input(Input.LeftDown);
+    h.time(1); h.session.input(Input.LeftUp);
+    expect(h.timers.size).toBe(1);
+    if (action === "disconnect") h.sockets[0].close();
+    if (action === "stop") h.session.stop();
+    if (action === "release") h.session.release();
+    if (action === "phase") h.receive({ type: "roomState", room: { ...h.cp.room, phase: "paused" } });
+    if (action === "generation" || action === "round") {
+      h.cp.serverSequence++;
+      if (action === "generation") h.cp.owner.generation++;
+      else h.cp.state!.round++;
+      h.receive(h.cp);
+    }
+    if (action === "gap") h.receive({ type: "error", code: "SEQ_GAP", message: "Gap" });
+    if (action === "reconnect") h.session.retry();
+    expect(h.timers.size).toBe(0);
+    h.advance(100);
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(1);
+  });
+  test("a timer checks eligibility again after checkpoints become stale", () => {
+    const h = harness();
+    h.time(1990); h.session.input(Input.LeftDown);
+    h.time(1991); h.session.input(Input.LeftUp);
+    h.advance(2024);
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(1);
+    expect(h.timers.size).toBe(0);
+  });
+  test("timer flushes a large burst in bounded batches", () => {
+    const h = harness();
+    h.session.input(Input.LeftDown);
+    h.time(1);
+    for (let i = 0; i < 40; i++) h.session.input(i % 2 ? Input.LeftDown : Input.LeftUp);
+    h.advance(34);
+    expect(h.sent.filter(c => c.type === "inputBatch").map(b => b.items.length)).toEqual([1, 32]);
+    expect(h.timers.size).toBe(1);
+    h.advance(68);
+    expect(h.sent.filter(c => c.type === "inputBatch").map(b => b.items.length)).toEqual([1, 32, 8]);
+    expect(h.timers.size).toBe(0);
+  });
+  test("reconnect cannot send an old timer's inputs through the new socket", () => {
+    const h = harness();
+    h.session.input(Input.LeftDown);
+    h.time(1); h.session.input(Input.LeftUp);
+    const oldTimer = [...h.timers.values()][0].callback;
+    h.sockets[0].close();
+    h.time(700); h.session.tick(); h.sockets[1].open(); h.welcome();
+    h.cp.owner.generation++; h.cp.serverSequence++;
+    h.sockets[1].message(h.cp);
+    oldTimer();
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(1);
+    h.session.input(Input.RightDown);
+    expect(h.sent.filter(c => c.type === "inputBatch").at(-1)).toMatchObject({ generation: 1, items: [{ seq: 1, input: Input.RightDown }] });
+  });
   test("predicts immediately, batches at 34ms, and restores accepted inputs only once", () => {
     const h = harness();
     h.time(5); h.session.input(Input.LeftDown); h.session.input(Input.LeftUp);
