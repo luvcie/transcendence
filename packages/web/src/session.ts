@@ -204,6 +204,17 @@ export class Session {
     // Rebuild before replay: a checkpoint's accepted orders may precede a local
     // input at exactly the same time, even after that time was already rendered.
     this.rebuild();
+    this.flushInputs(this.options.now());
+  }
+  private flushInputs(now: number) {
+    if (!this.canPlay || now - this.lastFlush < 34) return;
+    const items = this.pending.filter(i => !i.sent).slice(0, 32);
+    if (!items.length) return;
+    this.send({ type: "inputBatch", matchId: this.checkpoint!.matchId!,
+      generation: this.checkpoint!.owner.generation, epoch: this.checkpoint!.owner.epoch,
+      items: items.map(({ sent: _, ...item }) => item) });
+    items.forEach(i => { i.sent = true; });
+    this.lastFlush = now;
   }
   private rebuild() {
     const cp = this.checkpoint;
@@ -373,16 +384,7 @@ export class Session {
     if (this.checkpoint?.state && now - this.receivedAt >= 2000) { this.resync(); return; }
     if (this.canPlay) {
       this.prediction!.advanceToTime(this.target());
-      if (now - this.lastFlush >= 34) {
-        const items = this.pending.filter(i => !i.sent).slice(0, 32);
-        if (items.length) {
-          this.send({ type: "inputBatch", matchId: this.checkpoint!.matchId!,
-            generation: this.checkpoint!.owner.generation, epoch: this.checkpoint!.owner.epoch,
-            items: items.map(({ sent: _, ...item }) => item) });
-          items.forEach(i => { i.sent = true; });
-          this.lastFlush = now;
-        }
-      }
+      this.flushInputs(now);
     }
   }
 }

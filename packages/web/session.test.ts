@@ -106,10 +106,11 @@ describe("owner session", () => {
     const h = harness();
     h.time(5); h.session.input(Input.LeftDown); h.session.input(Input.LeftUp);
     expect(h.session.prediction!.gameState().state.x).toBe(2);
-    expect(h.sent.some(c => c.type === "inputBatch")).toBe(false);
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(1);
     h.session.tick();
     const batch = h.sent.find(c => c.type === "inputBatch");
-    expect(batch?.type === "inputBatch" && batch.items.length).toBe(2);
+    expect(batch?.type === "inputBatch" && batch.items.map(i => i.input)).toEqual([Input.LeftDown]);
+    h.time(39); h.session.tick();
     const items = h.session.pending.map((i, index) => ({ seq: i.seq, frame: i.frame, subframe: i.subframe, input: i.input, order: index + 1 }));
     h.cp.owner.pendingAccepted = items;
     h.cp.owner.nextSeq = 3;
@@ -117,10 +118,58 @@ describe("owner session", () => {
     h.cp.serverSequence++;
     h.receive(h.cp);
     expect(h.session.prediction!.gameState().state.x).toBe(2);
-    h.time(10); h.session.input(Input.RightDown); h.session.tick();
-    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(1);
-    h.time(40); h.session.tick();
     expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(2);
+    h.time(40); h.session.input(Input.RightDown); h.session.tick();
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(2);
+    h.time(73); h.session.tick();
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(3);
+  });
+  test("flushes on input when permitted and bounds ordered bursts", () => {
+    const h = harness();
+    h.time(5); h.session.input(Input.LeftDown);
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(1);
+    h.time(6);
+    for (let i = 0; i < 40; i++) h.session.input(i % 2 ? Input.LeftDown : Input.LeftUp);
+    expect(h.sent.filter(c => c.type === "inputBatch")).toHaveLength(1);
+    h.time(39); h.session.input(Input.LeftUp);
+    let batches = h.sent.filter(c => c.type === "inputBatch");
+    expect(batches.map(b => b.items.length)).toEqual([1, 32]);
+    expect(batches.flatMap(b => b.items.map(i => i.seq))).toEqual(Array.from({ length: 33 }, (_, i) => i + 1));
+    h.time(73); h.session.tick();
+    batches = h.sent.filter(c => c.type === "inputBatch");
+    expect(batches.map(b => b.items.length)).toEqual([1, 32, 9]);
+    expect(batches.flatMap(b => b.items.map(i => i.seq))).toEqual(Array.from({ length: 42 }, (_, i) => i + 1));
+  });
+  test("old connections cannot flush queued inputs after reconnect", () => {
+    const h = harness();
+    h.time(5); h.session.input(Input.LeftDown);
+    h.time(6); h.session.input(Input.LeftUp);
+    h.sockets[0].close();
+    expect(h.session.pending).toHaveLength(0);
+    h.time(700); h.session.tick();
+    h.sockets[1].open(); h.welcome();
+    h.cp.serverSequence++; h.cp.owner.generation++;
+    h.sockets[1].message(h.cp);
+    h.sockets[0].message({ type: "error", code: "SEQ_GAP", message: "old" });
+    h.session.input(Input.RightDown);
+    const batches = h.sent.filter(c => c.type === "inputBatch");
+    expect(batches).toHaveLength(2);
+    expect(batches[1]).toMatchObject({ generation: 1, items: [{ seq: 1, input: Input.RightDown }] });
+  });
+  test("sustained input stays within the batch throttle", () => {
+    const h = harness();
+    const flushes: number[] = [];
+    for (let now = 0; now < 600; now += 10) {
+      h.time(now);
+      const before = h.sent.filter(c => c.type === "inputBatch").length;
+      h.session.input(now % 20 ? Input.LeftUp : Input.LeftDown);
+      if (h.sent.filter(c => c.type === "inputBatch").length > before) flushes.push(now);
+    }
+    expect(flushes.length).toBeGreaterThan(1);
+    expect(flushes.every((at, i) => i === 0 || at - flushes[i - 1] >= 34)).toBe(true);
+    const batches = h.sent.filter(c => c.type === "inputBatch");
+    expect(batches.every(b => b.items.length <= 32)).toBe(true);
+    expect(batches.flatMap(b => b.items.map(i => i.seq))).toEqual(Array.from({ length: 57 }, (_, i) => i + 1));
   });
   test("drops settled later sequences even when an earlier accepted input is unresolved", () => {
     const h = harness();
