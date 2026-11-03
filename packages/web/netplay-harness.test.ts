@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Input } from "@42tris/core";
 import { verifyMatchReplayExecution } from "@42tris/replay";
 import { NetHarness } from "./netplay-harness";
+import { useLegacyCheckpoints } from "../server/test/checkpoint-baseline";
 
 async function verify(h: NetHarness) {
   const replay = await h.room!.recorder!.buildIncompleteReplay();
@@ -294,13 +295,14 @@ describe("socket byte queues and bounded inspection", () => {
     expect(h.queuedBytes("a")).toBe(0);
   });
 
-  test("retry discards the reviewer's 69673-byte old backlog and delivers a new welcome without another attempt", async () => {
+  test.each([[69_673, true], [68_139, false]] as const)("retry discards a %i-byte old backlog and delivers a new welcome without another attempt", async (expectedBytes, legacy) => {
     const h = new NetHarness({ messageHistory: 0 });
+    if (legacy) useLegacyCheckpoints(h.rooms);
     h.startMatch();
     const player = h.a.session.playerId;
     h.setLink("a", { downBytesPerSec: 1000, backpressure: true });
     h.advance(1000);
-    expect(h.bufferedBytes("a")).toBeCloseTo(69_673, 3);
+    expect(h.bufferedBytes("a")).toBeCloseTo(expectedBytes, 3);
     const oldPeer = h.a.peer!;
     const retryAt = h.time;
     h.a.session.retry();

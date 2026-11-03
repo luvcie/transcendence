@@ -51,6 +51,17 @@ an active-room disconnect, the server freezes the whole simulation, releases con
 and invalidates queued inputs. Each absent seat has a 40-second reservation. Opening
 the online menu releases only local controls and leaves the room playing.
 
+Each 20 Hz checkpoint broadcast builds one detached shared snapshot, including one
+`Match.saveState()` call. Per-seat input acknowledgements and globally increasing
+server sequences are added separately. Resync, release and input acknowledgements
+use the same snapshot builder. Checkpoints retain one ordinary recent event and
+the latest relevant current-round `roundEnd` and `setEnd`, in sequence order.
+Results survive a paused result countdown and disappear on the next round or
+rematch. The room's existing 256-event history, aborted-set filtering and full
+competitive recorder journal are unchanged. Input-triggered checkpoints keep
+their existing cadence; N2-B3 coalescing is deferred. See the
+[checkpoint measurements](NETPLAY-CHECKPOINTS.md) for the retention choice and limits.
+
 ## Network instrumentation
 
 Browser diagnostics are opt-in (`?diagnostics`); server metrics require

@@ -74,6 +74,7 @@ interface Connection { peer: Peer; seat?: Seat; commands: Bucket; openedAt: numb
 const opaque = () => crypto.randomUUID();
 const seed = () => crypto.getRandomValues(new Int32Array(1))[0];
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const CHECKPOINT_RECENT_EVENTS = 1;
 
 /** Injectable entropy keeps in-process experiments reproducible without changing rules. */
 export interface RoomEntropy {
@@ -594,19 +595,45 @@ export class Rooms {
     for (const s of room.seats) s.peer?.send(message);
   }
 
-  checkpoint(room: Room, seat: Seat): void {
-    if (!seat.peer) return;
-    const pendingAccepted = [...seat.pending.values()];
+  private sharedCheckpoint(room: Room): Omit<Checkpoint, "serverSequence" | "owner"> {
+    const events: Checkpoint["events"] = [];
+    let recent = 0, roundEnd = false, setEnd = false;
+    // Results belong to the Match's current round, including a paused result countdown.
+    for (let i = room.events.length - 1; i >= 0; i--) {
+      const entry = room.events[i], event = entry.event;
+      if (event.type === "roundEnd") {
+        if (roundEnd || !room.match?.ended || event.round !== room.match.round) continue;
+        roundEnd = true;
+      } else if (event.type === "setEnd") {
+        if (setEnd || !room.match?.complete || event.round !== room.match.round) continue;
+        setEnd = true;
+      } else if (recent++ >= CHECKPOINT_RECENT_EVENTS) continue;
+      events.push(entry);
+    }
     const simulationNow = this.simulationNow(room);
-    seat.peer.send({ type: "checkpoint", serverSequence: ++this.serverSequence, serverNow: this.now(), room: this.view(room), matchId: room.matchId,
+    return { type: "checkpoint", serverNow: this.now(), room: this.view(room), matchId: room.matchId,
       state: room.match?.saveState() ?? null,
-      owner: { generation: seat.generation, epoch: room.match?.roster.includes(seat.id) ? room.match.playerEpoch(seat.id) : 0,
-        nextSeq: seat.nextSeq, resolvedThroughSeq: pendingAccepted.length ? Math.min(...pendingAccepted.map(i => i.seq)) - 1 : seat.nextSeq - 1,
-        pendingAccepted, rejections: [...seat.rejections] },
       clock: { currentTargetFrame: Math.floor(simulationNow / FRAME_MS), simulationNow, origin: room.origin, pausedTotal: room.pausedTotal,
-        commitDelayMs: 100, frozen: room.phase !== "playing" }, roundDurations: room.roundDurations.map(duration => ({ ...duration })), events: [...room.events] }, true);
+        commitDelayMs: 100, frozen: room.phase !== "playing" }, roundDurations: room.roundDurations.map(duration => ({ ...duration })), events: structuredClone(events.reverse()) };
   }
 
-  broadcastCheckpoint(room: Room): void { for (const s of room.seats) this.checkpoint(room, s); }
+  private sendCheckpoint(room: Room, seat: Seat, shared: Omit<Checkpoint, "serverSequence" | "owner">): void {
+    if (!seat.peer) return;
+    const pendingAccepted = [...seat.pending.values()];
+    seat.peer.send({ ...shared, serverSequence: ++this.serverSequence,
+      owner: { generation: seat.generation, epoch: room.match?.roster.includes(seat.id) ? room.match.playerEpoch(seat.id) : 0,
+        nextSeq: seat.nextSeq, resolvedThroughSeq: pendingAccepted.length ? Math.min(...pendingAccepted.map(i => i.seq)) - 1 : seat.nextSeq - 1,
+        pendingAccepted, rejections: [...seat.rejections] } }, true);
+  }
+
+  checkpoint(room: Room, seat: Seat): void {
+    if (seat.peer) this.sendCheckpoint(room, seat, this.sharedCheckpoint(room));
+  }
+
+  broadcastCheckpoint(room: Room): void {
+    if (!room.seats.some(s => s.peer)) return;
+    const shared = this.sharedCheckpoint(room);
+    for (const s of room.seats) this.sendCheckpoint(room, s, shared);
+  }
   snapshots(): void { for (const room of this.rooms.values()) this.broadcastCheckpoint(room); }
 }

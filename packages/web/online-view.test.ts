@@ -7,6 +7,7 @@ import { mountOnline } from "./src/online-view";
 import { renderOnlineWaiting } from "./src/waiting-view";
 import { Session } from "./src/session";
 import { SessionDiagnostics } from "./src/session-diagnostics";
+import { NetHarness } from "./netplay-harness";
 import { SkinState } from "./src/skin-state";
 import type { MultiplayerSkinMode } from "./src/multiplayer-skins";
 
@@ -198,6 +199,60 @@ test("round and set results retain scores and only rematches offer readiness", (
     }
   }
   h.view.destroy();
+});
+
+test.each(["round", "firstTo", "forfeit", "aborted"] as const)("pruned authoritative %s results render after more than sixteen later events", result => {
+  const net = new NetHarness({ players: Array.from({ length: result === "forfeit" || result === "aborted" ? 3 : 2 }, () => ({})), seed: 42 });
+  net.startMatch({ firstTo: result === "firstTo" ? 1 : 7 });
+  if (result === "round" || result === "firstTo") net.dropOut("b");
+  else if (result === "forfeit") {
+    net.b.session.send({ type: "leave" });
+    net.clients[2].session.send({ type: "leave" });
+    net.advance(100);
+  } else {
+    net.clients.forEach(c => net.rooms.disconnect(c.peer!.id));
+    net.advance(40_000);
+    net.a.session.retry();
+    net.runUntil(() => net.a.session.connected);
+    net.a.session.send({ type: "join", code: net.room!.code });
+    net.runUntil(() => net.room!.seats.length === 1);
+  }
+  const room = net.room!;
+  const significant = room.events.findLast(e => e.event.type === (result === "round" ? "roundEnd" : "setEnd"))!;
+  for (let i = 0; i < 24; i++) room.recorder!.releaseControls(net.a.session.playerId);
+  net.rooms.receive(net.a.peer!.id, { type: "releaseControls" });
+  expect(room.events.indexOf(significant)).toBeLessThan(room.events.length - 16);
+  net.rooms.snapshots();
+  net.advance(100);
+  expect(net.aCheckpoint!.events).toContainEqual(significant);
+  expect(net.aCheckpoint!.events.length).toBeLessThanOrEqual(3);
+  const document = new FakeDocument();
+  const store = { getItem: () => null, setItem() {}, removeItem() {} };
+  const view = mountOnline(document.root as unknown as HTMLElement, {
+    session: net.a.session, clearKeys() {}, handling: () => DEFAULT_HANDLING, local() {},
+    skins: new SkinState(() => store), skinMode: () => "player", view: mountAppView(document as unknown as Document),
+  });
+  try {
+    view.update();
+    const text = document.querySelector("[data-result]").textContent;
+    const winner = net.a.session.name;
+    expect(text).toContain(result === "round" ? `Round: ${winner} wins · last player standing`
+      : result === "firstTo" ? `Set: ${winner} wins · first to 1`
+      : result === "forfeit" ? `Set: ${winner} wins · forfeit` : "Set: aborted; no winner · aborted");
+    expect(document.querySelector("[data-round-summary]").hidden).toBe(false);
+    if (result === "round") {
+      net.runUntil(() => net.aCheckpoint!.state!.round === 2, 5000);
+      view.update();
+      expect(document.querySelector("[data-result]").textContent).toBe("");
+    } else if (result === "firstTo") {
+      const oldId = room.matchId;
+      for (const c of net.clients) c.session.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+      net.runUntil(() => net.aCheckpoint!.matchId !== oldId);
+      view.update();
+      expect(document.querySelector("[data-result]").textContent).toBe("");
+      expect(net.aCheckpoint!.events.some(e => e.event.type === "roundEnd" || e.event.type === "setEnd")).toBe(false);
+    }
+  } finally { view.destroy(); }
 });
 
 test("multiplayer results use placed pieces independently of finesse evaluations and show round durations", () => {
