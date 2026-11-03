@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { DEFAULT_HANDLING, Input } from "@42tris/core";
 import { Match } from "@42tris/match";
 import type { Checkpoint, ClientCommand, RoomPhase } from "@42tris/protocol";
@@ -6,6 +6,7 @@ import { mountAppView } from "./src/app-view";
 import { mountOnline } from "./src/online-view";
 import { renderOnlineWaiting } from "./src/waiting-view";
 import { Session } from "./src/session";
+import { SessionDiagnostics } from "./src/session-diagnostics";
 import { SkinState } from "./src/skin-state";
 import type { MultiplayerSkinMode } from "./src/multiplayer-skins";
 
@@ -388,4 +389,48 @@ test("Watch replay retains membership, handles pending with explicit retry and o
   await Promise.resolve(); await Promise.resolve();
   expect(opened).toBe(1);
   h.view.destroy();
+});
+
+test.each([false, true])("native Eden message accounting is opt-in (%s) and preserves UTF-8 payload size", enabled => {
+  const priorSocket = Object.getOwnPropertyDescriptor(globalThis, "WebSocket");
+  const priorWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const sockets: FakeSocket[] = [];
+  class FakeSocket extends EventTarget {
+    constructor(readonly url: string) { super(); sockets.push(this); }
+    send() {}
+    close() { this.dispatchEvent(new Event("close")); }
+  }
+  const storage = { getItem: () => null, setItem() {}, removeItem() {} };
+  Object.defineProperty(globalThis, "WebSocket", { configurable: true, value: FakeSocket });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: storage, sessionStorage: storage } });
+  const document = new FakeDocument();
+  const diagnostics = enabled ? new SessionDiagnostics() : undefined;
+  const received = spyOn(SessionDiagnostics.prototype, "receivedMessage");
+  let view: ReturnType<typeof mountOnline> | undefined;
+  try {
+    view = mountOnline(document.root as unknown as HTMLElement, {
+      clearKeys() {}, handling: () => DEFAULT_HANDLING, local() {}, skins: new SkinState(() => storage),
+      skinMode: () => "player", diagnostics,
+    });
+    sockets[0].dispatchEvent(new Event("open"));
+    const payload = JSON.stringify({ type: "welcome", guestSessionId: "a", playerId: "a", resumeToken: "private-token",
+      name: "é🎮", room: null, generation: 0, serverNow: 0 });
+    sockets[0].dispatchEvent(new MessageEvent("message", { data: payload }));
+    expect(view.session.connected).toBe(true);
+    expect(view.session.name).toBe("é🎮");
+    expect(received.mock.calls.length).toBe(enabled ? 1 : 0);
+    if (diagnostics) {
+      expect(diagnostics.snapshot().transport.maxMessageBytes).toBe(new TextEncoder().encode(payload).byteLength);
+      expect(JSON.stringify(diagnostics.snapshot())).not.toContain("private-token");
+      expect(JSON.stringify(diagnostics.snapshot())).not.toContain("é🎮");
+    }
+    view.session.retry();
+    sockets[0].dispatchEvent(new MessageEvent("message", { data: payload }));
+    expect(received.mock.calls.length).toBe(enabled ? 1 : 0); // closed sockets cannot pollute the next connection
+  } finally {
+    view?.destroy(); received.mockRestore();
+    if (priorSocket) Object.defineProperty(globalThis, "WebSocket", priorSocket);
+    if (priorWindow) Object.defineProperty(globalThis, "window", priorWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
 });

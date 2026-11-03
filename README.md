@@ -70,6 +70,13 @@ Multiplayer, or choose a local mode to leave through the existing acknowledged
 leave/forfeit flow. Opening settings in an online match releases local controls
 without pausing the room.
 
+## Multiplayer diagnostics
+
+Open with `?diagnostics` and run `__42trisNetDiagnostics.snapshot()` in DevTools
+to capture opt-in latency measurements. See the [diagnostics guide](docs/NETPLAY-DIAGNOSTICS.md)
+for interpretation, optional `NETPLAY_METRICS=1` server logs, privacy, and the
+reproducible 2–8-player harness.
+
 ## Checks and production
 
 ```sh

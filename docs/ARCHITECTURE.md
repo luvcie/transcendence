@@ -51,6 +51,16 @@ an active-room disconnect, the server freezes the whole simulation, releases con
 and invalidates queued inputs. Each absent seat has a 40-second reservation. Opening
 the online menu releases only local controls and leaves the room playing.
 
+## Network instrumentation
+
+Browser diagnostics are opt-in (`?diagnostics`); server metrics require
+`NETPLAY_METRICS=1`. They observe clock estimates, received application bytes,
+control availability and existing input admission without changing simulation,
+recovery, protocol payloads or journals. The fake-time harness supplies transport,
+clock and entropy while exercising real Sessions, Rooms, Match and MatchRecorder
+for 2–8 players. Measurement scopes and limitations are specified in the
+[diagnostics guide](NETPLAY-DIAGNOSTICS.md).
+
 ## Invariants for changes
 
 Keep core and match independent of wall clocks, browser APIs and transport arrival

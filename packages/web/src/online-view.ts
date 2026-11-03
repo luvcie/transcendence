@@ -27,10 +27,17 @@ export function mountOnline(root: HTMLElement, options: {
     clearKeys: options.clearKeys, skin: options.skin, diagnostics: options.diagnostics,
     connect(callbacks) {
       const socket = createClient(location.origin).ws.subscribe();
+      const diagnostics = options.diagnostics;
+      const record = diagnostics
+        ? (event: MessageEvent) => diagnostics.receivedMessage(performance.now(), event.data) : undefined;
+      const detach = () => { if (record) socket.ws.removeEventListener("message", record); };
       socket.on("open", callbacks.open);
-      socket.on("close", callbacks.close);
+      socket.on("close", () => { detach(); callbacks.close(); });
       socket.subscribe(({ data }) => callbacks.message(data as ServerMessage));
-      return { send: command => socket.send(command), close: () => socket.close() };
+      // Eden exposes ws publicly. Its parsed-event rawData type is not populated
+      // by the installed runtime, so read the native event after Session handles it.
+      if (record) socket.ws.addEventListener("message", record);
+      return { send: command => socket.send(command), close: () => { detach(); socket.close(); } };
     },
   });
   root.innerHTML = `<p data-status class="connection-status" role="status"></p><p data-notification class="online-notification" role="status" hidden></p>

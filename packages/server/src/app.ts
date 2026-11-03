@@ -2,6 +2,7 @@ import { Elysia, ValidationError } from "elysia";
 import { staticPlugin } from "@elysiajs/static";
 import { resolve } from "node:path";
 import { ClientCommandSchema, ServerMessageSchema, type ServerMessage } from "@42tris/protocol";
+import { NetplayMetrics } from "./netplay-metrics";
 import { Rooms, type Peer } from "./rooms";
 
 export interface ServerOptions {
@@ -22,12 +23,15 @@ interface SocketLease {
 
 export function createApp(options: ServerOptions = {}) {
   const rooms = options.rooms ?? new Rooms();
+  if (process.env.NETPLAY_METRICS === "1") rooms.metrics ??= new NetplayMetrics(rooms.now());
+  const metrics = rooms.metrics;
   const sockets = new Map<string, SocketLease>();
   const rawLeases = new WeakMap<object, SocketLease>();
   const attempts = new Map<string, { count: number; since: number }>();
   const allowed = new Set(options.origins ?? (options.production ? [] : ["http://localhost:5173", "http://127.0.0.1:5173"]));
   let scheduler: ReturnType<typeof setInterval> | undefined;
   let snapshots: ReturnType<typeof setInterval> | undefined;
+  let metricsTimer: ReturnType<typeof setInterval> | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   const app = new Elysia({ websocket: { maxPayloadLength: 4096, backpressureLimit: 256 * 1024, closeOnBackpressureLimit: true, idleTimeout: 10 }, normalize: false })
     .onBeforeHandle(({ request, server }) => {
@@ -72,8 +76,13 @@ export function createApp(options: ServerOptions = {}) {
           id: ws.id,
           send(message: ServerMessage, ephemeral = false) {
             // Leave the queued packet alone; a later 20Hz snapshot supplies the latest state.
-            if (ephemeral && (raw as unknown as Bun.ServerWebSocket<unknown>).getBufferedAmount() > 64 * 1024) return;
-            raw.send(JSON.stringify(message));
+            if (ephemeral && (raw as unknown as Bun.ServerWebSocket<unknown>).getBufferedAmount() > 64 * 1024) {
+              if (metrics) rooms.recordTransmission(ws.id, 0, message.type === "checkpoint", true);
+              return;
+            }
+            const payload = JSON.stringify(message);
+            raw.send(payload);
+            if (metrics) rooms.recordTransmission(ws.id, Buffer.byteLength(payload, "utf8"), message.type === "checkpoint");
           },
           close(code, reason) { raw.close(code, reason); },
         };
@@ -109,6 +118,7 @@ export function createApp(options: ServerOptions = {}) {
         scheduler = setInterval(() => rooms.tick(), 10);
         snapshots = setInterval(() => rooms.snapshots(), 50);
       }
+      if (metrics) metricsTimer = setInterval(() => metrics.report(rooms.rooms.values(), rooms.now()), 10_000);
       heartbeat = setInterval(() => {
         const now = performance.now();
         for (const [id, lease] of sockets) {
@@ -124,6 +134,7 @@ export function createApp(options: ServerOptions = {}) {
       clearInterval(scheduler);
       clearInterval(snapshots);
       clearInterval(heartbeat);
+      clearInterval(metricsTimer);
       for (const lease of sockets.values()) { rooms.disconnect(lease.peer.id); lease.peer.close(1001, "SERVER_STOP"); }
       sockets.clear();
     });

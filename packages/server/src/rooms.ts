@@ -2,6 +2,7 @@ import { DEFAULT_HANDLING, FRAME_MS, type Handling } from "@42tris/core";
 import { Match } from "@42tris/match";
 import { MatchRecorder, type MatchRecorderOptions, type MatchReplay } from "@42tris/replay";
 import { ClientCommandSchema, type Checkpoint, type ClientCommand, type ErrorCode, type InputItem, type ReplayAccessStatus, type RoomOptions, type RoomPhase, type RoomState, type ServerMessage } from "@42tris/protocol";
+import type { Admission, NetplayMetrics } from "./netplay-metrics";
 import { Value } from "@sinclair/typebox/value";
 
 export interface Peer {
@@ -74,12 +75,23 @@ const opaque = () => crypto.randomUUID();
 const seed = () => crypto.getRandomValues(new Int32Array(1))[0];
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+/** Injectable entropy keeps in-process experiments reproducible without changing rules. */
+export interface RoomEntropy {
+  id(): string;
+  seed(): number;
+  code(): string;
+}
+const entropy: RoomEntropy = {
+  id: opaque, seed,
+  code: () => Array.from(crypto.getRandomValues(new Uint8Array(6)), n => CODE_ALPHABET[n % 32]).join(""),
+};
+
 export class Rooms {
   readonly rooms = new Map<string, Room>();
   private sessions = new Map<string, Seat>();
   private connections = new Map<string, Connection>();
   private serverSequence = 0;
-  constructor(readonly now: () => number = () => performance.now(), private readonly replayOptions: MatchRecorderOptions = {}) {}
+  constructor(readonly now: () => number = () => performance.now(), private readonly replayOptions: MatchRecorderOptions = {}, private readonly random: RoomEntropy = entropy, public metrics?: NetplayMetrics) {}
 
   completedReplay(code: string): MatchReplay | null {
     return this.rooms.get(code)?.recorder?.replay ?? null;
@@ -217,7 +229,7 @@ export class Rooms {
       seat = existing;
     } else {
       if (this.sessions.size >= 256) { this.error(peer, "CAPACITY"); return; }
-      seat = { id: opaque(), token: opaque() + opaque(), name: command.name.trim() || "Guest", skin: "classic", profileId: command.guestProfileId,
+      seat = { id: this.random.id(), token: this.random.id() + this.random.id(), name: command.name.trim() || "Guest", skin: "classic", profileId: command.guestProfileId,
         ready: false, prepared: false, handling: { ...DEFAULT_HANDLING }, deadline: null, lastSeen: now,
         generation: 0, nextSeq: 1, pending: new Map(), history: new Map(), rejections: [], inputs: new Bucket(240, 64, now) };
       this.sessions.set(seat.token, seat);
@@ -254,7 +266,7 @@ export class Rooms {
     if (this.rooms.size >= 32) { this.error(peer, "CAPACITY"); return; }
     if (command.options.mode === "competitive" && !command.options.attacksEnabled) { this.error(peer, "INVALID_OPTIONS"); return; }
     let code: string;
-    do { code = Array.from(crypto.getRandomValues(new Uint8Array(6)), n => CODE_ALPHABET[n % 32]).join(""); } while (this.rooms.has(code));
+    do { code = this.random.code(); } while (this.rooms.has(code));
     const room: Room = { code, ownerId: seat.id, options: { ...command.options, maxPlayers: command.options.maxPlayers ?? 4, width: command.options.width ?? 10 }, seats: [seat], revision: 0,
       phase: "waiting", matchId: null, preparationId: 0, startsAt: null, prepareDeadline: null, origin: null,
       pausedAt: null, pausedTotal: 0, frozenTime: 0, roundCountdownRemaining: null, order: 0, eventSequence: 0, events: [], roundDurations: [], touchedAt: this.now(), emptyAt: null };
@@ -292,9 +304,9 @@ export class Rooms {
       room.recorder = undefined;
       room.replayInitializationFailed = false;
       const seats = room.seats;
-      room.match = new Match({ players: seats.map(s => s.id), seed: seed(), firstTo: room.options.firstTo, width: room.options.width, mode: room.options.mode,
+      room.match = new Match({ players: seats.map(s => s.id), seed: this.random.seed(), firstTo: room.options.firstTo, width: room.options.width, mode: room.options.mode,
         attacksEnabled: room.options.attacksEnabled, handlingByPlayer: Object.fromEntries(seats.map(s => [s.id, s.handling])) });
-      room.matchId = opaque();
+      room.matchId = this.random.id();
       room.replayAppearance = room.options.mode === "competitive" ? { matchId: room.matchId,
         names: Object.fromEntries(seats.map(s => [s.id, s.name])),
         skinIds: Object.fromEntries(seats.map(s => [s.id, s.skin])),
@@ -360,7 +372,10 @@ export class Rooms {
       seat.nextSeq++;
       seat.history.set(item.seq, fingerprint);
       if (seat.history.size > 256) seat.history.delete(seat.history.keys().next().value!);
-      let rejected = item.frame < match.frame || item.frame > Math.floor(this.simulationNow(room) / FRAME_MS) + 2 || seat.pending.size >= 128;
+      let reason: Admission | null = item.frame < match.frame ? "late"
+        : item.frame > Math.floor(this.simulationNow(room) / FRAME_MS) + 2 ? "future"
+        : seat.pending.size >= 128 ? "pending-full" : null;
+      let rejected = reason !== null;
       if (!rejected) {
         const order = room.order++;
         try {
@@ -371,14 +386,23 @@ export class Rooms {
         } catch (error) {
           if (!(error instanceof RangeError)) throw error;
           rejected = true;
+          reason = "other";
         }
       }
+      if (this.metrics) this.metrics.admission(room, seat, rejected ? reason! : "accepted",
+        reason === "late" ? (match.frame - item.frame - item.subframe) * FRAME_MS : 0);
       if (rejected) {
         seat.rejections.push({ seq: item.seq, code: "INPUT_REJECTED" });
         if (seat.rejections.length > 256) seat.rejections.shift();
       }
     }
     this.checkpoint(room, seat);
+  }
+
+  /** Transport supplies a size it already serialized; never serialize for metrics here. */
+  recordTransmission(peerId: string, bytes: number, checkpoint: boolean, skipped = false): void {
+    const room = this.connections.get(peerId)?.seat?.room;
+    if (room) this.metrics?.transmission(room, bytes, checkpoint, skipped);
   }
 
   disconnect(peerId: string): void {
@@ -515,8 +539,8 @@ export class Rooms {
         this.changed(room);
       }
       if (room.phase === "roundResult" && room.startsAt !== null && now >= room.startsAt && room.match && !room.match.complete && room.match.ended) {
-        let nextSeed = seed();
-        while (nextSeed === room.match.seed) nextSeed = seed();
+        let nextSeed = this.random.seed();
+        while (nextSeed === room.match.seed) nextSeed = this.random.seed();
         if (room.recorder) room.recorder.nextRound(nextSeed);
         else room.match.nextRound(nextSeed);
         room.origin = room.startsAt;

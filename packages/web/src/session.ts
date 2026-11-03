@@ -85,6 +85,17 @@ export class Session {
   constructor(private options: SessionOptions) {
     this.diagnostics = options.diagnostics;
     this.name = this.read(options.profile, "42tris.name") || "Guest";
+    this.diagnostics?.attach(options.now, () => {
+      const state = this.checkpoint?.state;
+      const owner = state?.players[state.roster.indexOf(this.playerId)];
+      return {
+        eligible: this.connected && this.room?.phase === "playing" && !!owner && !owner.withdrawn
+          && this.room.code === this.checkpoint?.room.code && this.room.matchId === this.checkpoint?.matchId
+          && !(state?.mode === "competitive" && (owner.eliminated || owner.game.state.topOut)),
+        playable: this.canPlay,
+        expiresAt: this.receivedAt + 2000,
+      };
+    });
   }
   joinInvite(code: string) {
     const normalized = code.toUpperCase();
@@ -120,15 +131,18 @@ export class Session {
     this.connected = false;
     this.invalidate();
     this.diagnostics?.connection(this.options.now(), false);
+    this.diagnostics?.updateControl();
   }
   private open() {
     this.invalidate();
     const serial = ++this.serial;
     this.socket?.close();
     this.connected = false;
+    this.diagnostics?.connection(this.options.now(), false);
     this.inviteSent = false;
     this.openedAt = this.options.now();
     this.retryAt = Infinity;
+    this.diagnostics?.updateControl();
     this.status = this.attempts ? `Reconnecting (${this.attempts}/8)…` : "Connecting…";
     this.socket = this.options.connect({
       open: () => {
@@ -152,6 +166,7 @@ export class Session {
     this.connected = false;
     this.invalidate();
     this.diagnostics?.connection(this.options.now(), false);
+    this.diagnostics?.updateControl();
     if (!this.active) return;
     if (this.attempts >= (this.duplicate ? DUPLICATE_RETRIES : 8)) {
       this.retryAt = Infinity;
@@ -209,6 +224,7 @@ export class Session {
     this.diagnostics?.clearQueue();
     this.diagnostics?.release(reason, this.options.now(), cp.owner.generation);
     this.send({ type: "releaseControls" });
+    this.diagnostics?.updateControl();
   }
   practice(type: "practiceUndo" | "practiceReset") {
     if (!this.canPlay || this.room?.options.mode !== "practice") return;
@@ -290,6 +306,11 @@ export class Session {
     items.forEach(i => { i.sent = true; i.transmitted = true; });
     this.lastFlush = now;
     this.diagnostics?.sentBatch(now, items.map(item => item.seq), this.pending.length);
+    if (this.diagnostics) {
+      // Input stamps are round-relative simulation time, not the process clock.
+      const deadline = cp.clock.simulationNow + Math.max(0, now + this.offset - cp.serverNow) - cp.clock.commitDelayMs;
+      for (const item of items) this.diagnostics.inputMargin((item.frame + item.subframe) * FRAME_MS, deadline);
+    }
     if (this.pending.some(i => !i.sent)) this.scheduleFlush(now);
   }
   private cancelScheduledFlush() {
@@ -406,6 +427,10 @@ export class Session {
     this.send({ type: "resync" });
   }
   receive(message: ServerMessage) {
+    try { this.receiveMessage(message); }
+    finally { this.diagnostics?.updateControl(); }
+  }
+  private receiveMessage(message: ServerMessage) {
     switch (message.type) {
       case "welcome":
         this.connected = true;
@@ -433,6 +458,8 @@ export class Session {
         }
         break;
       case "roomState":
+        if (this.diagnostics && this.checkpoint && (message.room.code !== this.checkpoint.room.code
+          || message.room.matchId !== this.checkpoint.matchId)) this.diagnostics.identityChanged();
         if (message.room.players.find(p => p.playerId === this.playerId)?.name === this.name) this.previousName = null;
         this.room = message.room;
         this.invite = "";
@@ -449,7 +476,8 @@ export class Session {
         const changed = identity !== this.identity;
         this.diagnostics?.checkpoint(this.receivedAt, { sequence: message.serverSequence, serverNow: message.serverNow,
           frame: message.state?.frame ?? 0, round: message.state?.round ?? 0,
-          generation: message.owner.generation, identityChanged: changed });
+          generation: message.owner.generation, identityChanged: changed,
+          estimatedOffset: this.connected ? this.offset : undefined });
         if (changed) {
           this.invalidate();
           this.nextSeq = message.owner.nextSeq;
@@ -488,6 +516,7 @@ export class Session {
         this.room = null;
         this.checkpoint = null;
         this.identity = "";
+        this.diagnostics?.identityChanged();
         this.invalidate();
         break;
       case "pong": {
@@ -495,6 +524,7 @@ export class Session {
         if (sent === undefined) break;
         const rtt = this.options.now() - sent;
         this.diagnostics?.rtt(rtt);
+        this.diagnostics?.clockOffset(sent + rtt, message.serverNow - (sent + rtt / 2));
         if (rtt < this.bestRtt) {
           this.bestRtt = rtt;
           this.offset = message.serverNow - (sent + this.options.now()) / 2;
@@ -524,6 +554,7 @@ export class Session {
           this.room = null;
           this.checkpoint = null;
           this.identity = "";
+          this.diagnostics?.identityChanged();
           this.invalidate();
           this.socket?.send({ type: "hello", name: this.name,
             guestProfileId: this.read(this.options.profile, "42tris.profile") || undefined });

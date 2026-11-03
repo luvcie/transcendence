@@ -39,10 +39,16 @@ export interface CorrectionFlags {
 
 export interface SessionDiagnosticsSnapshot {
   events: DiagnosticEvent[];
-  inputs: { queued: number; sent: number; batches: number; lastQueueMs: number | null; maxQueueMs: number | null };
-  checkpoints: { received: number; stale: number; lastGapMs: number | null; maxGapMs: number | null };
+  inputs: { queued: number; sent: number; batches: number; lastQueueMs: number | null; maxQueueMs: number | null;
+    marginAtSendMs: { p5: number | null; p50: number | null } };
+  checkpoints: { received: number; stale: number; lastGapMs: number | null; maxGapMs: number | null;
+    ageMs: { last: number | null; p50: number | null; p95: number | null; max: number | null } };
   frames: { count: number; lastGapMs: number | null; maxGapMs: number | null };
   rtt: { samples: number; last: number | null; min: number | null; avg: number | null; max: number | null; jitter: number | null };
+  transport: { bytesPerSec: number; messagesPerSec: number; maxMessageBytes: number;
+    measurement: "received-application-payload"; windowMs: number; sampleMs: number };
+  clock: { offsetSamples: number[]; driftMsPerMin: number | null };
+  control: { blockedMs: number; blockedPct: number; eligibleMs: number };
   rejections: { total: number; byCode: Record<string, number> };
   releases: { total: number; byReason: Record<string, number> };
   staleRecovery: { count: number; retracted: number; reissued: number };
@@ -52,6 +58,37 @@ export interface SessionDiagnosticsSnapshot {
 
 const EVENT_CAPACITY = 128;
 const RTT_SAMPLES = 16;
+
+class Samples<T> {
+  private readonly items: T[] = [];
+  private next = 0;
+  constructor(private readonly capacity: number) {}
+  push(value: T): void {
+    this.items[this.next] = value;
+    this.next = (this.next + 1) % this.capacity;
+  }
+  clear(): void { this.items.length = 0; this.next = 0; }
+  values(): T[] {
+    return this.items.length < this.capacity ? [...this.items]
+      : [...this.items.slice(this.next), ...this.items.slice(0, this.next)];
+  }
+}
+
+function percentile(sorted: number[], p: number): number | null {
+  return sorted.length ? sorted[Math.round((sorted.length - 1) * p)] : null;
+}
+
+/** Decoded application payload bytes, excluding framing/compression/TLS/TCP. */
+export function messagePayloadBytes(data: string | Blob | ArrayBuffer | ArrayBufferView): number {
+  if (typeof data === "string") return new TextEncoder().encode(data).byteLength;
+  return data instanceof Blob ? data.size : data.byteLength;
+}
+
+interface ControlObservation {
+  eligible: boolean;
+  playable: boolean;
+  expiresAt: number;
+}
 
 function sameBoard(a: readonly number[], b: readonly number[]): boolean {
   if (a.length !== b.length) return false;
@@ -86,6 +123,20 @@ export function classifyCorrection(before: OwnerPredictionState, after: OwnerPre
 }
 
 export class SessionDiagnostics {
+  private now: () => number = () => performance.now();
+  private readControl?: () => ControlObservation;
+  private controlAt: number | null = null;
+  private controlState?: ControlObservation;
+  private eligibleMs = 0;
+  private blockedMs = 0;
+  private userReleased = false;
+  private readonly ages = new Samples<number>(256);
+  private readonly margins = new Samples<number>(256);
+  private readonly offsets = new Samples<{ at: number; offset: number }>(16);
+  private readonly traffic: { tick: number; bytes: number; messages: number }[] = [];
+  private transportAt: number | null = null;
+  private maxMessageBytes = 0;
+
   private events: DiagnosticEvent[] = [];
   private queued = new Map<number, number>();
   private seenRejections = new Set<string>();
@@ -113,7 +164,58 @@ export class SessionDiagnostics {
   connection(at: number, connected: boolean): void {
     if (this.lastConnected === connected) return;
     this.lastConnected = connected;
+    this.ages.clear();
+    this.offsets.clear();
+    this.margins.clear();
+    this.lastCheckpointAt = null;
+    if (connected) {
+      this.transportAt = at;
+      this.traffic.length = 0;
+      this.maxMessageBytes = 0;
+    }
     this.push({ type: "connection", at, connected });
+  }
+
+  /** Session supplies only scalar state; snapshots can include an open blocked interval. */
+  attach(now: () => number, readControl: () => ControlObservation): void {
+    this.now = now;
+    this.readControl = readControl;
+    this.updateControl();
+  }
+
+  updateControl(): void {
+    const at = this.now();
+    const previous = this.controlState;
+    if (previous?.eligible && this.controlAt !== null && at >= this.controlAt) {
+      const elapsed = at - this.controlAt;
+      this.eligibleMs += elapsed;
+      this.blockedMs += previous.playable
+        ? Math.max(0, at - Math.max(this.controlAt, previous.expiresAt)) : elapsed;
+    }
+    this.controlAt = at;
+    const current = this.readControl?.();
+    this.controlState = current && { ...current, eligible: current.eligible && !this.userReleased };
+  }
+
+  receivedMessage(at: number, data: string | Blob | ArrayBuffer | ArrayBufferView): void {
+    const bytes = messagePayloadBytes(data);
+    this.transportAt ??= at;
+    const tick = Math.floor(at / 100);
+    const index = ((tick % 101) + 101) % 101;
+    let bucket = this.traffic[index];
+    if (!bucket || bucket.tick !== tick) this.traffic[index] = bucket = { tick, bytes: 0, messages: 0 };
+    bucket.bytes += bytes;
+    bucket.messages++;
+    this.maxMessageBytes = Math.max(this.maxMessageBytes, bytes);
+  }
+
+  clockOffset(at: number, offset: number): void {
+    if (Number.isFinite(at) && Number.isFinite(offset)) this.offsets.push({ at, offset });
+  }
+
+  inputMargin(stamp: number, committedEstimate: number): void {
+    const margin = stamp - committedEstimate;
+    if (Number.isFinite(margin)) this.margins.push(margin);
   }
 
   queuedInput(seq: number, at: number): void {
@@ -145,10 +247,14 @@ export class SessionDiagnostics {
   }
 
   checkpoint(at: number, info: { sequence: number; serverNow: number; frame: number; round: number;
-    generation: number; identityChanged: boolean }): void {
+    generation: number; identityChanged: boolean; estimatedOffset?: number }): void {
     // A new round, match, or generation reuses sequences; old dedupe keys would
     // otherwise hide the first rejection of the new identity.
-    if (info.identityChanged) this.seenRejections.clear();
+    if (info.identityChanged) this.identityChanged();
+    if (info.estimatedOffset !== undefined) {
+      const age = at + info.estimatedOffset - info.serverNow;
+      if (Number.isFinite(age)) this.ages.push(age);
+    }
     const gapMs = this.lastCheckpointAt === null ? 0 : at - this.lastCheckpointAt;
     this.lastCheckpointAt = at;
     this.counts.checkpoints++;
@@ -156,6 +262,13 @@ export class SessionDiagnostics {
     this.counts.maxGapMs = Math.max(this.counts.maxGapMs ?? 0, gapMs);
     this.push({ type: "checkpoint", at, sequence: info.sequence, serverNow: info.serverNow, frame: info.frame,
       round: info.round, generation: info.generation, gapMs, identityChanged: info.identityChanged });
+  }
+
+  identityChanged(): void {
+    this.seenRejections.clear();
+    this.ages.clear();
+    this.margins.clear();
+    this.userReleased = false;
   }
 
   staleCheckpoint(at: number): void {
@@ -214,6 +327,7 @@ export class SessionDiagnostics {
   }
 
   release(reason: ReleaseReason, at: number, generation: number): void {
+    this.userReleased = reason === "user";
     this.counts.releaseTotal++;
     this.releaseReasons[reason] = (this.releaseReasons[reason] ?? 0) + 1;
     this.push({ type: "release", at, reason, generation });
@@ -235,6 +349,35 @@ export class SessionDiagnostics {
 
   /** Plain JSON-serializable summary. Contains no tokens, identities, names, or boards. */
   snapshot(): SessionDiagnosticsSnapshot {
+    this.updateControl();
+    const at = this.now();
+    const ages = this.ages.values();
+    const sortedAges = [...ages].sort((a, b) => a - b);
+    const margins = this.margins.values().sort((a, b) => a - b);
+    const offsets = this.offsets.values();
+    let drift: number | null = null;
+    if (offsets.length >= 3 && offsets.at(-1)!.at - offsets[0].at >= 1000) {
+      // Centre both coordinates before fitting to avoid cancellation at large clock values.
+      const origin = offsets[0].at;
+      const meanTime = offsets.reduce((sum, s) => sum + (s.at - origin), 0) / offsets.length;
+      const meanOffset = offsets.reduce((sum, s) => sum + s.offset, 0) / offsets.length;
+      let numerator = 0, denominator = 0;
+      for (const sample of offsets) {
+        const time = sample.at - origin - meanTime;
+        numerator += time * (sample.offset - meanOffset);
+        denominator += time * time;
+      }
+      if (denominator > 0) drift = numerator / denominator * 60_000;
+    }
+    let bytes = 0, messages = 0;
+    const tick = Math.floor(at / 100);
+    for (const bucket of this.traffic) {
+      if (bucket && bucket.tick >= tick - 100 && bucket.tick <= tick) {
+        bytes += bucket.bytes;
+        messages += bucket.messages;
+      }
+    }
+    const sampleMs = this.transportAt === null ? 0 : Math.min(10_000, Math.max(0, at - this.transportAt));
     const avg = this.rttSamples.length
       ? this.rttSamples.reduce((sum, value) => sum + value, 0) / this.rttSamples.length : null;
     let jitter: number | null = null;
@@ -246,13 +389,22 @@ export class SessionDiagnostics {
     return {
       events: this.events.map(event => ({ ...event })),
       inputs: { queued: this.counts.queued, sent: this.counts.sent, batches: this.counts.batches,
-        lastQueueMs: this.counts.lastQueueMs, maxQueueMs: this.counts.maxQueueMs },
+        lastQueueMs: this.counts.lastQueueMs, maxQueueMs: this.counts.maxQueueMs,
+        marginAtSendMs: { p5: percentile(margins, 0.05), p50: percentile(margins, 0.5) } },
       checkpoints: { received: this.counts.checkpoints, stale: this.counts.staleCheckpoints,
-        lastGapMs: this.counts.lastGapMs, maxGapMs: this.counts.maxGapMs },
+        lastGapMs: this.counts.lastGapMs, maxGapMs: this.counts.maxGapMs,
+        ageMs: { last: ages.at(-1) ?? null, p50: percentile(sortedAges, 0.5), p95: percentile(sortedAges, 0.95),
+          max: sortedAges.at(-1) ?? null } },
       frames: { count: this.counts.frames, lastGapMs: this.counts.lastFrameGapMs, maxGapMs: this.counts.maxFrameGapMs },
       rtt: { samples: this.rttSamples.length, last: this.rttSamples.at(-1) ?? null,
         min: this.rttSamples.length ? Math.min(...this.rttSamples) : null,
         avg, max: this.rttSamples.length ? Math.max(...this.rttSamples) : null, jitter },
+      transport: { bytesPerSec: sampleMs > 0 ? bytes * 1000 / sampleMs : 0,
+        messagesPerSec: sampleMs > 0 ? messages * 1000 / sampleMs : 0, maxMessageBytes: this.maxMessageBytes,
+        measurement: "received-application-payload", windowMs: 10_000, sampleMs },
+      clock: { offsetSamples: offsets.map(s => s.offset), driftMsPerMin: drift },
+      control: { blockedMs: this.blockedMs, blockedPct: this.eligibleMs > 0 ? this.blockedMs / this.eligibleMs * 100 : 0,
+        eligibleMs: this.eligibleMs },
       rejections: { total: this.counts.rejectionTotal, byCode: { ...this.rejectionCodes } },
       releases: { total: this.counts.releaseTotal, byReason: { ...this.releaseReasons } },
       staleRecovery: { ...this.recoveries },
