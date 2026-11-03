@@ -558,7 +558,7 @@ describe("forfeits", () => {
     // existing match test (in match.test.ts) uses a different setup. Here we verify a 2-player
     // scenario where both forfeit simultaneously in the round.
     const match = makeMatch(["a", "b"], 108, 3);
-    const recorder = new MatchRecorder(match, "both-forfeit");
+    const recorder = new MatchRecorder(match, "both-forfeit", { manualCompletion: true });
 
     recorder.forfeit("a");
     recorder.forfeit("b");
@@ -870,18 +870,20 @@ describe("recorder lifecycle", () => {
     expect(recorder.json).toBeNull();
   });
 
-  test("operations after abandonment are silently ignored", async () => {
+  test("operations after abandonment continue to reach Match", async () => {
     const match = makeMatch(["a", "b"], 108, 1);
     const recorder = new MatchRecorder(match, "ops-after-abandon");
 
     recorder.abandon();
     expect(recorder.status).toBe("abandoned");
 
-    // These must not throw or change status.
     recorder.advanceToFrame(10);
     recorder.releaseControls("a");
     recorder.forfeit("b");
-    recorder.nextRound(200);
+    expect(() => recorder.nextRound(200)).toThrow();
+    expect(match.frame).toBe(10);
+    expect(match.complete).toBe(true);
+    expect(recorder.drainEvents().some(e => e.type === "setEnd")).toBe(true);
 
     expect(recorder.status).toBe("abandoned");
     expect(recorder.replay).toBeNull();
@@ -1013,7 +1015,7 @@ describe("resource limits", () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe("operation failure safety", () => {
-  test("a submit that Match rejects does not append a record", async () => {
+  test("a rejected submit propagates and invalidates the journal", async () => {
     const match = makeMatch(["a", "b"], 108, 1);
     const recorder = new MatchRecorder(match, "bad-submit");
 
@@ -1030,17 +1032,12 @@ describe("operation failure safety", () => {
       });
     }).toThrow();
 
-    // Recorder must still be in recording state with no records.
-    expect(recorder.status).toBe("recording");
+    // A thrown operation may have mutated Match, so the journal is no longer publishable.
+    expect(recorder.status).toBe("failed");
     expect(match.frame).toBe(before);
-
-    // The recorder must still work for valid operations.
     topOutRound(match, recorder, ["b"]);
-    const replay = await recorder.finish();
-    expect(replay).not.toBeNull();
-
-    const verification = await verifyMatchReplayExecution(replay!);
-    expect(verification.complete).toBe(true);
+    expect(match.complete).toBe(true);
+    expect(await recorder.finish()).toBeNull();
   });
 
   test("recorder requires Match at round 1 frame 0", () => {
@@ -1112,4 +1109,78 @@ describe("no Sprint regression", () => {
     const verification = await verifySprintReplayExecution(replay!);
     expect(verification.complete || !verification.complete).toBe(true); // just smoke test
   });
+});
+
+test("failure and abandonment preserve buffered and future events", async () => {
+  for (const abandon of [false, true]) {
+    const match = makeMatch(["a", "b"], 108, 1);
+    const recorder = new MatchRecorder(match, "event-survival", { maxOperations: 1 });
+    recorder.releaseControls("a");
+    if (abandon) recorder.abandon();
+    else recorder.releaseControls("b");
+    recorder.forfeit("b");
+    const events = recorder.drainEvents();
+    expect(events[0]).toMatchObject({ type: "controlsReleased", player: "a" });
+    expect(events.some(e => e.type === "setEnd")).toBe(true);
+    expect(recorder.drainEvents()).toEqual([]);
+    expect(await recorder.completion).toBeNull();
+  }
+});
+
+test("a partially mutating advance failure invalidates the journal and preserves events", async () => {
+  const match = makeMatch(["a", "b"], 108, 1);
+  const recorder = new MatchRecorder(match, "partial-advance");
+  const advance = match.advanceToFrame.bind(match);
+  match.advanceToFrame = () => { match.releaseControls("a"); throw new RangeError("gameplay failure"); };
+  expect(() => recorder.advanceToFrame(1)).toThrow("gameplay failure");
+  expect(recorder.status).toBe("failed");
+  expect(recorder.drainEvents()).toMatchObject([{ type: "controlsReleased", player: "a" }]);
+  match.advanceToFrame = advance;
+  recorder.advanceToFrame(1);
+  expect(match.frame).toBe(1);
+  expect(await recorder.completion).toBeNull();
+});
+
+test("recorded and unrecorded matches execute each operation once with identical events", () => {
+  const direct = makeMatch(["a", "b"], 108, 1);
+  const recorded = makeMatch(["a", "b"], 108, 1);
+  const recorder = new MatchRecorder(recorded, "parity");
+  for (let i = 0; i < 8; i++) {
+    const input = { player: "b", frame: i, subframe: 0.5, order: i, input: Input.HardDrop, epoch: 0 };
+    direct.submit(input); recorder.submit(input);
+    direct.advanceToFrame(i + 1); recorder.advanceToFrame(i + 1);
+    expect(recorder.drainEvents()).toEqual(direct.drainEvents());
+    expect(recorded.saveState()).toEqual(direct.saveState());
+  }
+  direct.releaseControls("a"); recorder.releaseControls("a");
+  direct.forfeit("b"); recorder.forfeit("b");
+  expect(recorder.drainEvents()).toEqual(direct.drainEvents());
+  expect(recorded.saveState()).toEqual(direct.saveState());
+});
+
+
+test("an operation failure during finalization cannot publish the replay", async () => {
+  const match = makeMatch(["a", "b"], 108, 1);
+  const recorder = new MatchRecorder(match, "finalization-failure");
+  recorder.forfeit("b");
+  expect(recorder.status).toBe("finalizing");
+  expect(() => recorder.nextRound(109)).toThrow();
+  expect(recorder.status).toBe("failed");
+  expect(await recorder.completion).toBeNull();
+  expect(await recorder.finish()).toBeNull();
+  expect(recorder.replay).toBeNull();
+  expect(recorder.drainEvents().some(e => e.type === "setEnd")).toBe(true);
+});
+
+
+test("events remain drainable after successful finalization", async () => {
+  const match = makeMatch(["a", "b"], 108, 1);
+  const recorder = new MatchRecorder(match, "finalization-events");
+  recorder.releaseControls("a");
+  recorder.forfeit("b");
+  expect(await recorder.completion).not.toBeNull();
+  const events = recorder.drainEvents();
+  expect(events[0]).toMatchObject({ type: "controlsReleased", player: "a" });
+  expect(events.some(event => event.type === "setEnd")).toBe(true);
+  expect(recorder.drainEvents()).toEqual([]);
 });

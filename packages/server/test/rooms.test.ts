@@ -287,7 +287,7 @@ describe("room authority", () => {
     expect(messages.at(-1)).toMatchObject({ type: "pong", nonce: "ok" });
   });
 
-  test("rounds start automatically after three seconds; rematch still requires readiness", () => {
+  test("rounds start automatically after three seconds; rematch still requires readiness", async () => {
     const f = fixture(2, "competitive", 2);
     f.start();
     const match = f.room.match!;
@@ -304,6 +304,7 @@ describe("room authority", () => {
     expect(f.room.phase).toBe("roundResult");
     expect(match.scores[f.a.welcome!.playerId]).toBe(1);
     const oldSeed = match.seed;
+    const recorder = f.room.recorder!;
     const deadline = f.room.startsAt!;
     const old = f.a.checkpoint();
     const stale: ClientCommand = { type: "inputBatch", matchId: old.matchId!, generation: old.owner.generation, epoch: old.owner.epoch,
@@ -332,6 +333,9 @@ describe("room authority", () => {
     loseRound();
     expect(f.room.phase).toBe("setResult");
     expect(match.scores[f.a.welcome!.playerId]).toBe(2);
+    const replay = await recorder.completion;
+    expect(replay).not.toBeNull();
+    expect(replay!.records.some(r => r.op.type === "nextRound" && r.op.seed === match.seed)).toBe(true);
     expect(f.a.checkpoint().roundDurations.map(result => result.round)).toEqual([1, 2]);
     f.advance(5000);
     expect(match.round).toBe(2);
@@ -666,4 +670,133 @@ test.each([11, 12])("%i-wide room settings reach joined and reconnecting players
   f.rooms.disconnect(f.clients[1].peer.id);
   const resumed = f.client(f.clients[1].welcome!.resumeToken);
   expect(resumed.checkpoint().state!.width).toBe(width);
+});
+
+describe("competitive replay integration", () => {
+  test("records inputs, releases and a verified completed set; a new set owns a new journal", async () => {
+    const f = fixture(2, "competitive", 1);
+    f.start();
+    const recorder = f.room.recorder!;
+    const loser = f.clients[1];
+    for (let i = 0; i < 25 && f.room.phase === "playing"; i++) {
+      const cp = loser.checkpoint();
+      loser.send({ type: "inputBatch", matchId: cp.matchId!, generation: cp.owner.generation, epoch: cp.owner.epoch,
+        items: [{ seq: cp.owner.nextSeq, frame: cp.clock.currentTargetFrame, subframe: 0.25, input: Input.HardDrop }] });
+      f.advance(120);
+    }
+    expect(f.room.phase).toBe("setResult");
+    const replay = await recorder.completion;
+    expect(replay).not.toBeNull();
+    expect(f.rooms.completedReplay(f.room.code)).toBe(replay);
+    expect(replay!.records.some(r => r.op.type === "submit")).toBe(true);
+    expect(replay!.records.some(r => r.op.type === "advance")).toBe(true);
+    expect(replay!.records.some(r => r.op.type === "release")).toBe(true);
+    const state = f.room.match!.saveState();
+    f.a.send({ type: "releaseControls" });
+    expect(f.room.match!.saveState()).toEqual(state);
+    f.start();
+    expect(f.room.recorder).not.toBe(recorder);
+    expect(f.rooms.completedReplay(f.room.code)).toBeNull();
+  });
+
+  test("records three-player disconnect, reconnect and forfeit", async () => {
+    const f = fixture(3, "competitive", 2);
+    f.start();
+    const recorder = f.room.recorder!;
+    const token = f.clients[1].welcome!.resumeToken;
+    f.rooms.disconnect(f.clients[1].peer.id);
+    const resumed = f.client(token);
+    f.prepared();
+    f.clients[2].send({ type: "leave" });
+    resumed.send({ type: "leave" });
+    const replay = await recorder.completion;
+    expect(replay).not.toBeNull();
+    expect(replay!.records.filter(r => r.op.type === "forfeit")).toHaveLength(2);
+    expect(replay!.records.some(r => r.op.type === "release")).toBe(true);
+  });
+
+  test("simultaneous seat expiry records the final aborted outcome", async () => {
+    const f = fixture(2, "competitive", 2);
+    f.start();
+    const recorder = f.room.recorder!;
+    for (const c of f.clients) f.rooms.disconnect(c.peer.id);
+    f.advance(40_000);
+    const replay = await recorder.completion;
+    expect(replay).not.toBeNull();
+    expect(replay!.records.filter(r => r.op.type === "forfeit")).toHaveLength(2);
+    expect(replay!.summary.reason).toBe("aborted");
+  });
+
+  test("resource failure retains events and gameplay; room cleanup drops the artifact", async () => {
+    let now = 0;
+    const rooms = new Rooms(() => now, { maxOperations: 1 });
+    const clients = [0, 1].map(() => {
+      const peer: Peer = { id: crypto.randomUUID(), send() {}, close() {} };
+      rooms.connect(peer);
+      rooms.receive(peer.id, { type: "hello", name: "Guest" });
+      return peer;
+    });
+    rooms.receive(clients[0].id, { type: "create", requestId: "one", options: { firstTo: 1, mode: "competitive", attacksEnabled: true, maxPlayers: 4 } });
+    const room = [...rooms.rooms.values()][0];
+    rooms.receive(clients[1].id, { type: "join", code: room.code });
+    for (const p of clients) rooms.receive(p.id, { type: "ready", ready: true, handling: DEFAULT_HANDLING });
+    expect(room.recorder!.status).toBe("failed");
+    expect(room.events.filter(e => e.event.type === "controlsReleased")).toHaveLength(2);
+    for (const p of clients) rooms.receive(p.id, { type: "prepared", matchId: room.matchId!, preparationId: room.preparationId });
+    now += 3200; rooms.tick();
+    expect(room.match!.frame).toBeGreaterThan(0);
+    rooms.receive(clients[1].id, { type: "leave" });
+    expect(room.match!.complete).toBe(true);
+    expect(room.events.some(e => e.event.type === "setEnd")).toBe(true);
+    expect(await room.recorder!.completion).toBeNull();
+    for (const p of clients) rooms.disconnect(p.id);
+    now += 61_000; rooms.tick();
+    expect(rooms.rooms.has(room.code)).toBe(false);
+    expect(rooms.completedReplay(room.code)).toBeNull();
+  });
+
+
+  test("verification cannot republish a replay after a new set or room destruction", async () => {
+    for (const destroy of [false, true]) {
+      const f = fixture(2, "competitive", 1);
+      f.start();
+      const recorder = f.room.recorder!;
+      f.rooms.disconnect(f.clients[1].peer.id);
+      f.advance(40_000);
+      expect(f.room.phase).toBe("setResult");
+      expect(recorder.status).toBe("finalizing");
+      if (destroy) {
+        f.rooms.disconnect(f.a.peer.id);
+        f.advance(60_000);
+        expect(f.rooms.rooms.has(f.room.code)).toBe(false);
+      } else {
+        const replacement = f.client();
+        replacement.send({ type: "join", code: f.room.code });
+        f.a.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+        replacement.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+        expect(f.room.recorder).not.toBe(recorder);
+      }
+      expect(await recorder.completion).not.toBeNull();
+      expect(f.rooms.completedReplay(f.room.code)).toBeNull();
+    }
+  });
+
+  test("practice never creates a recorder through reconnect and restart", () => {
+    const f = fixture(2, "practice");
+    f.start();
+    expect(f.room.recorder).toBeUndefined();
+    f.rooms.disconnect(f.clients[1].peer.id);
+    const resumed = f.client(f.clients[1].welcome!.resumeToken);
+    f.prepared();
+    resumed.send({ type: "practiceReset" });
+    expect(f.room.recorder).toBeUndefined();
+    f.a.send({ type: "leave" });
+    const replacement = f.client();
+    replacement.send({ type: "join", code: f.room.code });
+    resumed.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+    replacement.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+    expect(f.room.match?.mode).toBe("practice");
+    expect(f.room.recorder).toBeUndefined();
+    expect(f.rooms.completedReplay(f.room.code)).toBeNull();
+  });
 });

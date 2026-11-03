@@ -1,5 +1,6 @@
 import { DEFAULT_HANDLING, FRAME_MS, type Handling } from "@42tris/core";
 import { Match } from "@42tris/match";
+import { MatchRecorder, type MatchRecorderOptions, type MatchReplay } from "@42tris/replay";
 import { ClientCommandSchema, type Checkpoint, type ClientCommand, type ErrorCode, type InputItem, type RoomOptions, type RoomPhase, type RoomState, type ServerMessage } from "@42tris/protocol";
 import { Value } from "@sinclair/typebox/value";
 
@@ -49,6 +50,7 @@ export interface Room {
   revision: number;
   phase: RoomPhase;
   match?: Match;
+  recorder?: MatchRecorder;
   matchId: string | null;
   preparationId: number;
   startsAt: number | null;
@@ -75,7 +77,11 @@ export class Rooms {
   private sessions = new Map<string, Seat>();
   private connections = new Map<string, Connection>();
   private serverSequence = 0;
-  constructor(readonly now: () => number = () => performance.now()) {}
+  constructor(readonly now: () => number = () => performance.now(), private readonly replayOptions: MatchRecorderOptions = {}) {}
+
+  completedReplay(code: string): MatchReplay | null {
+    return this.rooms.get(code)?.recorder?.replay ?? null;
+  }
 
   connect(peer: Peer): boolean {
     if (this.connections.size >= 128) { peer.close(1013, "CAPACITY"); return false; }
@@ -261,10 +267,16 @@ export class Rooms {
 
   private prepare(room: Room, resume: boolean): void {
     if (!resume) {
+      room.recorder?.abandon();
+      room.recorder = undefined;
       const seats = room.seats;
       room.match = new Match({ players: seats.map(s => s.id), seed: seed(), firstTo: room.options.firstTo, width: room.options.width, mode: room.options.mode,
         attacksEnabled: room.options.attacksEnabled, handlingByPlayer: Object.fromEntries(seats.map(s => [s.id, s.handling])) });
       room.matchId = opaque();
+      if (room.options.mode === "competitive") {
+        try { room.recorder = new MatchRecorder(room.match, room.matchId, { ...this.replayOptions, manualCompletion: true }); }
+        catch (error) { console.error("Replay recorder initialization failed", error); }
+      }
       room.events = [];
       room.roundDurations = [];
       room.eventSequence = 0;
@@ -284,9 +296,13 @@ export class Rooms {
     this.broadcastCheckpoint(room);
   }
 
-  private invalidate(seat: Seat): void {
-    const match = seat.room?.match;
-    if (match?.roster.includes(seat.id)) match.releaseControls(seat.id);
+  private invalidate(seat: Seat, allowCompleted = false): void {
+    const room = seat.room;
+    const match = room?.match;
+    if (match?.roster.includes(seat.id) && (!match.complete || allowCompleted)) {
+      if (room?.recorder) room.recorder.releaseControls(seat.id);
+      else match.releaseControls(seat.id);
+    }
     seat.generation++;
     seat.nextSeq = 1;
     seat.pending.clear();
@@ -322,7 +338,9 @@ export class Rooms {
       if (!rejected) {
         const order = room.order++;
         try {
-          match.submit({ player: seat.id, frame: item.frame, subframe: item.subframe, input: item.input, epoch: command.epoch, order });
+          const input = { player: seat.id, frame: item.frame, subframe: item.subframe, input: item.input, epoch: command.epoch, order };
+          if (room.recorder) room.recorder.submit(input);
+          else match.submit(input);
           seat.pending.set(item.seq, { ...item, order });
         } catch (error) {
           if (!(error instanceof RangeError)) throw error;
@@ -378,10 +396,13 @@ export class Rooms {
 
   private remove(seat: Seat, deferPublish = false, allowForfeit = !seat.room?.match?.complete): void {
     const room = seat.room!;
-    this.invalidate(seat);
+    this.invalidate(seat, allowForfeit);
     if (room.match?.roster.includes(seat.id)) {
       if (room.match.mode === "competitive") {
-        if (allowForfeit) room.match.forfeit(seat.id);
+        if (allowForfeit) {
+          if (room.recorder) room.recorder.forfeit(seat.id);
+          else room.match.forfeit(seat.id);
+        }
       }
       else {
         room.match = undefined;
@@ -423,7 +444,8 @@ export class Rooms {
     room.roundCountdownRemaining = null;
     room.prepareDeadline = null;
     room.touchedAt = this.now();
-    for (const s of room.seats) { s.ready = false; this.invalidate(s); }
+    for (const s of room.seats) { s.ready = false; this.invalidate(s, phase === "setResult"); }
+    if (phase === "setResult") void room.recorder?.finish();
     if (phase === "roundResult" && this.eligible(room).some(s => !s.peer)) this.pause(room);
     this.collect(room);
     this.changed(room);
@@ -464,7 +486,8 @@ export class Rooms {
       if (room.phase === "roundResult" && room.startsAt !== null && now >= room.startsAt && room.match && !room.match.complete && room.match.ended) {
         let nextSeed = seed();
         while (nextSeed === room.match.seed) nextSeed = seed();
-        room.match.nextRound(nextSeed);
+        if (room.recorder) room.recorder.nextRound(nextSeed);
+        else room.match.nextRound(nextSeed);
         room.origin = room.startsAt;
         room.pausedTotal = 0;
         room.pausedAt = null;
@@ -478,7 +501,8 @@ export class Rooms {
       }
       if (room.phase === "playing" && room.match) {
         const target = Math.max(room.match.frame, Math.floor(Math.max(0, this.simulationNow(room) - 100) / FRAME_MS));
-        room.match.advanceToFrame(target);
+        if (room.recorder) room.recorder.advanceToFrame(target);
+        else room.match.advanceToFrame(target);
         for (const s of room.seats) for (const [seq, input] of s.pending) if (input.frame < room.match.frame) s.pending.delete(seq);
         this.collect(room);
         this.result(room);
@@ -487,6 +511,8 @@ export class Rooms {
       const idleExpired = ["waiting", "roundResult", "setResult"].includes(room.phase) && now - room.touchedAt >= 15 * 60_000;
       if (emptyExpired || idleExpired) {
         for (const s of room.seats) { s.room = undefined; s.ready = false; s.peer?.send({ type: "left" }); }
+        room.recorder?.abandon();
+        room.recorder = undefined;
         this.rooms.delete(room.code);
       }
     }
@@ -494,7 +520,8 @@ export class Rooms {
   }
 
   private collect(room: Room): void {
-    for (const event of room.match?.drainEvents() ?? []) {
+    const events = room.recorder ? room.recorder.drainEvents() : room.match?.drainEvents() ?? [];
+    for (const event of events) {
       room.events.push({ sequence: ++room.eventSequence, event });
       if (event.type === "roundEnd") room.roundDurations.push({ round: event.round, durationMs: event.atMs });
     }

@@ -9,6 +9,21 @@
  * outcome (e.g. the actual reached frame after an advance) and writes that
  * into the record.
  *
+ * ### Operation contract
+ *
+ * A wrapper is a transparent pass-through for the authoritative operation: the
+ * underlying `Match` call always happens exactly once, in every recorder
+ * status, and its `RangeError`s propagate unchanged. Only journaling is
+ * conditional on `status === "recording"`, so a failed, finalizing, completed
+ * or abandoned recorder can never suppress or duplicate gameplay. Callers
+ * therefore never need `recorder?.op() ?? match.op()`, which would execute an
+ * operation twice (or not at all) when the wrapper returns `void`.
+ *
+ * Every wrapper drains the Match afterwards and buffers the events, so the
+ * single drain point is `drainEvents()`; callers must not drain the Match
+ * directly while a recorder is attached. Buffered events survive a failure or
+ * abandonment so live clients keep receiving them in order.
+ *
  * Practice-mode Match instances are rejected at construction.
  */
 
@@ -42,6 +57,8 @@ export type MatchRecorderStatus =
 export interface MatchRecorderOptions extends ReplayDecodeOptions {
   /** Stable replay identifier. Must be non-empty and within maxStringLength. */
   id?: string;
+  /** Defer finalization until finish(), for controllers that batch forfeits. */
+  manualCompletion?: boolean;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -129,6 +146,7 @@ export class MatchRecorder {
   private readonly initial: MatchInitial;
   private readonly id: string;
   private readonly limits: ReplayLimits;
+  private readonly manualCompletion: boolean;
 
   /** Ordered journal records. Cleared after finalization to free memory. */
   private readonly records: MatchRecord[] = [];
@@ -182,6 +200,7 @@ export class MatchRecorder {
     }
 
     this.limits = resolveReplayLimits(options);
+    this.manualCompletion = options.manualCompletion ?? false;
 
     const id = options.id ?? matchId;
     if (typeof id !== "string" || id.length === 0 || id.length > this.limits.maxStringLength) {
@@ -224,15 +243,24 @@ export class MatchRecorder {
   /**
    * Calls `match.submit(input)`, then records the operation.
    * If Match throws, the record is not appended and the error propagates.
+   *
+   * The authoritative submit always runs exactly once, even when the recorder
+   * is no longer journaling; only the journal append is skipped.
    */
   submit(input: Required<MatchInput>): MatchEvent[] {
-    if (this.statusValue !== "recording") return [];
     const before = this.boundary();
     // Match.submit does not drain events; we drain after to capture any that
     // became available as a side effect of the input queue mutation.
-    this.match.submit(input);
+    try {
+      this.match.submit(input);
+    } catch (error) {
+      this.flushMatchEvents();
+      this.fail(new ReplayError("simulation-mismatch", "Match submit failed during recording"));
+      throw error;
+    }
     const events = this.flushMatchEvents();
-    this.record({ type: "submit", input: { ...input } }, before);
+    if (this.statusValue !== "recording") return events;
+    this.safeRecord(() => this.record({ type: "submit", input: { ...input } }, before));
     // Submit does not end the round directly; no set-completion check needed.
     return events;
   }
@@ -243,64 +271,104 @@ export class MatchRecorder {
    *
    * The recorded `reachedFrame` is the authoritative `match.frame` after the
    * call, which may be less than `toFrame` when the round ended early.
+   *
+   * The authoritative advance always runs exactly once, even when the recorder
+   * is no longer journaling.
    */
   advanceToFrame(toFrame: number): MatchEvent[] {
-    if (this.statusValue !== "recording") return [];
     const before = this.boundary();
     const frameBefore = this.match.frame;
-    this.match.advanceToFrame(toFrame);
+    try {
+      this.match.advanceToFrame(toFrame);
+    } catch (error) {
+      this.flushMatchEvents();
+      this.fail(new ReplayError("simulation-mismatch", "Match advance failed during recording"));
+      throw error;
+    }
     const reachedFrame = this.match.frame;
     const advanced = reachedFrame - frameBefore;
     const events = this.flushMatchEvents();
+    if (this.statusValue !== "recording") return events;
     this.totalAdvancedFrames += advanced;
     if (this.totalAdvancedFrames > this.limits.maxMatchFrames) {
       this.fail(new ReplayError("resource-limit", "Match recording frame budget exceeded"));
       return events;
     }
-    this.record({ type: "advance", toFrame, reachedFrame }, before);
-    this.observeSetCompletion();
+    this.safeRecord(() => {
+      this.record({ type: "advance", toFrame, reachedFrame }, before);
+      if (!this.manualCompletion) this.observeSetCompletion();
+    });
     return events;
   }
 
   /**
    * Calls `match.releaseControls(playerId?)` and records the operation.
    * Release never completes the set; no completion check.
+   *
+   * The authoritative release always runs exactly once, even when the recorder
+   * is no longer journaling.
    */
   releaseControls(playerId?: string): MatchEvent[] {
-    if (this.statusValue !== "recording") return [];
     const before = this.boundary();
-    this.match.releaseControls(playerId);
+    try {
+      this.match.releaseControls(playerId);
+    } catch (error) {
+      this.flushMatchEvents();
+      this.fail(new ReplayError("simulation-mismatch", "Match operation failed during recording"));
+      throw error;
+    }
     const events = this.flushMatchEvents();
+    if (this.statusValue !== "recording") return events;
     const op: MatchOperation =
       playerId === undefined ? { type: "release" } : { type: "release", player: playerId };
-    this.record(op, before);
+    this.safeRecord(() => this.record(op, before));
     return events;
   }
 
   /**
    * Calls `match.forfeit(playerId)` and records the operation.
    * A forfeit may complete the set; completion is observed after recording.
+   *
+   * The authoritative forfeit always runs exactly once, even when the recorder
+   * is no longer journaling.
    */
   forfeit(playerId: string): MatchEvent[] {
-    if (this.statusValue !== "recording") return [];
     const before = this.boundary();
-    this.match.forfeit(playerId);
+    try {
+      this.match.forfeit(playerId);
+    } catch (error) {
+      this.flushMatchEvents();
+      this.fail(new ReplayError("simulation-mismatch", "Match operation failed during recording"));
+      throw error;
+    }
     const events = this.flushMatchEvents();
-    this.record({ type: "forfeit", player: playerId }, before);
-    this.observeSetCompletion();
+    if (this.statusValue !== "recording") return events;
+    this.safeRecord(() => {
+      this.record({ type: "forfeit", player: playerId }, before);
+      if (!this.manualCompletion) this.observeSetCompletion();
+    });
     return events;
   }
 
   /**
    * Calls `match.nextRound(seed)` and records the operation.
    * nextRound never completes the set.
+   *
+   * The authoritative round transition always runs exactly once, even when the
+   * recorder is no longer journaling.
    */
   nextRound(seed: number): MatchEvent[] {
-    if (this.statusValue !== "recording") return [];
     const before = this.boundary();
-    this.match.nextRound(seed);
+    try {
+      this.match.nextRound(seed);
+    } catch (error) {
+      this.flushMatchEvents();
+      this.fail(new ReplayError("simulation-mismatch", "Match operation failed during recording"));
+      throw error;
+    }
     const events = this.flushMatchEvents();
-    this.record({ type: "nextRound", seed }, before);
+    if (this.statusValue !== "recording") return events;
+    this.safeRecord(() => this.record({ type: "nextRound", seed }, before));
     return events;
   }
 
@@ -330,7 +398,8 @@ export class MatchRecorder {
     const wasRecording = this.statusValue === "recording";
     this.statusValue = "abandoned";
     this.records.length = 0;
-    this.pendingEvents.length = 0;
+    // Buffered Match events are deliberately kept drainable: abandoning only
+    // ends recording, it must not swallow events a live caller still owes.
     this.allEvents.length = 0;
     if (wasRecording) this.resolveCompletion(null);
   }
@@ -341,6 +410,7 @@ export class MatchRecorder {
    * Idempotent.
    */
   finish(): Promise<MatchReplay | null> {
+    if (this.manualCompletion) this.safeRecord(() => this.observeSetCompletion());
     if (this.finalization) return this.finalization;
     return Promise.resolve(this.completed);
   }
@@ -387,8 +457,15 @@ export class MatchRecorder {
   private flushMatchEvents(): MatchEvent[] {
     const events = this.match.drainEvents();
     this.pendingEvents.push(...events);
-    this.allEvents.push(...events);
+    if (this.statusValue === "recording") this.allEvents.push(...events);
     return events;
+  }
+
+  private safeRecord(action: () => void): void {
+    try { action(); } catch (error) {
+      this.fail(error instanceof ReplayError ? error : new ReplayError("simulation-mismatch",
+        error instanceof Error ? error.message : "Match recording failed"));
+    }
   }
 
   private record(op: MatchOperation, before: { round: number; frame: number }): void {
@@ -436,7 +513,6 @@ export class MatchRecorder {
     this.statusValue = "failed";
     this.failure = error;
     this.records.length = 0;
-    this.pendingEvents.length = 0;
     this.allEvents.length = 0;
     this.resolveCompletion(null);
   }
@@ -489,17 +565,19 @@ export class MatchRecorder {
         throw new ReplayError("malformed", "Recorded journal is not a competitive Match replay");
       }
 
-      await verifyMatchReplayExecution(decoded);
+      const verification = await verifyMatchReplayExecution(decoded);
+      if (!verification.complete) throw new ReplayError("simulation-mismatch", "Match replay is incomplete");
+      if (this.statusValue !== "finalizing") return null;
 
       this.completed = decoded;
       this.completedJson = json;
       this.statusValue = "complete";
       this.records.length = 0;
-      this.pendingEvents.length = 0;
       this.allEvents.length = 0;
       this.resolveCompletion(decoded);
       return decoded;
     } catch (error) {
+      if (this.statusValue !== "finalizing") return null;
       const replayError =
         error instanceof ReplayError
           ? error
@@ -510,7 +588,6 @@ export class MatchRecorder {
       this.statusValue = "failed";
       this.failure = replayError;
       this.records.length = 0;
-      this.pendingEvents.length = 0;
       this.allEvents.length = 0;
       this.resolveCompletion(null);
       return null;

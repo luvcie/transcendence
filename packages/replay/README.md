@@ -228,3 +228,12 @@ authentication either. Deterministic verification is not anti-cheat enforcement.
   annotations outside this simulation driver.
 - Per-player appearance metadata and replay skin overrides belong to the later
   viewer; they must stay outside simulation state and final-state digests.
+
+The multiplayer server owns one recorder per competitive set, starting when its
+Match is created. The room retains a completed replay only after strict decoding
+and deterministic verification; `Rooms.completedReplay(code)` is an internal
+read-only availability boundary for the current set. A new set replaces the
+recorder, and room destruction drops it. Verification runs asynchronously;
+failed or unfinished recordings are never exposed. Practice rooms do not create
+recorders. Simultaneous seat expirations are recorded as one batch before the
+server finalizes the result.

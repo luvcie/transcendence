@@ -50,6 +50,7 @@
         "@42tris/core": "workspace:*",
         "@42tris/match": "workspace:*",
         "@42tris/protocol": "workspace:*",
+        "@42tris/replay": "workspace:*",
         "@elysiajs/static": "1.4.10",
         "@sinclair/typebox": "0.34.52",
         "elysia": "1.4.30",
