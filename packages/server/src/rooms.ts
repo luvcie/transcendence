@@ -1,7 +1,7 @@
 import { DEFAULT_HANDLING, FRAME_MS, type Handling } from "@42tris/core";
 import { Match } from "@42tris/match";
 import { MatchRecorder, type MatchRecorderOptions, type MatchReplay } from "@42tris/replay";
-import { ClientCommandSchema, type Checkpoint, type ClientCommand, type ErrorCode, type InputItem, type ReplayAccessStatus, type RoomOptions, type RoomPhase, type RoomState, type ServerMessage } from "@42tris/protocol";
+import { ClientCommandSchema, MAX_INPUT_LEAD_MS, type Checkpoint, type ClientCommand, type ErrorCode, type InputItem, type ReplayAccessStatus, type RoomOptions, type RoomPhase, type RoomState, type ServerMessage } from "@42tris/protocol";
 import type { Admission, NetplayMetrics } from "./netplay-metrics";
 import { Value } from "@sinclair/typebox/value";
 
@@ -374,7 +374,7 @@ export class Rooms {
       seat.history.set(item.seq, fingerprint);
       if (seat.history.size > 256) seat.history.delete(seat.history.keys().next().value!);
       let reason: Admission | null = item.frame < match.frame ? "late"
-        : item.frame > Math.floor(this.simulationNow(room) / FRAME_MS) + 2 ? "future"
+        : item.frame > Math.floor(this.simulationNow(room) / FRAME_MS) + Math.ceil(MAX_INPUT_LEAD_MS / FRAME_MS) + 2 ? "future"
         : seat.pending.size >= 128 ? "pending-full" : null;
       let rejected = reason !== null;
       if (!rejected) {

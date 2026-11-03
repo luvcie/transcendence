@@ -1,6 +1,8 @@
 import { t, type Static } from "elysia";
 import type { MatchEvent, MatchInput, MatchState } from "@42tris/match";
 
+export const MAX_INPUT_LEAD_MS = 250;
+
 const integer = (minimum = 0, maximum = Number.MAX_SAFE_INTEGER) => t.Integer({ minimum, maximum });
 const text = (maxLength: number) => t.String({ minLength: 1, maxLength });
 const object = <T extends Record<string, import("elysia").TSchema>>(properties: T) => t.Object(properties, { additionalProperties: false });

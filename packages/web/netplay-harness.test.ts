@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Input } from "@42tris/core";
+import { FRAME_MS, Input } from "@42tris/core";
+import type { ClientCommand } from "@42tris/protocol";
 import { verifyMatchReplayExecution } from "@42tris/replay";
 import { NetHarness } from "./netplay-harness";
 import { useLegacyCheckpoints } from "../server/test/checkpoint-baseline";
@@ -11,6 +12,37 @@ async function verify(h: NetHarness) {
 }
 
 describe("N-player latency harness", () => {
+  test("N3-A future admission leaves mixed-latency players on the same authoritative timeline", async () => {
+    const run = (early: boolean) => {
+      const h = new NetHarness({ seed: 42, diagnostics: true, messageHistory: 16,
+        players: [10, 30, 60, 90].map(ms => ({ up: ms, down: ms })) });
+      h.startMatch();
+      const cp = h.aCheckpoint!;
+      const command: ClientCommand = { type: "inputBatch", matchId: cp.matchId!, generation: cp.owner.generation, epoch: cp.owner.epoch,
+        items: [{ seq: cp.owner.nextSeq, frame: Math.floor((cp.clock.simulationNow + 200) / FRAME_MS), subframe: 0.25, input: Input.RotateCw }] };
+      if (early) h.a.session.send(command);
+      h.advance(200);
+      if (!early) h.a.session.send(command);
+      h.advance(200);
+      expect(h.aCheckpoint!.owner.rejections).toEqual([]);
+      expect(h.aCheckpoint!.owner.pendingAccepted).toEqual([]);
+      for (const [i, client] of h.clients.slice(1).entries()) h.playScript(client.key, 30_000, 200 + i);
+      h.advance(30_000);
+      return h;
+    };
+    const lead = run(true), normal = run(false);
+    expect(lead.room!.match!.saveState()).toEqual(normal.room!.match!.saveState());
+    for (let i = 1; i < lead.clients.length; i++) {
+      const a = lead.clients[i], b = normal.clients[i];
+      expect(a.commands).toEqual(b.commands);
+      expect(a.control).toEqual(b.control);
+      expect(a.diagnostics!.snapshot().rejections).toEqual(b.diagnostics!.snapshot().rejections);
+      expect(a.session.checkpoint).toEqual(b.session.checkpoint);
+    }
+    await verify(lead);
+    await verify(normal);
+  }, 60_000);
+
   test("a/b aliases preserve the two-client API and reject unsupported player counts", () => {
     const h = new NetHarness();
     expect(h.clients).toEqual([h.a, h.b]);

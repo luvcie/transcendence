@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { DEFAULT_HANDLING, FRAME_MS, Input } from "@42tris/core";
-import { OwnerPrediction } from "@42tris/match";
-import type { Checkpoint, ClientCommand, ServerMessage } from "@42tris/protocol";
+import { Match, OwnerPrediction } from "@42tris/match";
+import { MAX_INPUT_LEAD_MS, type Checkpoint, type ClientCommand, type InputItem, type ServerMessage } from "@42tris/protocol";
 import { Rooms, type Peer } from "../src/rooms";
 import { createApp } from "../src/app";
-import { decodeReplayJson, MatchPlayback, type MatchRecorderOptions } from "@42tris/replay";
+import { CURRENT_REPLAY_VERSIONS, decodeReplayJson, MatchPlayback, verifyMatchReplayExecution, type MatchRecorderOptions } from "@42tris/replay";
 
 interface TestClient {
   peer: Peer;
@@ -45,6 +45,357 @@ function fixture(count = 2, mode: "competitive" | "practice" = "competitive", fi
   function start() { for (const c of clients) c.send({ type: "ready", ready: true, handling: DEFAULT_HANDLING }); prepared(); }
   return { rooms, clients, a, room, client, elapse, advance, start, prepared };
 }
+
+describe("N3-A bounded future input admission", () => {
+  function batch(cp: Checkpoint, items: InputItem[]): Extract<ClientCommand, { type: "inputBatch" }> {
+    return { type: "inputBatch", matchId: cp.matchId!, generation: cp.owner.generation, epoch: cp.owner.epoch, items };
+  }
+
+  test.each([0, FRAME_MS - 0.001, FRAME_MS, FRAME_MS + 0.001])("uses the current simulation clock and exact frame rounding at offset %f", offset => {
+    const f = fixture();
+    f.start();
+    f.advance(1000);
+    f.elapse(200 + offset); // Admission must also work between simulation ticks.
+    const cp = f.a.checkpoint();
+    const current = Math.floor(cp.clock.simulationNow / FRAME_MS);
+    const nominalLead = Math.floor((cp.clock.simulationNow + MAX_INPUT_LEAD_MS) / FRAME_MS);
+    const maximum = current + Math.ceil(MAX_INPUT_LEAD_MS / FRAME_MS) + 2;
+    expect(MAX_INPUT_LEAD_MS).toBe(250);
+    expect(maximum).toBeGreaterThan(cp.state!.frame + Math.ceil(MAX_INPUT_LEAD_MS / FRAME_MS) + 2);
+    expect(maximum).toBeLessThan(Math.floor(cp.serverNow / FRAME_MS));
+    const frames = [current, nominalLead, maximum, maximum + 1, nominalLead + 3];
+    f.a.send(batch(cp, frames.map((frame, i) => ({ seq: i + 1, frame, subframe: 0.75, input: Input.RotateCw }))));
+    const ack = f.a.checkpoint().owner;
+    expect(ack.nextSeq).toBe(6);
+    expect(ack.pendingAccepted.map(i => i.frame)).toEqual(frames.slice(0, 3));
+    expect(ack.rejections).toEqual([4, 5].map(seq => ({ seq, code: "INPUT_REJECTED" })));
+    expect(f.room.match!.frame).toBe(cp.state!.frame);
+  });
+
+  test("the round-origin boundary uses the specified ceil allowance despite floating-point division", () => {
+    const f = fixture();
+    f.start();
+    const cp = f.a.checkpoint();
+    expect(cp.clock.simulationNow).toBe(0);
+    const maximum = Math.floor(cp.clock.simulationNow / FRAME_MS) + Math.ceil(MAX_INPUT_LEAD_MS / FRAME_MS) + 2;
+    f.a.send(batch(cp, [maximum, maximum + 1].map((frame, i) => ({ seq: i + 1, frame, subframe: 0.75, input: Input.RotateCw }))));
+    expect(f.a.checkpoint().owner.pendingAccepted.map(i => i.frame)).toEqual([maximum]);
+    expect(f.a.checkpoint().owner.rejections).toEqual([{ seq: 2, code: "INPUT_REJECTED" }]);
+  });
+
+  test("keeps the committed lower bound, including partial batch admission", () => {
+    const f = fixture();
+    f.start();
+    f.advance(1000);
+    const cp = f.a.checkpoint();
+    f.a.send(batch(cp, [cp.state!.frame - 1, cp.state!.frame, cp.clock.currentTargetFrame + 15].map((frame, i) =>
+      ({ seq: i + 1, frame, subframe: 0, input: Input.RotateCw }))));
+    const ack = f.a.checkpoint().owner;
+    expect(ack.nextSeq).toBe(4);
+    expect(ack.rejections).toEqual([{ seq: 1, code: "INPUT_REJECTED" }]);
+    expect(ack.pendingAccepted.map(i => i.seq)).toEqual([2, 3]);
+  });
+
+  test.each([Input.LeftDown, Input.RotateCw, Input.SoftDropDown, Input.HardDrop])("queues input %i without advancing any player's simulation and matches normal scheduling", input => {
+    const f = fixture(3);
+    f.start();
+    f.advance(1000);
+    const cp = f.a.checkpoint();
+    const reference = Match.fromState(cp.state!);
+    const item = { seq: 1, frame: Math.floor((cp.clock.simulationNow + 200) / FRAME_MS), subframe: 0.25, input };
+    f.a.send(batch(cp, [item]));
+    const accepted = f.a.checkpoint();
+    expect(accepted.owner.pendingAccepted).toHaveLength(1);
+    expect(accepted.owner.rejections).toEqual([]);
+    expect({ ...accepted.state!, inputs: [] }).toEqual({ ...cp.state!, inputs: [] });
+    const queued = accepted.state!.inputs[0];
+    for (const elapsed of [50, 100, 50]) {
+      f.advance(elapsed);
+      reference.advanceToFrame(f.room.match!.frame);
+      reference.drainEvents();
+      expect(f.room.match!.frame).toBe(Math.floor((f.a.checkpoint().clock.simulationNow - 100) / FRAME_MS));
+      expect({ ...f.room.match!.saveState(), inputs: [] }).toEqual({ ...reference.saveState(), inputs: [] });
+    }
+    // The reference receives the identical stamp at its normal physical send time.
+    reference.submit(queued);
+    const untilFrame = item.frame * FRAME_MS + 100 + 0.1 - f.a.checkpoint().clock.simulationNow;
+    f.advance(untilFrame);
+    reference.advanceToFrame(item.frame);
+    expect(f.room.match!.frame).toBe(item.frame);
+    expect(f.room.match!.saveState()).toEqual(reference.saveState());
+    expect(f.a.checkpoint().owner.pendingAccepted).toHaveLength(1);
+    const before = f.room.match!.playerState(f.a.welcome!.playerId).state;
+    f.advance(FRAME_MS);
+    reference.advanceToFrame(item.frame + 1);
+    reference.drainEvents();
+    expect(f.room.match!.saveState()).toEqual(reference.saveState());
+    expect(f.a.checkpoint().owner.pendingAccepted).toEqual([]);
+    expect(f.room.match!.saveState().inputs).toEqual([]);
+    const after = f.room.match!.playerState(f.a.welcome!.playerId).state;
+    if (input === Input.LeftDown) expect(after.leftHeld).toBe(true);
+    if (input === Input.RotateCw) expect(after.rot).not.toBe(before.rot);
+    if (input === Input.SoftDropDown) expect(after.softHeld).toBe(true);
+    if (input === Input.HardDrop) {
+      expect(after.sequence).toBe(before.sequence + 1);
+      expect(f.room.events.filter(e => e.event.type === "lock").at(-1)!.event.atMs).toBe((item.frame + item.subframe) * FRAME_MS);
+    }
+    f.advance(500);
+    reference.advanceToFrame(f.room.match!.frame);
+    reference.drainEvents();
+    expect(f.room.match!.saveState()).toEqual(reference.saveState());
+  });
+
+  test("T-A4 rejects a client clock advancing at twice server time and bounds its backlog", () => {
+    const f = fixture();
+    f.start();
+    let accepted = 0, rejected = 0;
+    for (let step = 1; step <= 30; step++) {
+      f.advance(20);
+      const cp = f.a.checkpoint();
+      const frame = Math.floor(step * 40 / FRAME_MS);
+      const maximum = Math.floor(cp.clock.simulationNow / FRAME_MS) + Math.ceil(MAX_INPUT_LEAD_MS / FRAME_MS) + 2;
+      const item = { seq: step, frame, subframe: 0.25, input: Input.RotateCw };
+      const before = f.room.match!.frame;
+      f.a.send(batch(cp, [item]));
+      const ack = f.a.checkpoint().owner;
+      expect(f.room.match!.frame).toBe(before);
+      expect(before).toBe(Math.floor(Math.max(0, cp.clock.simulationNow - 100) / FRAME_MS));
+      if (frame > maximum) {
+        rejected++;
+        expect(ack.rejections).toContainEqual({ seq: step, code: "INPUT_REJECTED" });
+        expect(ack.pendingAccepted.some(i => i.seq === step)).toBe(false);
+      } else {
+        accepted++;
+        expect(ack.pendingAccepted.some(i => i.seq === step)).toBe(true);
+      }
+      expect(ack.pendingAccepted.length).toBeLessThanOrEqual(128);
+      expect(f.room.match!.saveState().inputs.every(i => i.frame <= maximum)).toBe(true);
+    }
+    expect(accepted).toBeGreaterThan(0);
+    expect(rejected).toBeGreaterThan(0);
+    f.advance(1000);
+    expect(f.a.checkpoint().owner.pendingAccepted).toEqual([]);
+  });
+
+  test("the 128 pending cap applies within batches of lead-stamped inputs", () => {
+    const f = fixture();
+    f.start();
+    const cp = f.a.checkpoint();
+    const frame = Math.ceil(MAX_INPUT_LEAD_MS / FRAME_MS) + 2;
+    const items = (seq: number, count: number) => Array.from({ length: count }, (_, i) =>
+      ({ seq: seq + i, frame, subframe: i / 64, input: Input.RotateCw }));
+    f.a.send(batch(cp, items(1, 32)));
+    f.a.send(batch(cp, items(33, 32)));
+    f.advance(140);
+    f.a.send(batch(cp, items(65, 32)));
+    f.advance(140);
+    f.a.send(batch(cp, items(97, 31)));
+    expect(f.a.checkpoint().owner.pendingAccepted).toHaveLength(127);
+    f.a.send(batch(cp, items(128, 2)));
+    const full = f.a.checkpoint();
+    expect(full.owner.pendingAccepted).toHaveLength(128);
+    expect(full.state!.inputs).toHaveLength(128);
+    expect(full.owner.nextSeq).toBe(130);
+    expect(full.owner.rejections).toEqual([{ seq: 129, code: "INPUT_REJECTED" }]);
+    f.a.send(batch(cp, items(128, 2)));
+    expect(f.a.checkpoint().owner).toEqual(full.owner);
+    f.advance(200);
+    expect(f.a.checkpoint().owner.pendingAccepted).toEqual([]);
+    expect(f.room.match!.saveState().inputs).toEqual([]);
+  });
+
+  test.each([false, true])("retransmission fingerprints remain owned for rejected=%s future inputs", rejected => {
+    const f = fixture();
+    f.start();
+    const cp = f.a.checkpoint();
+    const item = { seq: 1, frame: Math.ceil(MAX_INPUT_LEAD_MS / FRAME_MS) + (rejected ? 3 : 0), subframe: 0.25, input: Input.RotateCw };
+    const command = batch(cp, [item]);
+    f.a.send(command);
+    const ack = f.a.checkpoint().owner;
+    expect(ack.nextSeq).toBe(2);
+    expect(ack.pendingAccepted).toHaveLength(rejected ? 0 : 1);
+    f.a.send(command);
+    expect(f.a.checkpoint().owner).toEqual(ack);
+    if (rejected) {
+      f.advance(350);
+      f.a.send(command);
+      expect(f.a.checkpoint().owner).toEqual(ack);
+      expect(f.room.match!.saveState().inputs).toEqual([]);
+    }
+    f.a.send(batch(cp, [{ ...item, input: Input.HardDrop }]));
+    expect(f.a.messages.some(m => m.type === "error" && m.code === "SEQ_CONFLICT")).toBe(true);
+    expect(f.a.closed).toEqual([1008]);
+  });
+
+  test("future batches retain input and command rate limits without extra checkpoints", () => {
+    const f = fixture();
+    f.start();
+    const cp = f.a.checkpoint();
+    const frame = Math.ceil(MAX_INPUT_LEAD_MS / FRAME_MS);
+    const command = (seq: number, count: number) => batch(cp, Array.from({ length: count }, (_, i) =>
+      ({ seq: seq + i, frame, subframe: 0.25, input: Input.RotateCw })));
+    f.a.send(command(1, 32));
+    f.a.send(command(33, 32));
+    const checkpoints = () => f.a.messages.filter(m => m.type === "checkpoint").length;
+    const before = checkpoints();
+    f.a.send(command(65, 1));
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "RATE_LIMIT" });
+    expect(checkpoints()).toBe(before);
+    expect(f.a.checkpoint().owner.nextSeq).toBe(65);
+    for (let i = 0; i < 100; i++) f.a.send(command(1, 1));
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "RATE_LIMIT" });
+    const limited = checkpoints();
+    f.a.send({ type: "resync" });
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "RATE_LIMIT" });
+    expect(checkpoints()).toBe(limited);
+  });
+
+  test("pause, preparation and countdown reject input; reconnect clears lead and excludes paused time", () => {
+    const f = fixture(3);
+    f.start();
+    f.advance(1000);
+    const cp = f.a.checkpoint();
+    const command = batch(cp, [{ seq: 1, frame: cp.clock.currentTargetFrame + 15, subframe: 0.25, input: Input.HardDrop }]);
+    f.a.send(command);
+    expect(f.a.checkpoint().owner.pendingAccepted).toHaveLength(1);
+    f.rooms.disconnect(f.clients[1].peer.id);
+    const frozen = f.a.checkpoint();
+    expect(frozen.owner.pendingAccepted).toEqual([]);
+    expect(frozen.state!.inputs).toEqual([]);
+    f.advance(10_000);
+    f.a.send(command);
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "WRONG_PHASE" });
+    expect(f.a.checkpoint().clock.simulationNow).toBe(cp.clock.simulationNow);
+    f.client(f.clients[1].welcome!.resumeToken);
+    expect(f.room.phase).toBe("preparing");
+    f.a.send(command);
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "WRONG_PHASE" });
+    for (const c of f.clients) if (f.room.seats.some(s => s.peer?.id === c.peer.id))
+      c.send({ type: "prepared", matchId: f.room.matchId!, preparationId: f.room.preparationId });
+    expect(f.room.phase).toBe("countdown");
+    f.a.send(command);
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "WRONG_PHASE" });
+    f.advance(3000);
+    f.a.send(command);
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "STALE_INPUT" });
+    const resumed = f.a.checkpoint();
+    expect(resumed.clock.simulationNow).toBe(cp.clock.simulationNow);
+    expect(resumed.state!.frame).toBe(cp.state!.frame);
+    const maximum = resumed.clock.currentTargetFrame + Math.ceil(MAX_INPUT_LEAD_MS / FRAME_MS) + 2;
+    f.a.send(batch(resumed, [maximum, maximum + 1].map((frame, i) => ({ seq: i + 1, frame, subframe: 0.25, input: Input.RotateCw }))));
+    expect(f.a.checkpoint().owner.pendingAccepted.map(i => i.seq)).toEqual([1]);
+    expect(f.a.checkpoint().owner.rejections).toEqual([{ seq: 2, code: "INPUT_REJECTED" }]);
+    f.a.send({ type: "releaseControls" });
+    f.advance(1000);
+    expect(f.room.match!.saveState().inputs).toEqual([]);
+    expect(f.room.match!.playerState(f.a.welcome!.playerId).state.sequence).toBe(0);
+  });
+
+  test.each([1, 2])("round/set results discard unexecuted lead inputs before the next start (firstTo=%i)", firstTo => {
+    const f = fixture(2, "competitive", firstTo);
+    f.start();
+    const cp = f.a.checkpoint();
+    const future = batch(cp, [{ seq: 1, frame: 15, subframe: 0.25, input: Input.HardDrop }]);
+    f.a.send(future);
+    const loser = f.clients[1];
+    loser.send(batch(loser.checkpoint(), Array.from({ length: 25 }, (_, i) =>
+      ({ seq: i + 1, frame: 0, subframe: i / 32, input: Input.HardDrop }))));
+    f.advance(120);
+    expect(f.room.phase).toBe(firstTo === 1 ? "setResult" : "roundResult");
+    expect(f.a.checkpoint().owner.pendingAccepted).toEqual([]);
+    expect(f.room.match!.saveState().inputs).toEqual([]);
+    expect(f.room.match!.playerState(f.a.welcome!.playerId).state.sequence).toBe(0);
+    f.a.send(future);
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "WRONG_PHASE" });
+    if (firstTo === 1) f.start();
+    else f.advance(3000);
+    expect(f.room.phase).toBe("playing");
+    f.a.send(future);
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "STALE_INPUT" });
+    f.advance(500);
+    expect(f.room.match!.playerState(f.a.welcome!.playerId).state.sequence).toBe(0);
+    expect(f.room.match!.saveState().inputs).toEqual([]);
+  });
+
+  test("an earlier sequence with a future frame cannot block other inputs or another player's acknowledgments", () => {
+    const f = fixture(3);
+    f.start();
+    const cp = f.a.checkpoint();
+    f.a.send(batch(cp, [
+      { seq: 1, frame: 15, subframe: 0.25, input: Input.LeftUp },
+      { seq: 2, frame: 0, subframe: 0.25, input: Input.LeftDown },
+    ]));
+    const b = f.clients[1], other = b.checkpoint();
+    expect(other.owner.pendingAccepted).toEqual([]);
+    expect(other.owner.nextSeq).toBe(1);
+    b.send(batch(other, [{ seq: 1, frame: 0, subframe: 0.25, input: Input.HardDrop }]));
+    f.advance(120);
+    expect(f.a.checkpoint().owner).toMatchObject({ nextSeq: 3, resolvedThroughSeq: 0, pendingAccepted: [{ seq: 1 }] });
+    expect(b.checkpoint().owner).toMatchObject({ nextSeq: 2, resolvedThroughSeq: 1, pendingAccepted: [], rejections: [] });
+    expect(f.room.match!.playerState(f.a.welcome!.playerId).state.leftHeld).toBe(true);
+    expect(f.room.match!.playerState(b.welcome!.playerId).state.sequence).toBe(1);
+    f.rooms.snapshots();
+    const latest = f.clients.map(c => c.messages.filter(m => m.type === "checkpoint").at(-1) as Checkpoint);
+    expect(latest[0].state).toBe(latest[1].state);
+    expect(latest[0].owner.pendingAccepted).toHaveLength(1);
+    expect(latest[1].owner.pendingAccepted).toEqual([]);
+    f.advance(300);
+    expect(f.a.checkpoint().owner.resolvedThroughSeq).toBe(2);
+    expect(f.room.match!.playerState(f.a.welcome!.playerId).state.leftHeld).toBe(false);
+  });
+
+  test("lead-stamped competitive journals seal and verify with unchanged replay versions", async () => {
+    const f = fixture(2, "competitive", 1);
+    f.start();
+    const recorder = f.room.recorder!;
+    for (let i = 0; i < 25 && f.room.phase === "playing"; i++) {
+      const cp = f.clients[1].checkpoint();
+      f.clients[1].send(batch(cp, [{ seq: cp.owner.nextSeq,
+        frame: Math.floor((cp.clock.simulationNow + MAX_INPUT_LEAD_MS) / FRAME_MS), subframe: 0.25, input: Input.HardDrop }]));
+      expect(f.clients[1].checkpoint().owner.rejections).toEqual([]);
+      f.advance(400);
+    }
+    expect(f.room.phase).toBe("setResult");
+    const replay = await recorder.completion;
+    expect(replay).not.toBeNull();
+    expect(replay!.versions).toEqual(CURRENT_REPLAY_VERSIONS);
+    expect(await decodeReplayJson(recorder.json!)).toEqual(replay!);
+    expect((await verifyMatchReplayExecution(replay!)).state).toEqual(f.room.match!.saveState());
+    const submits = replay!.records.filter(r => r.op.type === "submit");
+    expect(submits.length).toBeGreaterThan(0);
+    expect(submits[0]).toMatchObject({ before: { frame: 0 },
+      op: { input: { frame: Math.floor(MAX_INPUT_LEAD_MS / FRAME_MS) } } });
+    f.a.send(batch(f.a.checkpoint(), [{ seq: 1, frame: 15, subframe: 0, input: Input.HardDrop }]));
+    expect(f.a.messages.at(-1)).toMatchObject({ code: "WRONG_PHASE" });
+    f.start();
+    expect(f.room.matchId).not.toBe(replay!.id);
+    expect(f.room.match!.saveState().inputs).toEqual([]);
+  });
+
+  test("practice reset clears future inputs and preserves generation, epoch and match identity checks", () => {
+    const f = fixture(2, "practice");
+    f.start();
+    const cp = f.a.checkpoint();
+    const command = batch(cp, [{ seq: 1, frame: 15, subframe: 0.25, input: Input.HardDrop }]);
+    f.a.send(command);
+    expect(f.a.checkpoint().owner.pendingAccepted).toHaveLength(1);
+    f.a.send({ type: "practiceReset" });
+    const reset = f.a.checkpoint();
+    expect(reset.owner.pendingAccepted).toEqual([]);
+    expect(reset.state!.inputs).toEqual([]);
+    expect(reset.owner.generation).toBeGreaterThan(cp.owner.generation);
+    expect(reset.owner.epoch).toBeGreaterThan(cp.owner.epoch);
+    for (const stale of [command, { ...command, generation: reset.owner.generation },
+      { ...command, generation: reset.owner.generation, epoch: reset.owner.epoch, matchId: "old-match" }]) {
+      f.a.send(stale);
+      expect(f.a.messages.at(-1)).toMatchObject({ code: "STALE_INPUT" });
+    }
+    f.advance(500);
+    expect(f.room.match!.playerState(f.a.welcome!.playerId).state.sequence).toBe(0);
+    expect(f.room.recorder).toBeUndefined();
+    expect(f.rooms.completedReplay(f.room.code)).toBeNull();
+  });
+});
 
 describe("room authority", () => {
   function completedSet() {

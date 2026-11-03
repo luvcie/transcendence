@@ -46,6 +46,17 @@ configuration and ordered inputs while the server decides which inputs are accep
    Session replaces owner prediction and replays only unresolved inputs absent from
    the accepted backlog. Canvas renders that prediction and opponents' snapshots.
 
+Input admission allows frames through
+`floor(simulationNow / FRAME_MS) + ceil(MAX_INPUT_LEAD_MS / FRAME_MS) + 2`,
+where the protocol constant `MAX_INPUT_LEAD_MS = 250` is an upper admission
+allowance in milliseconds. `simulationNow` is the current round-relative server
+clock, excluding pauses, rather than the committed Match frame. Inputs below the
+committed frame are still rejected, and each seat retains its 128-input pending
+cap. Accepted future inputs wait in Match's queue until server-paced advancement
+processes their stamped frame; they never execute early or advance the clock.
+Default clients use no additional lead. N3-B will introduce optional client-side
+lead; deploy this server allowance before enabling N3-B in production.
+
 Preparation and a three-second countdown gate starts and reconnect resumes. During
 an active-room disconnect, the server freezes the whole simulation, releases controls
 and invalidates queued inputs. Each absent seat has a 40-second reservation. Opening
