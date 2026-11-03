@@ -225,6 +225,14 @@
         #home-view { padding: 24px 0; margin: 0 auto; }
         .mode-choice { padding: 18px; gap: 8px; }
       }
+      .match-replay { min-width: 0; width: 100%; }
+      .match-replay-grid { display: grid; justify-content: center; align-items: start; padding: 0 12px 12px; }
+      .match-replay .opponent .opponent-field { display: grid; width: 100%; grid-template-columns: 5fr var(--replay-board-track) 5fr; gap: 12px; }
+      .match-replay .opponent .opponent-field .preview-panel { display: block; font-size: 11px; }
+      .match-replay .opponent .opponent-label { margin: 8px 0 0; line-height: 1.5; }
+      .match-replay-queue, .match-replay-effect { font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; margin: 4px 0 0; }
+      .match-replay-queue { color: #aaa; }
+      .match-replay-effect { color: #22d3ee; }
     </style>
   </head>
   <body>

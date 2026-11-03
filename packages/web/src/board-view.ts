@@ -5,8 +5,8 @@ import { snapshotDisplay, type GameDisplay } from "./game-display";
 
 type BoardView = Pick<GameDisplay, "board" | "piece" | "rot" | "x" | "y" | "starting" | "topOut">;
 
-export function drawSnapshot(ctx: CanvasRenderingContext2D, state: GameState, skin?: LoadedSkin) {
-  drawBoard(ctx, snapshotDisplay(state), skin, false);
+export function drawSnapshot(ctx: CanvasRenderingContext2D, state: GameState, skin?: LoadedSkin, ghost = false) {
+  drawBoard(ctx, snapshotDisplay(state), skin, ghost);
 }
 
 export function drawBoard(ctx: CanvasRenderingContext2D, game: BoardView, skin?: LoadedSkin, ghost = true) {
