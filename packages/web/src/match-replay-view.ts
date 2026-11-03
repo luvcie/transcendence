@@ -13,6 +13,8 @@ export interface MatchReplayResults {
   round: number;
   roundWinner?: string | null;
   setWinner?: string | null;
+  roundReason?: string;
+  setReason?: string;
 }
 
 export interface MatchReplayPresentation {
@@ -125,9 +127,12 @@ export function mountMatchReplay(root: HTMLElement, options: {
     });
     const currentResults = presentation.results?.round === state.round ? presentation.results : undefined;
     const winner = (id: string | null | undefined) => id === null ? " · no winner" : id !== undefined && state!.roster.includes(id) ? ` · ${name(id)} wins` : "";
-    summary.textContent = `Round ${state.round} · first to ${state.firstTo}${state.complete
-      ? ` · Set complete${winner(currentResults?.setWinner)}`
-      : state.ended ? ` · Round complete${winner(currentResults?.roundWinner)}` : ""}`;
+    const reason = (value: string | undefined) => !value ? "" : ` · ${value === "firstTo"
+      ? `first to ${state!.firstTo}` : value === "survivor" ? "last player standing" : value}`;
+    const roundResult = state.ended || state.complete
+      ? ` · Round complete${winner(currentResults?.roundWinner)}${reason(currentResults?.roundReason)}` : "";
+    summary.textContent = `Round ${state.round} · first to ${state.firstTo}${roundResult}${state.complete
+      ? ` · Set complete${winner(currentResults?.setWinner)}${reason(currentResults?.setReason)}` : ""}`;
     if (!presentation.discontinuity) {
       const received = new Map<string, MatchEvent[]>();
       for (const event of presentation.events ?? []) {

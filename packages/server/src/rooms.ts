@@ -52,6 +52,7 @@ export interface Room {
   match?: Match;
   recorder?: MatchRecorder;
   replayInitializationFailed?: boolean;
+  replayAppearance?: { matchId: string; names: Record<string, string>; skinIds: Record<string, string> };
   matchId: string | null;
   preparationId: number;
   startsAt: number | null;
@@ -294,6 +295,10 @@ export class Rooms {
       room.match = new Match({ players: seats.map(s => s.id), seed: seed(), firstTo: room.options.firstTo, width: room.options.width, mode: room.options.mode,
         attacksEnabled: room.options.attacksEnabled, handlingByPlayer: Object.fromEntries(seats.map(s => [s.id, s.handling])) });
       room.matchId = opaque();
+      room.replayAppearance = room.options.mode === "competitive" ? { matchId: room.matchId,
+        names: Object.fromEntries(seats.map(s => [s.id, s.name])),
+        skinIds: Object.fromEntries(seats.map(s => [s.id, s.skin])),
+      } : undefined;
       if (room.options.mode === "competitive") {
         try { room.recorder = new MatchRecorder(room.match, room.matchId, { ...this.replayOptions, manualCompletion: true }); }
         catch (error) { room.replayInitializationFailed = true; console.error("Replay recorder initialization failed", error); }

@@ -1,3 +1,4 @@
+import { requestCompetitiveReplay } from "./replay-request";
 import { FRAME_MS, type InputId } from "@42tris/core";
 import { OwnerPrediction } from "@42tris/match";
 import type { Checkpoint, ClientCommand, InputItem, RoomState, ServerMessage } from "@42tris/protocol";
@@ -150,6 +151,12 @@ export class Session {
   send(command: ClientCommand) {
     if (command.type === "join" || command.type === "create") this.invite = "";
     if (this.connected) this.socket?.send(command);
+  }
+  replay(signal: AbortSignal) {
+    const code = this.room?.code;
+    const token = this.read(this.options.storage, "42tris.resume");
+    if (!code || !token) throw new Error("Reconnect to retrieve this replay.");
+    return requestCompetitiveReplay(code, token, signal);
   }
   serverNow() { return this.options.now() + this.offset; }
   private invalidate() {

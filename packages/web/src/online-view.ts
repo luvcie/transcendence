@@ -1,3 +1,4 @@
+import type { requestCompetitiveReplay } from "./replay-request";
 import { finesseAccuracy, FRAME_MS, INITIAL_FINESSE, type Handling } from "@42tris/core";
 import { createClient } from "@42tris/protocol/client";
 import type { RoomOptions, ServerMessage } from "@42tris/protocol";
@@ -10,6 +11,7 @@ import { MultiplayerSkinResolver, playerSkinAssignments, type MultiplayerSkinMod
 
 export function mountOnline(root: HTMLElement, options: {
   clearKeys(): void; handling(): Handling; local(): void; skins: SkinState;
+  replay?(replay: Awaited<ReturnType<typeof requestCompetitiveReplay>>): void;
   skin?(): string; skinMode(): MultiplayerSkinMode;
   session?: Session; invite?: string | null; view?(view: AppView): void;
 }) {
@@ -39,7 +41,7 @@ export function mountOnline(root: HTMLElement, options: {
           <button data-reset hidden>Reset my board</button><button data-attacks hidden>Toggle attacks</button>
           <button data-ready class="primary">Ready</button><button data-leave>Leave room</button></div>
       </div>
-      <div data-round-summary class="round-summary" hidden><p data-result role="status"></p><ul data-scores aria-label="Set scores"></ul></div>
+      <div data-round-summary class="round-summary" hidden><p data-result role="status"></p><ul data-scores aria-label="Set scores"></ul><button data-watch-replay hidden>Watch replay</button><p data-replay-status class="hint" role="status" hidden></p></div>
     </section>
     <div data-management-home>
       <div data-management class="online-workspace">
@@ -73,6 +75,46 @@ export function mountOnline(root: HTMLElement, options: {
   const lifetime = new AbortController();
   function click(selector: string, callback: () => void) {
     element(selector).addEventListener("click", callback, { signal: lifetime.signal });
+  }
+  let replayRequest: AbortController | undefined;
+  let replayMatch: string | null = null;
+  click("[data-watch-replay]", () => { void watchReplay(); });
+  function cancelReplay() {
+    replayRequest?.abort(); replayRequest = undefined;
+    element<HTMLButtonElement>("[data-watch-replay]").disabled = false;
+    text("[data-watch-replay]", "Watch replay");
+  }
+  async function watchReplay() {
+    if (replayRequest || !replayEligible()) return;
+    const matchId = session.room!.matchId;
+    const request = new AbortController();
+    replayRequest = request;
+    const button = element<HTMLButtonElement>("[data-watch-replay]");
+    button.disabled = true;
+    element("[data-replay-status]").hidden = true;
+    button.textContent = "Opening replay…";
+    try {
+      const replay = await session.replay(request.signal);
+      if (!request.signal.aborted && replayEligible() && session.room?.matchId === matchId) {
+        session.release(); options.clearKeys(); options.replay?.(replay);
+      }
+    } catch (error) {
+      if (!request.signal.aborted) {
+        text("[data-replay-status]", error instanceof Error ? `Cannot open replay. ${error.message}` : "Cannot retrieve replay. Try again.");
+        element("[data-replay-status]").hidden = false;
+      }
+    } finally {
+      if (replayRequest === request) {
+        replayRequest = undefined;
+        button.disabled = false;
+        button.textContent = "Watch replay";
+      }
+    }
+  }
+  function replayEligible() {
+    return !!options.replay && session.room?.options.mode === "competitive" && session.room.phase === "setResult"
+      && session.checkpoint?.matchId === session.room.matchId
+      && !!session.checkpoint?.state?.complete && session.checkpoint.state.roster.includes(session.playerId);
   }
   const name = element<HTMLFormElement>("[data-name]");
   const nameInput = name.elements.namedItem("name") as HTMLInputElement;
@@ -179,6 +221,12 @@ export function mountOnline(root: HTMLElement, options: {
     for (const selector of ["[data-create]", "[data-configure]"]) element<HTMLButtonElement>(selector).disabled = !session.connected;
     join.querySelector("button")!.disabled = !session.connected;
     const room = session.room;
+    element("[data-watch-replay]").hidden = !replayEligible();
+    if (room?.matchId !== replayMatch || !replayEligible()) {
+      cancelReplay();
+      element("[data-replay-status]").hidden = true;
+      replayMatch = room?.matchId ?? null;
+    }
     const view = onlineView(room, session.connected);
     if (previousView !== view) {
       closeDetails();
@@ -332,8 +380,8 @@ export function mountOnline(root: HTMLElement, options: {
   }
   if (options.invite !== undefined && options.invite !== null) session.joinInvite(options.invite);
   session.start();
-  return { session, update, local: () => leave(true), closeDetails,
+  return { session, update, cancelReplay, local: () => leave(true), closeDetails,
     get detailsOpen() { return roomDialog.open; },
-    destroy() { closeDetails(); session.stop(); lifetime.abort(); clearMatch(); root.replaceChildren(); },
+    destroy() { replayRequest?.abort(); closeDetails(); session.stop(); lifetime.abort(); clearMatch(); root.replaceChildren(); },
   };
 }

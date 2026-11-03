@@ -95,3 +95,30 @@ test("browser Ctrl/Meta shortcuts pass through while undo and standalone modifie
   expect(restarts).toBe(1);
   unmount();
 });
+
+test("replay isolation blocks gameplay, undo and restart and restores input after exit", () => {
+  const target = new EventTarget();
+  const game = new Game(1);
+  let watching = true, undos = 0, restarts = 0, exits = 0;
+  const pressed = new Map();
+  const unmount = mountGameplayInput(target, {
+    bindings: structuredClone(DEFAULT_KEYBINDS), pressed, editable: () => false,
+    blocked: () => watching, settingsOpen: () => false, starting: () => false,
+    menu() { exits++; watching = false; pressed.clear(); },
+    undo() { undos++; }, restart() { restarts++; }, lateRelease() {},
+    input: input => game.apply(input, 0),
+  });
+  const key = (key: string, modifiers: object = {}) => target.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), {
+    key, code: key, repeat: false, ...modifiers,
+  }));
+  const initial = game.saveState();
+  for (const keyName of ["ArrowLeft", "ArrowRight", "ArrowDown", "ArrowUp", " ", "c", "x", "z", "r"]) key(keyName);
+  key("z", { ctrlKey: true });
+  expect(game.saveState()).toEqual(initial); expect(undos).toBe(0); expect(restarts).toBe(0);
+  expect(pressed.size).toBe(0);
+  key("Escape"); expect(exits).toBe(1);
+  key(" "); expect(game.lastClear?.sequence).toBe(1);
+  watching = true; pressed.clear();
+  key(" "); expect(game.lastClear?.sequence).toBe(1);
+  unmount(); key("Escape"); expect(exits).toBe(1);
+});

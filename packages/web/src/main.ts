@@ -1,3 +1,6 @@
+import { mountReplayControls } from "./replay-controls";
+import { mountCompetitivePlayback } from "./competitive-playback";
+import type { requestCompetitiveReplay } from "./replay-request";
 import {
   ROWS,
   Input,
@@ -52,11 +55,6 @@ const resultPanel = document.querySelector<HTMLElement>("#sprint-result")!;
 const watchReplayButton = document.querySelector<HTMLButtonElement>("#watch-replay-button")!;
 const replayBar = document.querySelector<HTMLElement>("#replay-bar")!;
 const replayToggle = document.querySelector<HTMLButtonElement>("#replay-toggle")!;
-const replayRestart = document.querySelector<HTMLButtonElement>("#replay-restart")!;
-const replayExit = document.querySelector<HTMLButtonElement>("#replay-exit")!;
-const replaySpeed = document.querySelector<HTMLSelectElement>("#replay-speed")!;
-const replayTime = document.querySelector<HTMLElement>("#replay-time")!;
-const replayState = document.querySelector<HTMLElement>("#replay-state")!;
 const clearResult = document.querySelector("#clear-result")!;
 const zenStatus = document.querySelector<HTMLParagraphElement>("#zen-status")!;
 const LETTERS = "_ZLOSIJT";
@@ -96,6 +94,10 @@ let solo: Singleplayer | SprintRecorder | null = null;
 let pendingMode: SingleplayerMode | null = null;
 let display: GameDisplay | null = null;
 let playback: SprintPlayback | null = null;
+let competitivePlayback: ReturnType<typeof mountCompetitivePlayback> | null = null;
+const matchReplayHost = document.querySelector<HTMLElement>("#match-replay-host")!;
+const replaySeek = document.querySelector<HTMLInputElement>("#replay-seek")!;
+function activePlayback() { return competitivePlayback ?? playback; }
 let openingPlayback = false;
 let lastFrameAt: number | null = null;
 setupHandling(handling, value => {
@@ -142,7 +144,7 @@ function resume() {
 let settingsFromMenu = false;
 function openSettings(fromMenu: boolean) {
   if (!online && solo?.mode === "sprint" && !solo.result) return;
-  if (playback) { playback.pause(); syncPlaybackControls(); }
+  if (activePlayback()) { activePlayback()!.pause(); lastFrameAt = null; syncPlaybackControls(); }
   settingsFromMenu = fromMenu;
   if (fromMenu) pauseDialog.close();
   else if (online) {
@@ -188,7 +190,7 @@ function launchMode(mode: SingleplayerMode) {
 }
 
 function restart() {
-  if (playback) return;
+  if (activePlayback()) return;
   if (online) { online.session.practice("practiceReset"); return; }
   if (solo) launchMode(solo.mode);
 }
@@ -279,7 +281,8 @@ async function enterOnline() {
   online = mountOnline(root, {
     clearKeys: () => pressed.clear(), handling: () => handling, skins, invite,
     skin: () => shareableSkinId(skins.preferences.active), skinMode: () => multiplayerSkins.mode,
-    view: view => { if (!atHome) showView(view); },
+    replay: watchCompetitiveReplay,
+    view: view => { if (!atHome && !competitivePlayback) showView(view); },
     local() {
       online?.destroy();
       online = undefined;
@@ -301,24 +304,8 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("[data-mode]")
 }
 document.querySelector("#retry-button")!.addEventListener("click", restart);
 document.querySelector("#watch-replay-button")!.addEventListener("click", () => { void watchSprintReplay(); });
-replayToggle.addEventListener("click", () => {
-  if (!playback) return;
-  if (playback.complete) playback.restart();
-  else playback.toggle();
-  replayToggle.blur();
-  syncPlaybackControls();
-});
-replayRestart.addEventListener("click", () => {
-  if (!playback) return;
-  playback.restart();
-  syncPlaybackControls();
-  replayToggle.focus({ preventScroll: true });
-});
-replayExit.addEventListener("click", backToResults);
-replaySpeed.addEventListener("change", () => {
-  if (!playback) return;
-  playback.setSpeed(Number(replaySpeed.value));
-  syncPlaybackControls();
+const replayControls = mountReplayControls(document, {
+  playback: activePlayback, resetClock: () => { lastFrameAt = null; }, exit: backToResults,
 });
 document.querySelector("#pause-restart-button")!.addEventListener("click", () => { closeMenus(); restart(); });
 document.querySelector("#resume-button")!.addEventListener("click", resume);
@@ -334,8 +321,9 @@ for (const dialog of [pauseDialog, settingsDialog]) {
   dialog.addEventListener("cancel", e => e.preventDefault());
 }
 function handleFocusLoss() {
-  if (playback) {
-    playback.pause();
+  if (activePlayback()) {
+    activePlayback()!.pause();
+    lastFrameAt = null;
     pressed.clear();
     syncPlaybackControls();
     return;
@@ -354,20 +342,16 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) handleFocusLoss();
 });
 
-function syncPlaybackControls(): void {
-  if (!playback) return;
-  const toggle = playback.complete ? "Replay" : playback.playing ? "Pause" : "Play";
-  if (replayToggle.textContent !== toggle) replayToggle.textContent = toggle;
-  if (replaySpeed.value !== String(playback.speed)) replaySpeed.value = String(playback.speed);
-  replayTime.textContent = `${formatTime(playback.positionMs)} / ${formatTime(playback.durationMs)}`;
-  const state = playback.complete ? "Replay complete · final board"
-    : playback.playing ? `Playing · ${playback.speed}×` : `Paused · ${playback.speed}×`;
-  if (replayState.textContent !== state) replayState.textContent = state;
-}
+function syncPlaybackControls(): void { replayControls.sync(); }
 
 function stopPlayback(): void {
-  if (!playback) return;
-  playback.dispose();
+  online?.cancelReplay();
+  if (!activePlayback()) return;
+  competitivePlayback?.dispose();
+  competitivePlayback = null;
+  matchReplayHost.hidden = true;
+  replaySeek.hidden = true;
+  playback?.dispose();
   playback = null;
   replayBar.hidden = true;
   display = solo?.game ?? null;
@@ -376,12 +360,36 @@ function stopPlayback(): void {
 }
 
 function backToResults(): void {
+  if (competitivePlayback) {
+    stopPlayback();
+    if (online && !atHome) {
+      showView(onlineView(online.session.room, online.session.connected));
+      online.update();
+      document.querySelector<HTMLElement>("#view-title")!.focus({ preventScroll: true });
+    }
+    return;
+  }
   if (!playback) return;
   stopPlayback();
+  showView("solo");
   resultPanel.hidden = !solo?.result;
   status.textContent = solo ? `${SINGLEPLAYER_MODES[solo.mode].name} · ${solo.game.width} wide` : "";
   refreshHud();
   if (solo?.result) document.querySelector<HTMLElement>("#sprint-result-title")!.focus({ preventScroll: true });
+}
+
+function watchCompetitiveReplay(replay: Awaited<ReturnType<typeof requestCompetitiveReplay>>): void {
+  stopPlayback();
+  competitivePlayback = mountCompetitivePlayback(matchReplayHost, replay.playback, replay.summary, replay.appearance, skins.load);
+  showView("matchReplay");
+  status.textContent = `${replay.playback.state.roster.length} players`;
+  status.hidden = false;
+  matchReplayHost.hidden = false;
+  replayBar.hidden = false;
+  pressed.clear();
+  lastFrameAt = null;
+  syncPlaybackControls();
+  replayToggle.focus({ preventScroll: true });
 }
 
 async function watchSprintReplay(): Promise<void> {
@@ -406,11 +414,12 @@ async function watchSprintReplay(): Promise<void> {
     return;
   }
   playback = next;
+  showView("sprintReplay");
   resultPanel.hidden = true;
   replayBar.hidden = false;
   pressed.clear();
   lastFrameAt = null;
-  status.textContent = `Sprint 40L · Replay · ${next.outcome === "complete" ? "completed" : "topped out"}`;
+  status.textContent = `40 lines · ${next.outcome === "complete" ? "completed attempt" : "topped out attempt"}`;
   display = snapshotDisplay(playback.state);
   refreshHud();
   syncPlaybackControls();
@@ -477,7 +486,7 @@ function refreshHud() {
 }
 
 function applyInput(input: InputId) {
-  if (playback) return;
+  if (activePlayback()) return;
   if (online) { online.session.input(input); return; }
   solo?.apply(input, performance.now());
   if (solo && display !== solo.game) pressed.clear();
@@ -492,7 +501,7 @@ function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: nu
 }
 
 function render() {
-  if (atHome) return;
+  if (atHome || competitivePlayback) return;
   if (online && renderOnlineWaiting(document, online.session)) return;
   if (!display) return;
   const width = display.board.length / ROWS;
@@ -516,11 +525,11 @@ function render() {
 const unmountInput = mountGameplayInput(window, {
   bindings, pressed,
   editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, summary, a, [contenteditable=true]"),
-  blocked: () => abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || playback !== null || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
+  blocked: () => abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || activePlayback() !== null || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
   settingsOpen: () => settingsDialog.open,
   starting: () => display?.starting ?? true,
   menu() {
-    if (playback) { backToResults(); return; }
+    if (activePlayback()) { backToResults(); return; }
     if (abandonDialog.open) abandonDialog.close("cancel");
     else if (online?.detailsOpen) online.closeDetails();
     else if (settingsDialog.open) closeSettings();
@@ -528,7 +537,7 @@ const unmountInput = mountGameplayInput(window, {
     else if (!online && solo) pause();
   },
   undo() {
-    if (playback) return;
+    if (activePlayback()) return;
     if (online) online.session.practice("practiceUndo");
     else if (solo?.undo(performance.now())) { pressed.clear(); display = solo.game; refreshHud(); }
   },
@@ -536,10 +545,15 @@ const unmountInput = mountGameplayInput(window, {
 });
 
 function frame(now: number) {
+  replayControls.flushSeek();
   const delta = lastFrameAt === null ? 0 : Math.min(Math.max(0, now - lastFrameAt), 100);
   lastFrameAt = now;
   guestName.update();
-  if (playback) {
+  if (competitivePlayback) {
+    online?.session.tick();
+    competitivePlayback.advance(delta);
+    syncPlaybackControls();
+  } else if (playback) {
     playback.advance(delta);
     display = snapshotDisplay(playback.state);
     refreshHud();
@@ -575,6 +589,6 @@ function frame(now: number) {
 }
 
 let frameId = requestAnimationFrame(frame);
-window.addEventListener("pagehide", e => { cancelAnimationFrame(frameId); online?.session.stop(); if (!e.persisted) unmountInput(); });
+window.addEventListener("pagehide", e => { cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { unmountInput(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
 if (!atHome) enterOnline();

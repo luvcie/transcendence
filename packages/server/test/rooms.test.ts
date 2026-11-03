@@ -955,3 +955,77 @@ describe("competitive replay retrieval", () => {
     expect(idle.rooms.rooms.has(idle.room.code)).toBe(false);
   });
 });
+
+describe("original replay appearance", () => {
+  test("snapshots skins and names at Match creation, authorizes metadata and never mutates replay JSON", async () => {
+    const f = fixture(2, "competitive", 1);
+    f.a.send({ type: "skin", skin: "four" });
+    f.clients[1].send({ type: "skin", skin: "tetrio" });
+    f.a.send({ type: "rename", name: "Ada" });
+    f.start();
+    const ids = [f.a.welcome!.playerId, f.clients[1].welcome!.playerId];
+    expect(f.room.replayAppearance).toEqual({ matchId: f.room.matchId!,
+      names: { [ids[0]]: "Ada", [ids[1]]: "Guest" }, skinIds: { [ids[0]]: "four", [ids[1]]: "tetrio" } });
+    f.a.send({ type: "skin", skin: "ppt" });
+    f.a.send({ type: "rename", name: "Changed" });
+    f.clients[1].send({ type: "leave" });
+    const app = createApp({ rooms: f.rooms, scheduled: false });
+    const url = `http://localhost/api/rooms/${f.room.code}/replay/appearance`;
+    const request = (token?: string) => app.handle(new Request(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} }));
+    expect((await request()).status).toBe(403);
+    await f.room.recorder!.completion;
+    const json = f.room.recorder!.json;
+    const response = await request(f.a.welcome!.resumeToken);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("vary")).toBe("Authorization");
+    expect(await response.json()).toEqual(f.room.replayAppearance);
+    expect(f.room.replayAppearance!.skinIds[ids[0]]).toBe("four");
+    expect(f.room.replayAppearance!.names[ids[0]]).toBe("Ada");
+    expect(f.room.recorder!.json).toBe(json);
+    expect(json).not.toContain("skinIds");
+    expect((await request(f.clients[1].welcome!.resumeToken)).status).toBe(403);
+    const outsider = f.client();
+    outsider.send({ type: "join", code: f.room.code });
+    expect((await request(outsider.welcome!.resumeToken)).status).toBe(403);
+    f.a.send({ type: "leave" });
+    expect((await request(f.a.welcome!.resumeToken)).status).toBe(403);
+  });
+
+  test("practice has no appearance snapshot and cannot retrieve metadata", async () => {
+    const f = fixture(2, "practice"); f.start();
+    expect(f.room.replayAppearance).toBeUndefined();
+    const app = createApp({ rooms: f.rooms, scheduled: false });
+    const response = await app.handle(new Request(`http://localhost/api/rooms/${f.room.code}/replay/appearance`, {
+      headers: { Authorization: `Bearer ${f.a.welcome!.resumeToken}` },
+    }));
+    expect(response.status).toBe(404);
+    expect(f.room.recorder).toBeUndefined();
+  });
+});
+
+test("completed authoritative room replay opens all original boards through the viewer client", async () => {
+  const { requestCompetitiveReplay } = await import("../../web/src/replay-request");
+  const { mountCompetitivePlayback } = await import("../../web/src/competitive-playback");
+  const { FakeDocument } = await import("../../web/test-dom");
+  const f = fixture(3, "competitive", 1);
+  f.a.send({ type: "skin", skin: "four" });
+  f.start();
+  const recorder = f.room.recorder!;
+  f.clients[1].send({ type: "leave" });
+  f.clients[2].send({ type: "leave" });
+  await recorder.completion;
+  const app = createApp({ rooms: f.rooms, scheduled: false });
+  const request = (async (url: string, init?: RequestInit) => app.handle(new Request(`http://localhost${url}`, init))) as typeof fetch;
+  const result = await requestCompetitiveReplay(f.room.code, f.a.welcome!.resumeToken, new AbortController().signal, request);
+  expect(result.appearance.skinIds[f.a.welcome!.playerId]).toBe("four");
+  const document = new FakeDocument();
+  const view = mountCompetitivePlayback(document.root as unknown as HTMLElement, result.playback, result.summary, result.appearance, async () => undefined);
+  view.seek(view.durationFrames);
+  expect(result.playback.state).toEqual(f.room.match!.saveState());
+  expect(document.root.children[0].children[1].children.map(card => card.getAttribute("data-player-id"))).toEqual([...f.room.match!.roster]);
+  expect(document.root.children[0].children[0].textContent).toContain("wins");
+  expect(document.root.children[0].children[0].textContent).toContain("forfeit");
+  view.dispose();
+  expect(f.room.seats.some(seat => seat.id === f.a.welcome!.playerId)).toBe(true);
+});

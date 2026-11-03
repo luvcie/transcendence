@@ -122,6 +122,21 @@ export class SprintPlayback {
     else this.play();
   }
 
+  /** Seeks in recorded-timeline milliseconds, preserving pause/play unless the end is reached. */
+  seek(positionMs: number): void {
+    if (!Number.isFinite(positionMs) || positionMs < 0 || positionMs > this.lengthMs) {
+      throw new RangeError("Invalid playback position");
+    }
+    if (this.disposedValue) return;
+    if (positionMs < this.position && recordAt(this.records[this.cursor - 1]!) - this.originMs > positionMs) {
+      this.driver = new SprintDriver(this.replay.initial);
+      this.cursor = 0;
+    }
+    this.position = positionMs;
+    this.applyThrough(positionMs);
+    if (positionMs === this.lengthMs) this.applyRemaining();
+  }
+
   /** Returns to the initial journal state and plays from the beginning. */
   restart(): void {
     if (this.disposedValue) return;
@@ -143,10 +158,9 @@ export class SprintPlayback {
   }
 
   private applyThrough(positionMs: number): void {
-    const limit = this.originMs + positionMs;
     while (this.cursor < this.records.length) {
       const record = this.records[this.cursor]!;
-      if (recordAt(record) > limit) return;
+      if (recordAt(record) - this.originMs > positionMs) return;
       this.driver.apply(record);
       this.cursor++;
     }

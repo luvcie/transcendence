@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import {
   DEFAULT_HANDLING,
   Input,
@@ -380,6 +380,11 @@ describe("Sprint replay playback", () => {
     const playback = await SprintPlayback.create(recording!.replay);
     playback.advance(1_000_000);
     expect(playback.complete).toBe(true);
+    const result = structuredClone(recorder.result);
+    for (const position of [0, playback.durationMs, 20, 0, playback.durationMs / 2]) playback.seek(position);
+    playback.restart();
+    playback.seek(playback.durationMs);
+    expect(recorder.result).toEqual(result);
     expect(recorder.status).toBe("complete");
     expect(recorder.error).toBeNull();
     expect(recorder.json).toBe(json);
@@ -404,5 +409,326 @@ describe("Sprint replay playback", () => {
     expect(playback.playing).toBe(false);
     playback.restart();
     expect(playback.positionMs).toBe(position);
+    playback.seek(0);
+    expect(playback.positionMs).toBe(position);
+    expect(playback.state).toEqual(state);
   });
+});
+
+test("Sprint shares interactive seek controls, status and playback actions with Match", async () => {
+  const { mountReplayControls } = await import("./src/replay-controls");
+  const { FakeDocument } = await import("./test-dom");
+  const playback = await SprintPlayback.create(await recordTopOut());
+  const document = new FakeDocument();
+  Object.assign(document.querySelector("#replay-toggle"), { blur() {} });
+  let resets = 0;
+  const controls = mountReplayControls(document as unknown as Document, {
+    playback: () => playback, resetClock: () => { resets++; }, exit: () => playback.dispose(),
+  });
+  controls.sync();
+  const seek = document.querySelector("#replay-seek") as unknown as HTMLInputElement;
+  expect(seek.hidden).toBe(false);
+  expect(seek.max).toBe(String(playback.durationMs));
+  expect(seek.step).toBe("any");
+  expect(seek.value).toBe("0");
+  expect(document.querySelector("#replay-state").textContent).toBe("Playing · 1×");
+  document.querySelector("#replay-toggle").dispatchEvent(new Event("click"));
+  expect(playback.playing).toBe(false);
+  expect(document.querySelector("#replay-state").textContent).toBe("Paused · 1×");
+  playback.advance(100_000); expect(playback.positionMs).toBe(0);
+  document.querySelector("#replay-toggle").dispatchEvent(new Event("click"));
+  expect(playback.playing).toBe(true);
+  document.querySelector("#replay-speed").value = "2";
+  document.querySelector("#replay-speed").dispatchEvent(new Event("change"));
+  expect(playback.speed).toBe(2);
+  playback.advance(10); controls.sync();
+  expect(seek.value).toBe("20");
+  playback.advance(playback.durationMs); controls.sync();
+  expect(document.querySelector("#replay-toggle").textContent).toBe("Replay");
+  expect(document.querySelector("#replay-state").textContent).toBe("Finished");
+  expect(seek.value).toBe(seek.max);
+  seek.value = "500"; seek.dispatchEvent(new Event("input")); controls.flushSeek();
+  expect(playback.positionMs).toBe(500);
+  expect(playback.playing).toBe(false);
+  expect(document.querySelector("#replay-state").textContent).toBe("Paused · 2×");
+  expect(seek.getAttribute("aria-valuetext")).toBe(document.querySelector("#replay-time").textContent);
+  document.querySelector("#replay-restart").dispatchEvent(new Event("click"));
+  expect(playback.positionMs).toBe(0);
+  expect(seek.value).toBe("0");
+  expect(playback.playing).toBe(true);
+  expect(resets).toBe(5);
+  document.querySelector("#replay-exit").dispatchEvent(new Event("click"));
+  expect(playback.disposed).toBe(true);
+  controls.dispose();
+  document.querySelector("#replay-speed").value = "4";
+  document.querySelector("#replay-speed").dispatchEvent(new Event("change"));
+  expect(playback.speed).toBe(2);
+});
+
+describe("Sprint replay seeking", () => {
+  function expectPosition(playback: SprintPlayback, replay: SprintReplay, position: number) {
+    const expected = referenceAt(replay, position);
+    expect(playback.positionMs).toBe(position);
+    expect(playback.state).toEqual(expected.state);
+    expect(playback.elapsedMs).toBe(expected.modeState.elapsed);
+    expect(playback.started).toBe(expected.modeState.running);
+    expect(playback.result).toEqual(expected.result);
+  }
+
+  test("fractional seeks just before completion do not round into the final operation", async () => {
+    const replay = await recordTopOut(7, 1_000_000, 1_000_010);
+    const playback = await SprintPlayback.create(replay);
+    const beforeEnd = playback.durationMs - 1e-11;
+    playback.seek(beforeEnd);
+    expectPosition(playback, replay, beforeEnd);
+    expect(playback.complete).toBe(false);
+    expect(playback.playing).toBe(true);
+    expect(playback.result).toBeNull();
+    playback.seek(playback.durationMs);
+    expect(playback.complete).toBe(true);
+    expect(playback.playing).toBe(false);
+    playback.seek(beforeEnd);
+    expectPosition(playback, replay, beforeEnd);
+    expect(playback.complete).toBe(false);
+    expect(playback.result).toBeNull();
+    playback.play(); playback.advance(1);
+    expectPosition(playback, replay, playback.durationMs);
+    expect(playback.complete).toBe(true);
+    expect(playback.playing).toBe(false);
+  });
+
+  test("forward and backward seeks preserve equal-time input ordering and fractional positions", async () => {
+    const replay = await equalTimesReplay();
+    const original = JSON.stringify(replay);
+    const playback = await SprintPlayback.create(replay);
+    for (const position of [1000, 499.999, 500, 999.999, 1000.001, 0, 750.5]) {
+      playback.seek(position);
+      expectPosition(playback, replay, position);
+      expect(playback.playing).toBe(true);
+    }
+    expect(JSON.stringify(replay)).toBe(original);
+  });
+
+  test("seeks reconstruct hold, previews, held movement, handling changes and locked pieces", async () => {
+    const recorder = new SprintRecorder(13, 100, handling);
+    recorder.tick(150);
+    recorder.apply(Input.Hold, 200);
+    recorder.apply(Input.RightDown, 200);
+    recorder.tick(240);
+    recorder.apply(Input.RightUp, 250);
+    recorder.setHandling({ ...handling, das: 1 }, 260);
+    recorder.apply(Input.RotateCw, 270);
+    recorder.apply(Input.HardDrop, 280);
+    let now = 280;
+    while (!recorder.result && now < 5000) recorder.apply(Input.HardDrop, now += 20);
+    expect(recorder.result).not.toBeNull();
+    const replay = await finished(recorder);
+    const playback = await SprintPlayback.create(replay, { paused: true });
+    for (const position of [180, 100, 99, 140, 160, 170, 180, 0, 150]) {
+      playback.seek(position);
+      expectPosition(playback, replay, position);
+      expect(playback.playing).toBe(false);
+    }
+    playback.seek(100);
+    expect(playback.state.state.held).not.toBeNull();
+    expect(playback.state.state.rightHeld).toBe(true);
+    playback.seek(180);
+    expect(playback.state.lastResult?.stats.pieces).toBe(1);
+  });
+
+  test("seeking across line clears restores statistics, finesse and the terminal success state", async () => {
+    const replay = await completionReplay();
+    const playback = await SprintPlayback.create(replay);
+    const driver = new SprintDriver(replay.initial);
+    const positions: number[] = [];
+    let lines = 0;
+    for (const record of replay.records) {
+      driver.apply(record);
+      const nextLines = driver.state.lastResult?.stats.lines ?? 0;
+      if (nextLines > lines && (positions.length < 3 || nextLines >= 40)) {
+        positions.push(recordAt(record) - recordAt(replay.records[0]!));
+      }
+      lines = nextLines;
+    }
+    expect(positions.length).toBeGreaterThan(3);
+    for (const position of [...positions, ...positions.toReversed()]) {
+      playback.seek(position - 0.001);
+      expectPosition(playback, replay, position - 0.001);
+      playback.seek(position);
+      expectPosition(playback, replay, position);
+    }
+    expect(playback.state.lastResult!.stats.lines).toBeGreaterThanOrEqual(1);
+    playback.seek(playback.durationMs);
+    expect(playback.result?.outcome).toBe("complete");
+    expect(playback.result?.stats).toEqual(replay.summary.stats);
+    expect(playback.result?.finesse).toEqual(replay.summary.finesse);
+  });
+
+  for (const [outcome, fixture] of [["complete", completionReplay], ["failed", topOutReplay]] as const) {
+    test(`beginning/end seeking, restart and continuation do not drift for a ${outcome} replay`, async () => {
+      const replay = await fixture();
+      const original = JSON.stringify(replay);
+      const playback = await SprintPlayback.create(replay);
+      for (let repeat = 0; repeat < 3; repeat++) {
+        playback.seek(playback.durationMs);
+        expectPosition(playback, replay, playback.durationMs);
+        expect(playback.complete).toBe(true);
+        expect(playback.playing).toBe(false);
+        expect(playback.result?.outcome).toBe(outcome);
+        playback.seek(0);
+        expectPosition(playback, replay, 0);
+        expect(playback.complete).toBe(false);
+        expect(playback.playing).toBe(false);
+        playback.play();
+        playback.seek(playback.durationMs / 2);
+        expect(playback.playing).toBe(true);
+        playback.advance(1_000_000);
+        expectPosition(playback, replay, playback.durationMs);
+        playback.restart();
+        expect(playback.playing).toBe(true);
+        expectPosition(playback, replay, 0);
+      }
+      expect(JSON.stringify(replay)).toBe(original);
+    });
+  }
+
+  test("pause and speed remain independent of seeks and resumed playback applies only remaining journal operations", async () => {
+    const replay = await timedTopOutReplay();
+    const playback = await SprintPlayback.create(replay);
+    playback.seek(3500);
+    expect(playback.elapsedMs).toBe(500);
+    playback.pause(); playback.setSpeed(2);
+    playback.seek(2999);
+    expect(playback.elapsedMs).toBe(0);
+    expect(playback.started).toBe(false);
+    playback.advance(100_000);
+    expectPosition(playback, replay, 2999);
+    playback.seek(3000);
+    expect(playback.started).toBe(true);
+    expect(playback.playing).toBe(false);
+    playback.play(); playback.advance(250);
+    expectPosition(playback, replay, 3500);
+    expect(playback.speed).toBe(2);
+  });
+
+  test("invalid positions leave state intact and seeks within an unchanged journal prefix do no reconstruction", async () => {
+    const replay = await equalTimesReplay();
+    const playback = await SprintPlayback.create(replay);
+    playback.seek(750);
+    const state = playback.state;
+    for (const position of [-1, NaN, Infinity, -Infinity, playback.durationMs + 0.001]) {
+      expect(() => playback.seek(position)).toThrow(RangeError);
+      expect(playback.positionMs).toBe(750);
+      expect(playback.state).toEqual(state);
+    }
+    const apply = spyOn(SprintDriver.prototype, "apply");
+    try {
+      playback.seek(600);
+      playback.seek(600);
+      playback.advance(1);
+      expect(apply).not.toHaveBeenCalled();
+      playback.seek(499);
+      expect(apply).toHaveBeenCalled();
+      expectPosition(playback, replay, 499);
+    } finally { apply.mockRestore(); }
+  });
+});
+
+test("rapid Sprint slider input coalesces on the app frame and resets presentation time before resuming", async () => {
+  const { mountReplayControls } = await import("./src/replay-controls");
+  const { FakeDocument } = await import("./test-dom");
+  const replay = await equalTimesReplay();
+  const playback = await SprintPlayback.create(replay);
+  const document = new FakeDocument();
+  Object.assign(document.querySelector("#replay-toggle"), { blur() {} });
+  let lastFrameAt: number | null = 0;
+  const controls = mountReplayControls(document as unknown as Document, {
+    playback: () => playback, resetClock: () => { lastFrameAt = null; }, exit() {},
+  });
+  const seek = document.querySelector("#replay-seek");
+  const frame = (now: number) => {
+    controls.flushSeek();
+    const delta = lastFrameAt === null ? 0 : now - lastFrameAt;
+    lastFrameAt = now;
+    playback.advance(delta); controls.sync();
+  };
+  const change = (value: number) => { seek.value = String(value); seek.dispatchEvent(new Event("input")); };
+  const request = spyOn(playback, "seek");
+  try {
+    for (let i = 0; i < 100; i++) change(1000 - i * 2);
+    controls.sync();
+    expect(seek.value).toBe("802");
+    expect(request).not.toHaveBeenCalled();
+    frame(90_000);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(playback.positionMs).toBe(802);
+    expect(playback.state).toEqual(referenceAt(replay, 802).state);
+    frame(90_001);
+    expect(playback.positionMs).toBe(803);
+    document.querySelector("#replay-toggle").dispatchEvent(new Event("click"));
+    change(500); seek.dispatchEvent(new Event("change"));
+    expect(playback.positionMs).toBe(500);
+    frame(180_000);
+    expect(playback.positionMs).toBe(500);
+    document.querySelector("#replay-toggle").dispatchEvent(new Event("click"));
+    frame(270_000); expect(playback.positionMs).toBe(500);
+    frame(270_016); expect(playback.positionMs).toBe(516);
+    expect(playback.state).toEqual(referenceAt(replay, 516).state);
+    change(0);
+    controls.dispose(); controls.flushSeek();
+    expect(playback.positionMs).toBe(516);
+  } finally { controls.dispose(); request.mockRestore(); playback.dispose(); }
+});
+
+test("pending slider requests settle before pause/speed changes and cannot survive restart or navigation", async () => {
+  const { mountReplayControls } = await import("./src/replay-controls");
+  const { FakeDocument } = await import("./test-dom");
+  const playback = await SprintPlayback.create(await equalTimesReplay());
+  const document = new FakeDocument();
+  Object.assign(document.querySelector("#replay-toggle"), { blur() {} });
+  let current: SprintPlayback | null = playback;
+  const controls = mountReplayControls(document as unknown as Document, {
+    playback: () => current, resetClock() {}, exit() { current?.dispose(); current = null; },
+  });
+  const queue = (position: number) => {
+    const slider = document.querySelector("#replay-seek");
+    slider.value = String(position); slider.dispatchEvent(new Event("input"));
+  };
+  queue(500);
+  document.querySelector("#replay-speed").value = "4";
+  document.querySelector("#replay-speed").dispatchEvent(new Event("change"));
+  expect(playback.positionMs).toBe(500); expect(playback.speed).toBe(4);
+  queue(750);
+  document.querySelector("#replay-toggle").dispatchEvent(new Event("click"));
+  expect(playback.positionMs).toBe(750); expect(playback.playing).toBe(false);
+  queue(1000);
+  document.querySelector("#replay-restart").dispatchEvent(new Event("click"));
+  controls.flushSeek();
+  expect(playback.positionMs).toBe(0); expect(playback.playing).toBe(true);
+  queue(1000);
+  document.querySelector("#replay-exit").dispatchEvent(new Event("click"));
+  controls.flushSeek();
+  expect(playback.positionMs).toBe(0); expect(playback.disposed).toBe(true);
+  current = await SprintPlayback.create(await topOutReplay());
+  queue(500);
+  const reopened = await SprintPlayback.create(await equalTimesReplay());
+  current.dispose(); current = reopened;
+  controls.flushSeek();
+  expect(reopened.positionMs).toBe(0);
+  controls.dispose(); reopened.dispose();
+});
+
+test("zero-duration Sprint recordings stay complete when seeking or restarting", async () => {
+  const recorder = new SprintRecorder(7, 100, handling);
+  for (let count = 0; count < 100 && !recorder.result; count++) recorder.apply(Input.HardDrop, 100);
+  expect(recorder.result?.outcome).toBe("failed");
+  const replay = await finished(recorder);
+  const playback = await SprintPlayback.create(replay);
+  expect(playback.durationMs).toBe(0);
+  const state = playback.state;
+  playback.seek(0); playback.restart(); playback.seek(0);
+  expect(playback.complete).toBe(true);
+  expect(playback.playing).toBe(false);
+  expect(playback.state).toEqual(state);
+  expect(playback.result?.outcome).toBe("failed");
 });

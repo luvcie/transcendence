@@ -11,7 +11,7 @@ import type { MultiplayerSkinMode } from "./src/multiplayer-skins";
 
 import { FakeDocument } from "./test-dom";
 
-function harness(invite?: string, settings: { skins?: SkinState; skinMode?: () => MultiplayerSkinMode } = {}) {
+function harness(invite?: string, settings: { skins?: SkinState; skinMode?: () => MultiplayerSkinMode; replay?: Parameters<typeof mountOnline>[1]["replay"] } = {}) {
   const document = new FakeDocument();
   if (invite !== undefined) document.location = new URL(`https://example.com/?room=${invite}`);
   const storage = { getItem: () => null, setItem() {}, removeItem() {} };
@@ -22,7 +22,7 @@ function harness(invite?: string, settings: { skins?: SkinState; skinMode?: () =
   const session = new Session({ now: () => 0, storage, profile: storage, clearKeys() {},
     connect: () => ({ send(command) { sent.push(command); }, close() {} }) });
   const view = mountOnline(document.root as unknown as HTMLElement, {
-    session, invite, clearKeys() {}, handling: () => DEFAULT_HANDLING, view: showView,
+    replay: settings.replay, session, invite, clearKeys() {}, handling: () => DEFAULT_HANDLING, view: showView,
     local() { returnedLocal = true; showView("solo"); },
     skins: settings.skins ?? new SkinState(() => storage),
     skinMode: settings.skinMode ?? (() => "player"),
@@ -341,5 +341,51 @@ test("home and mode selection hide gameplay without leaving the connected online
   expect(h.document.querySelector("#home-view").hidden).toBe(true);
   expect(h.document.querySelector("#game-view").hidden).toBe(false);
   expect(h.session.room?.code).toBe(h.cp.room.code);
+  h.view.destroy();
+});
+
+test("Watch replay is restricted to completed competitive participants and never practice or late joiners", () => {
+  const h = harness(undefined, { replay() {} });
+  const button = () => h.document.querySelector("[data-watch-replay]");
+  h.session.receive({ ...h.cp, room: { ...h.cp.room, phase: "setResult" } });
+  h.view.update(); expect(button().hidden).toBe(true);
+  const state = { ...h.cp.state!, complete: true };
+  const room = { ...h.cp.room, phase: "setResult" as const, options: { ...h.cp.room.options, mode: "competitive" as const } };
+  h.session.receive({ ...h.cp, serverSequence: 2, state, room });
+  h.view.update(); expect(button().hidden).toBe(false);
+  h.session.playerId = "late-joiner";
+  h.view.update(); expect(button().hidden).toBe(true);
+  h.session.playerId = "a";
+  h.session.receive({ ...h.cp, serverSequence: 3, state, room: { ...room, phase: "playing" } });
+  h.view.update(); expect(button().hidden).toBe(true);
+  h.view.destroy();
+});
+
+test("Watch replay retains membership, handles pending with explicit retry and opens only the same set", async () => {
+  let opened = 0;
+  const h = harness(undefined, { replay() { opened++; } });
+  h.session.receive({ ...h.cp, state: { ...h.cp.state!, complete: true }, room: { ...h.cp.room, phase: "setResult",
+    options: { ...h.cp.room.options, mode: "competitive" } } });
+  h.view.update();
+  const button = h.document.querySelector("[data-watch-replay]");
+  let attempts = 0;
+  h.session.replay = async () => { attempts++; throw new Error("Replay is still being verified. Try again shortly."); };
+  button.dispatchEvent(new Event("click"));
+  await Promise.resolve(); await Promise.resolve();
+  expect(button.disabled).toBe(false);
+  expect(h.document.querySelector("[data-replay-status]").textContent).toContain("still being verified");
+  expect(attempts).toBe(1);
+  expect(h.sent.some(command => command.type === "leave")).toBe(false);
+  h.session.replay = async () => ({} as Awaited<ReturnType<Session["replay"]>>);
+  button.dispatchEvent(new Event("click"));
+  await Promise.resolve(); await Promise.resolve();
+  expect(opened).toBe(1);
+  expect(h.sent.some(command => command.type === "leave")).toBe(false);
+  let resolve!: (value: Awaited<ReturnType<Session["replay"]>>) => void;
+  h.session.replay = () => new Promise(done => { resolve = done; });
+  button.dispatchEvent(new Event("click"));
+  h.view.cancelReplay(); resolve({} as Awaited<ReturnType<Session["replay"]>>);
+  await Promise.resolve(); await Promise.resolve();
+  expect(opened).toBe(1);
   h.view.destroy();
 });

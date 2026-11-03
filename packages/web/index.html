@@ -211,12 +211,28 @@
       .mode-description { line-height: 1.5; }
       #game-view { position: relative; }
       #elapsed-time, #result-time, #replay-time { font-variant-numeric: tabular-nums; }
-      #replay-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 6px 0; border-top: 1px solid #383838; }
-      #replay-bar button { padding: 6px 12px; }
-      #replay-bar label { display: flex; align-items: center; gap: 6px; color: #aaa; font-size: 12px; }
-      #replay-bar select { background: #111; color: #eee; border: 1px solid #666; padding: 4px 6px; }
+      #replay-bar { flex: none; width: min(100%, 1000px); margin: 12px auto 0; display: grid; gap: 8px; padding: 12px 0 0; border-top: 1px solid #383838; }
+      .replay-status, .replay-actions { display: flex; align-items: center; gap: 8px 12px; }
+      .replay-status { justify-content: space-between; flex-wrap: wrap; }
+      .replay-actions { flex-wrap: wrap; }
+      #replay-bar button, #replay-bar select { min-height: 40px; }
+      #replay-bar button { padding: 8px 12px; }
+      #replay-toggle { min-width: 80px; }
+      #replay-exit { margin-left: auto; }
+      #replay-bar label { display: flex; align-items: center; gap: 8px; color: #aaa; font-size: 12px; }
+      #replay-bar select { background: #111; color: #eee; border: 1px solid #666; padding: 6px 8px; }
       #replay-time { color: #22d3ee; font-size: 13px; }
-      #replay-state { margin: 0; font-size: 12px; }
+      #replay-state { color: #aaa; font-size: 12px; }
+      .replay-timeline { display: flex; align-items: center; min-width: 0; height: 20px; }
+      #replay-seek { width: 100%; min-width: 0; margin: 0; accent-color: #22d3ee; }
+      main[data-replay] #guest-name-editor { display: none; }
+      main[data-view=sprintReplay] #game-view { min-height: 0; overflow-y: auto; --board: min(300px, calc((100cqw - 24px) / 2), max(180px, calc((100cqh - 100px) / 2))); }
+      main[data-view=sprintReplay] .game-footer { margin-top: 12px; }
+      @media (max-width: 480px) {
+        .replay-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .replay-actions label { justify-content: space-between; }
+        #replay-exit { margin-left: 0; }
+      }
       #sprint-result { position: absolute; inset: 0; z-index: 1; background: #111e; display: grid; place-items: center; overflow-y: auto; padding: 20px; }
       .result-panel { width: min(460px, 100%); padding: 28px; border: 1px solid #555; background: #181818; }
       .result-panel h2 { font-size: 24px; margin: 16px 0; }
@@ -225,6 +241,7 @@
         #home-view { padding: 24px 0; margin: 0 auto; }
         .mode-choice { padding: 18px; gap: 8px; }
       }
+      #match-replay-host { overflow-y: auto; flex: 1; min-height: 0; }
       .match-replay { min-width: 0; width: 100%; }
       .match-replay-grid { display: grid; justify-content: center; align-items: start; padding: 0 12px 12px; }
       .match-replay .opponent .opponent-field { display: grid; width: 100%; grid-template-columns: 5fr var(--replay-board-track) 5fr; gap: 12px; }
@@ -257,6 +274,7 @@
         </div>
       </section>
       <section id="online" hidden aria-label="Online play"></section>
+      <section id="match-replay-host" hidden aria-label="Competitive replay boards"></section>
       <section id="game-view" hidden aria-label="Gameplay" tabindex="-1">
       <section id="sprint-result" hidden aria-labelledby="sprint-result-title">
         <div class="result-panel"><p class="menu-label">Sprint 40L</p><h2 id="sprint-result-title" tabindex="-1"></h2><p id="result-time"></p><p id="result-lines"></p><p id="result-pieces"></p><p id="result-finesse" class="hint"></p><div class="actions"><button id="watch-replay-button" disabled>Preparing replay…</button><button id="retry-button" class="primary">Retry</button><button id="result-home-button">Mode selection</button></div></div>
@@ -273,14 +291,7 @@
           <canvas id="next-preview" width="150" height="450" aria-label="Next pieces"></canvas>
         </aside>
       </div><div data-opponents></div></div>
-      <footer class="game-footer"><div id="replay-bar" hidden aria-label="Replay playback">
-        <button id="replay-toggle" class="primary">Pause</button>
-        <button id="replay-restart">Restart</button>
-        <label>Speed <select id="replay-speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
-        <button id="replay-exit">Back to results</button>
-        <span id="replay-time">0:00.000 / 0:00.000</span>
-        <span id="replay-state" class="hint"></span>
-      </div><div class="game-feedback">
+      <footer class="game-footer"><div class="game-feedback">
       <dl id="game-stats" aria-label="Game statistics">
         <div id="sprint-clock" hidden><dt>Sprint</dt><dd id="elapsed-time">0:00.000</dd></div>
         <div><dt>Lines</dt><dd id="line-count">0</dd></div>
@@ -293,6 +304,18 @@
       <p id="zen-status" class="hint" hidden></p>
       </div><details><summary>Key controls</summary><p id="controls" class="controls"></p></details>
       </footer></section>
+      <footer id="replay-bar" hidden aria-label="Replay playback">
+        <div class="replay-status"><span id="replay-state" role="status" aria-live="polite"></span><span id="replay-time">0:00.000 / 0:00.000</span></div>
+        <div class="replay-timeline">
+          <input id="replay-seek" hidden type="range" min="0" max="0" step="1" value="0" aria-label="Replay position">
+        </div>
+        <div class="replay-actions">
+          <button id="replay-toggle" class="primary">Pause</button>
+          <button id="replay-restart">Restart</button>
+          <label>Speed <select id="replay-speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+          <button id="replay-exit">Back to results</button>
+        </div>
+      </footer>
     </main>
     <dialog id="abandon-dialog" aria-labelledby="abandon-title" aria-describedby="abandon-description">
       <h1 id="abandon-title">Leave this game?</h1><p id="abandon-description"></p>

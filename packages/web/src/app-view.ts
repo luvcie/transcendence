@@ -1,8 +1,10 @@
 import type { RoomState } from "@42tris/protocol";
 
-export type AppView = "home" | "solo" | "lobby" | RoomState["phase"];
+export type AppView = "home" | "solo" | "lobby" | "sprintReplay" | "matchReplay" | RoomState["phase"];
 
 const titles: Record<AppView, string> = {
+  sprintReplay: "Sprint replay",
+  matchReplay: "Competitive replay",
   home: "Choose your game",
   solo: "Singleplayer",
   lobby: "Online lobby",
@@ -21,7 +23,7 @@ export function onlineView(room: RoomState | null, connected = true): AppView {
 }
 
 export function hasGameView(view: AppView): boolean {
-  return view !== "home" && view !== "lobby" && view !== "waiting";
+  return view !== "home" && view !== "lobby" && view !== "waiting" && view !== "matchReplay";
 }
 
 export function mountAppView(document: Document) {
@@ -34,12 +36,15 @@ export function mountAppView(document: Document) {
     if (current === view) return;
     current = view;
     main.setAttribute("data-view", view);
+    if (view === "sprintReplay" || view === "matchReplay") main.setAttribute("data-replay", "");
+    else main.removeAttribute("data-replay");
     title.textContent = titles[view];
     game.hidden = !hasGameView(view);
-    online.hidden = view === "solo" || view === "home";
+    const singleplayer = view === "solo" || view === "home" || view === "sprintReplay";
+    online.hidden = singleplayer || view === "matchReplay";
     document.querySelector<HTMLElement>("#home-view")!.hidden = view !== "home";
-    document.querySelector("#solo-button")!.setAttribute("aria-current", view === "solo" || view === "home" ? "page" : "false");
-    document.querySelector("#online-button")!.setAttribute("aria-current", view !== "solo" && view !== "home" ? "page" : "false");
+    document.querySelector("#solo-button")!.setAttribute("aria-current", singleplayer ? "page" : "false");
+    document.querySelector("#online-button")!.setAttribute("aria-current", singleplayer ? "false" : "page");
     document.querySelector<HTMLElement>("#pause-button")!.hidden = view !== "solo";
     if (!document.querySelector("dialog[open]")) (view === "home" ? document.querySelector<HTMLElement>("#home-title")! : title).focus({ preventScroll: true });
   };
