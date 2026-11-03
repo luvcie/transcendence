@@ -2,6 +2,7 @@ import { requestCompetitiveReplay } from "./replay-request";
 import { FRAME_MS, type InputId } from "@42tris/core";
 import { OwnerPrediction } from "@42tris/match";
 import type { Checkpoint, ClientCommand, InputItem, RoomState, ServerMessage } from "@42tris/protocol";
+import type { ReleaseReason, SessionDiagnostics } from "./session-diagnostics";
 
 export interface Transport {
   send(command: ClientCommand): void;
@@ -15,11 +16,21 @@ export interface SessionOptions {
   clearKeys(): void;
   skin?(): string;
   schedule?(callback: () => void, delay: number): () => void;
+  /** Opt-in only. Never part of gameplay, checkpoints, or replay journals. */
+  diagnostics?: SessionDiagnostics;
 }
 type Pending = InputItem & { sent: boolean };
 // Attempts at 0, 600, 1800, 4200 and 8200 ms cover a half-open lease's
 // six-second heartbeat timeout plus its next heartbeat sweep.
 const DUPLICATE_RETRIES = 4;
+
+function releaseReason(code: string): ReleaseReason {
+  if (code === "STALE_INPUT") return "stale-input";
+  if (code === "SEQ_EXPIRED") return "sequence-expired";
+  if (code === "RATE_LIMIT") return "rate-limit";
+  if (code === "WRONG_PHASE") return "wrong-phase";
+  return "rejected-input";
+}
 
 export class Session {
   room: RoomState | null = null;
@@ -54,10 +65,12 @@ export class Session {
   private invite = "";
   private inviteSent = false;
   private sharedSkin = "";
-  notice = "";
   private previousName: string | null = null;
+  readonly diagnostics?: SessionDiagnostics;
+  notice = "";
 
   constructor(private options: SessionOptions) {
+    this.diagnostics = options.diagnostics;
     this.name = this.read(options.profile, "42tris.name") || "Guest";
   }
   joinInvite(code: string) {
@@ -93,6 +106,7 @@ export class Session {
     this.socket = undefined;
     this.connected = false;
     this.invalidate();
+    this.diagnostics?.connection(this.options.now(), false);
   }
   private open() {
     this.invalidate();
@@ -124,6 +138,7 @@ export class Session {
   private disconnected() {
     this.connected = false;
     this.invalidate();
+    this.diagnostics?.connection(this.options.now(), false);
     if (!this.active) return;
     if (this.attempts >= (this.duplicate ? DUPLICATE_RETRIES : 8)) {
       this.retryAt = Infinity;
@@ -168,14 +183,18 @@ export class Session {
     this.gap = false;
     this.prediction = null;
     this.options.clearKeys();
+    this.diagnostics?.clearQueue();
   }
-  release() {
+  release(reason: ReleaseReason = "user") {
     this.cancelScheduledFlush();
     this.options.clearKeys();
-    if (!this.connected || !this.checkpoint?.state || this.releasing) return;
+    const cp = this.checkpoint;
+    if (!this.connected || !cp?.state || this.releasing) return;
     this.pending = [];
     this.releasing = true;
     this.prediction = null;
+    this.diagnostics?.clearQueue();
+    this.diagnostics?.release(reason, this.options.now(), cp.owner.generation);
     this.send({ type: "releaseControls" });
   }
   practice(type: "practiceUndo" | "practiceReset") {
@@ -198,7 +217,7 @@ export class Session {
   }
   input(input: InputId) {
     if (!this.canPlay) return;
-    if (this.pending.length >= 128) { this.release(); return; }
+    if (this.pending.length >= 128) { this.release("pending-overflow"); return; }
     const at = this.target();
     let frame = Math.floor(at / FRAME_MS);
     // Divide first: subtracting frame*FRAME_MS can round subframe up to one.
@@ -206,6 +225,7 @@ export class Session {
     if ((frame + subframe) * FRAME_MS >= (frame + 1) * FRAME_MS) { frame++; subframe = 0; }
     const item = { seq: this.nextSeq++, frame, subframe, input, sent: false };
     this.pending.push(item);
+    this.diagnostics?.queuedInput(item.seq, this.options.now());
     // Rebuild before replay: a checkpoint's accepted orders may precede a local
     // input at exactly the same time, even after that time was already rendered.
     this.rebuild();
@@ -222,6 +242,7 @@ export class Session {
       items: items.map(({ sent: _, ...item }) => item) });
     items.forEach(i => { i.sent = true; });
     this.lastFlush = now;
+    this.diagnostics?.sentBatch(now, items.map(item => item.seq), this.pending.length);
     if (this.pending.some(i => !i.sent)) this.scheduleFlush(now);
   }
   private cancelScheduledFlush() {
@@ -239,20 +260,33 @@ export class Session {
       this.flushInputs(this.options.now());
     }, Math.max(0, Math.ceil(this.lastFlush + 34 - now)));
   }
-  private rebuild() {
+  private rebuild(authoritative = false) {
     const cp = this.checkpoint;
     if (!cp?.state || !cp.state.roster.includes(this.playerId) || this.releasing) return;
-    const target = this.prediction?.atMs ?? cp.state.frame * FRAME_MS;
+    const previous = this.prediction;
+    const target = previous?.atMs ?? cp.state.frame * FRAME_MS;
+    // Capture what the player was shown. The corrected prediction is evaluated at
+    // exactly this simulation time before any divergence is classified, because
+    // comparing two different times would invent corrections that never happened.
+    const shown = authoritative && this.diagnostics && previous
+      && previous.owner === this.playerId && previous.round === cp.state.round
+      && previous.epoch === cp.owner.epoch && previous.atMs >= cp.state.frame * FRAME_MS
+      ? previous.saveState() : null;
     const prediction = new OwnerPrediction(cp.state, this.playerId);
     const accepted = new Set(cp.owner.pendingAccepted.map(i => i.seq));
     for (const item of this.pending) {
       if (accepted.has(item.seq)) continue;
-      if (item.frame < cp.state.frame) { this.release(); return; }
+      if (item.frame < cp.state.frame) { this.release("stale-prediction"); return; }
       prediction.submit({ player: this.playerId, frame: item.frame, subframe: item.subframe,
         input: item.input, order: 2 ** 48 + item.seq, epoch: cp.owner.epoch });
     }
     this.prediction = prediction;
-    prediction.advanceToTime(Math.max(target, this.target()));
+    const finalTarget = Math.max(target, this.target());
+    if (shown) {
+      if (prediction.atMs < shown.atMs) prediction.advanceToTime(shown.atMs);
+      this.diagnostics!.correction(this.options.now(), shown.atMs, shown, prediction.saveState());
+    }
+    prediction.advanceToTime(finalTarget);
   }
   private resync() {
     if (this.options.now() - this.resyncAt < 500) return;
@@ -263,6 +297,7 @@ export class Session {
     switch (message.type) {
       case "welcome":
         this.connected = true;
+        this.diagnostics?.connection(this.options.now(), true);
         this.duplicate = false;
         this.attempts = 0;
         this.sequence = -1;
@@ -293,13 +328,16 @@ export class Session {
         if (message.room.phase !== "playing") this.options.clearKeys();
         break;
       case "checkpoint": {
-        if (message.serverSequence <= this.sequence) return;
+        if (message.serverSequence <= this.sequence) { this.diagnostics?.staleCheckpoint(this.options.now()); return; }
         this.sequence = message.serverSequence;
         this.receivedAt = this.options.now();
         this.room = message.room;
         this.invite = "";
         const identity = [message.matchId, message.state?.round, message.owner.generation, message.owner.epoch].join(":");
         const changed = identity !== this.identity;
+        this.diagnostics?.checkpoint(this.receivedAt, { sequence: message.serverSequence, serverNow: message.serverNow,
+          frame: message.state?.frame ?? 0, round: message.state?.round ?? 0,
+          generation: message.owner.generation, identityChanged: changed });
         if (changed) {
           this.invalidate();
           this.nextSeq = message.owner.nextSeq;
@@ -310,18 +348,19 @@ export class Session {
         const accepted = new Set(message.owner.pendingAccepted.map(i => i.seq));
         const rejected = new Set(message.owner.rejections.map(i => i.seq));
         const rejectedLocal = this.pending.some(i => rejected.has(i.seq));
+        this.diagnostics?.rejections(this.receivedAt, message.owner.rejections, message.owner.generation);
         this.pending = this.pending.filter(i => i.seq > message.owner.resolvedThroughSeq && !rejected.has(i.seq)
           && (i.seq >= message.owner.nextSeq || accepted.has(i.seq)));
         this.nextSeq = Math.max(this.nextSeq, message.owner.nextSeq);
-        if (rejectedLocal) { this.release(); break; }
+        if (rejectedLocal) { this.release("rejected-input"); break; }
         if (this.gap) {
           this.gap = false;
           if (this.nextSeq > message.owner.nextSeq && !this.pending.some(i => i.seq === message.owner.nextSeq)) {
-            this.release(); break;
+            this.release("gap-recovery"); break;
           }
           for (const item of this.pending) if (item.seq >= message.owner.nextSeq) item.sent = false;
         }
-        this.rebuild();
+        this.rebuild(true);
         if (!this.canPlay || !this.pending.some(i => !i.sent)) this.cancelScheduledFlush();
         else if (!this.cancelFlush) this.scheduleFlush(this.options.now());
         if (message.room.phase !== "playing") this.options.clearKeys();
@@ -342,6 +381,7 @@ export class Session {
         const sent = this.probes.get(message.nonce);
         if (sent === undefined) break;
         const rtt = this.options.now() - sent;
+        this.diagnostics?.rtt(rtt);
         if (rtt < this.bestRtt) {
           this.bestRtt = rtt;
           this.offset = message.serverNow - (sent + this.options.now()) / 2;
@@ -377,11 +417,15 @@ export class Session {
           this.status = "Session expired or server restarted. Previous game is unavailable; join a room again.";
           this.notice = this.status;
         } else if (message.code === "SEQ_GAP") {
+          this.diagnostics?.rejection(this.options.now(), message.code, null);
           this.gap = true;
           this.cancelScheduledFlush();
           this.resync();
         } else if (["INPUT_REJECTED", "STALE_INPUT", "SEQ_EXPIRED", "RATE_LIMIT"].includes(message.code)
-          || message.code === "WRONG_PHASE" && this.pending.length > 0) this.release();
+          || message.code === "WRONG_PHASE" && this.pending.length > 0) {
+          this.diagnostics?.rejection(this.options.now(), message.code, null);
+          this.release(releaseReason(message.code));
+        }
         break;
     }
   }

@@ -3,6 +3,7 @@ import { finesseAccuracy, FRAME_MS, INITIAL_FINESSE, type Handling } from "@42tr
 import { createClient } from "@42tris/protocol/client";
 import type { RoomOptions, ServerMessage } from "@42tris/protocol";
 import { Session } from "./session";
+import type { SessionDiagnostics } from "./session-diagnostics";
 import { createMultiplayerBoard, drawMultiplayerBoard, setGarbage, type MultiplayerBoard } from "./multiplayer-board";
 import type { SkinState } from "./skin-state";
 import { onlineView, type AppView } from "./app-view";
@@ -13,7 +14,7 @@ export function mountOnline(root: HTMLElement, options: {
   clearKeys(): void; handling(): Handling; local(): void; skins: SkinState;
   replay?(replay: Awaited<ReturnType<typeof requestCompetitiveReplay>>): void;
   skin?(): string; skinMode(): MultiplayerSkinMode;
-  session?: Session; invite?: string | null; view?(view: AppView): void;
+  session?: Session; invite?: string | null; view?(view: AppView): void; diagnostics?: SessionDiagnostics;
 }) {
   const document = root.ownerDocument;
   const location = document.location;
@@ -23,7 +24,7 @@ export function mountOnline(root: HTMLElement, options: {
     removeItem: (key: string) => window[kind].removeItem(key),
   });
   const session = options.session ?? new Session({ now: () => performance.now(), storage: storage("sessionStorage"), profile: storage("localStorage"),
-    clearKeys: options.clearKeys, skin: options.skin,
+    clearKeys: options.clearKeys, skin: options.skin, diagnostics: options.diagnostics,
     connect(callbacks) {
       const socket = createClient(location.origin).ws.subscribe();
       socket.on("open", callbacks.open);

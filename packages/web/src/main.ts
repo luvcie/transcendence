@@ -27,9 +27,18 @@ import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary, type Sing
 import { SprintRecorder } from "@42tris/replay";
 import { abandonSprintRecording, sprintRecordingFor, startSprintRecording } from "./sprint-recording";
 import { SprintPlayback } from "./sprint-playback";
+import { SessionDiagnostics } from "./session-diagnostics";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
+// Opt-in only: append ?diagnostics or set localStorage["42tris.diagnostics"] = "1".
+const netDiagnostics = (() => {
+  try {
+    return new URL(location.href).searchParams.has("diagnostics") || localStorage.getItem("42tris.diagnostics") === "1"
+      ? new SessionDiagnostics() : undefined;
+  } catch { return undefined; }
+})();
+if (netDiagnostics) (globalThis as unknown as { __42trisNetDiagnostics?: SessionDiagnostics }).__42trisNetDiagnostics = netDiagnostics;
 let hasResume = false;
 try { hasResume = !!sessionStorage.getItem("42tris.resume"); } catch { /* Online session will report storage failures. */ }
 let atHome = initialView(location.href, hasResume) === "home";
@@ -279,7 +288,7 @@ async function enterOnline() {
   }
   const root = document.querySelector<HTMLElement>("#online")!;
   online = mountOnline(root, {
-    clearKeys: () => pressed.clear(), handling: () => handling, skins, invite,
+    clearKeys: () => pressed.clear(), handling: () => handling, skins, invite, diagnostics: netDiagnostics,
     skin: () => shareableSkinId(skins.preferences.active), skinMode: () => multiplayerSkins.mode,
     replay: watchCompetitiveReplay,
     view: view => { if (!atHome && !competitivePlayback) showView(view); },
@@ -545,6 +554,7 @@ const unmountInput = mountGameplayInput(window, {
 });
 
 function frame(now: number) {
+  online?.session.diagnostics?.frame(now);
   replayControls.flushSeek();
   const delta = lastFrameAt === null ? 0 : Math.min(Math.max(0, now - lastFrameAt), 100);
   lastFrameAt = now;
