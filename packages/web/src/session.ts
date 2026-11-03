@@ -1,5 +1,5 @@
 import { requestCompetitiveReplay } from "./replay-request";
-import { FRAME_MS, type InputId } from "@42tris/core";
+import { FRAME_MS, Input, type InputId } from "@42tris/core";
 import { OwnerPrediction } from "@42tris/match";
 import type { Checkpoint, ClientCommand, InputItem, RoomState, ServerMessage } from "@42tris/protocol";
 import type { ReleaseReason, SessionDiagnostics } from "./session-diagnostics";
@@ -19,10 +19,21 @@ export interface SessionOptions {
   /** Opt-in only. Never part of gameplay, checkpoints, or replay journals. */
   diagnostics?: SessionDiagnostics;
 }
-type Pending = InputItem & { sent: boolean };
+type Pending = InputItem & { sent: boolean; transmitted: boolean };
+type Control = "left" | "right" | "soft";
 // Attempts at 0, 600, 1800, 4200 and 8200 ms cover a half-open lease's
 // six-second heartbeat timeout plus its next heartbeat sweep.
 const DUPLICATE_RETRIES = 4;
+
+// Held controls carry state; one-shot actions do something at one moment. Only
+// the first can move to the resume frame without changing what it does.
+const CONTROL_OF: Partial<Record<InputId, Control>> = {
+  [Input.LeftDown]: "left", [Input.LeftUp]: "left",
+  [Input.RightDown]: "right", [Input.RightUp]: "right",
+  [Input.SoftDropDown]: "soft", [Input.SoftDropUp]: "soft",
+};
+const CONTROL_DOWN: Record<Control, InputId> = { left: Input.LeftDown, right: Input.RightDown, soft: Input.SoftDropDown };
+const CONTROL_UP: Record<Control, InputId> = { left: Input.LeftUp, right: Input.RightUp, soft: Input.SoftDropUp };
 
 function releaseReason(code: string): ReleaseReason {
   if (code === "STALE_INPUT") return "stale-input";
@@ -218,18 +229,20 @@ export class Session {
   input(input: InputId) {
     if (!this.canPlay) return;
     if (this.pending.length >= 128) { this.release("pending-overflow"); return; }
-    const at = this.target();
-    let frame = Math.floor(at / FRAME_MS);
-    // Divide first: subtracting frame*FRAME_MS can round subframe up to one.
-    let subframe = Math.min(1 - Number.EPSILON, Math.max(0, at / FRAME_MS - frame));
-    if ((frame + subframe) * FRAME_MS >= (frame + 1) * FRAME_MS) { frame++; subframe = 0; }
-    const item = { seq: this.nextSeq++, frame, subframe, input, sent: false };
-    this.pending.push(item);
-    this.diagnostics?.queuedInput(item.seq, this.options.now());
+    this.queue(input);
     // Rebuild before replay: a checkpoint's accepted orders may precede a local
     // input at exactly the same time, even after that time was already rendered.
     this.rebuild();
     this.flushInputs(this.options.now());
+  }
+  private queue(input: InputId, at = this.target()) {
+    let frame = Math.floor(at / FRAME_MS);
+    // Divide first: subtracting frame*FRAME_MS can round subframe up to one.
+    let subframe = Math.min(1 - Number.EPSILON, Math.max(0, at / FRAME_MS - frame));
+    if ((frame + subframe) * FRAME_MS >= (frame + 1) * FRAME_MS) { frame++; subframe = 0; }
+    const item = { seq: this.nextSeq++, frame, subframe, input, sent: false, transmitted: false };
+    this.pending.push(item);
+    this.diagnostics?.queuedInput(item.seq, this.options.now());
   }
   private flushInputs(now: number) {
     if (!this.canPlay) { this.cancelScheduledFlush(); return; }
@@ -239,8 +252,8 @@ export class Session {
     this.cancelScheduledFlush();
     this.send({ type: "inputBatch", matchId: this.checkpoint!.matchId!,
       generation: this.checkpoint!.owner.generation, epoch: this.checkpoint!.owner.epoch,
-      items: items.map(({ sent: _, ...item }) => item) });
-    items.forEach(i => { i.sent = true; });
+      items: items.map(({ sent: _, transmitted: __, ...item }) => item) });
+    items.forEach(i => { i.sent = true; i.transmitted = true; });
     this.lastFlush = now;
     this.diagnostics?.sentBatch(now, items.map(item => item.seq), this.pending.length);
     if (this.pending.some(i => !i.sent)) this.scheduleFlush(now);
@@ -272,8 +285,9 @@ export class Session {
       && previous.owner === this.playerId && previous.round === cp.state.round
       && previous.epoch === cp.owner.epoch && previous.atMs >= cp.state.frame * FRAME_MS
       ? previous.saveState() : null;
-    const prediction = new OwnerPrediction(cp.state, this.playerId);
     const accepted = new Set(cp.owner.pendingAccepted.map(i => i.seq));
+    if (!this.recover(cp, accepted)) { this.release("stale-prediction"); return; }
+    const prediction = new OwnerPrediction(cp.state, this.playerId);
     for (const item of this.pending) {
       if (accepted.has(item.seq)) continue;
       if (item.frame < cp.state.frame) { this.release("stale-prediction"); return; }
@@ -287,6 +301,61 @@ export class Session {
       this.diagnostics!.correction(this.options.now(), shown.atMs, shown, prediction.saveState());
     }
     prediction.advanceToTime(finalTarget);
+  }
+  /**
+   * A queued input that never left the browser is the one stale input the client
+   * can retract: the server has no record of it and its sequence number was never
+   * used. Held controls are re-issued once at the resume frame, netted to the
+   * transition the checkpoint does not already carry. One-shot actions are
+   * dropped instead of being replayed onto a different board. Anything already
+   * transmitted still needs the full release, because it can no longer be taken
+   * back from the server.
+   */
+  private recover(cp: Checkpoint, accepted: Set<number>): boolean {
+    const frame = cp.state!.frame;
+    const stale = this.pending.filter(item => !accepted.has(item.seq) && item.frame < frame);
+    if (!stale.length) return true;
+    const firstUnsent = this.pending.findIndex(item => !item.sent);
+    // Frames only grow, so the stale ones are a prefix of the unsent tail. A
+    // transmitted item, or a hole before the tail, cannot be retracted this way.
+    if (firstUnsent < 0 || stale[0] !== this.pending[firstUnsent] || stale.some(item => item.transmitted)
+      // A gap retry can clear `sent` on an input the server may still hold; its
+      // number is spoken for, so the whole tail has to stay put.
+      || this.pending.some(item => !item.sent && item.transmitted)) return false;
+    const at = this.target();
+    const wanted = new Map<Control, boolean>();
+    for (const item of stale) {
+      const control = CONTROL_OF[item.input];
+      if (control === undefined) continue;
+      // Last transition wins: a press and release that both happened during the
+      // stall leave the control where the player left it, not half applied.
+      wanted.delete(control);
+      wanted.set(control, item.input === CONTROL_DOWN[control]);
+    }
+    const retracted = stale.map(item => item.seq);
+    const removed = new Set<InputItem>(stale);
+    this.pending = this.pending.filter(item => !removed.has(item));
+    // The dropped numbers were never sent, so close the hole locally: the server
+    // still expects the first of them next.
+    const seqs = new Map<number, number>();
+    let seq = cp.owner.nextSeq;
+    for (const item of this.pending) {
+      if (item.sent) continue;
+      seqs.set(item.seq, seq);
+      item.seq = seq++;
+    }
+    this.nextSeq = seq;
+    this.diagnostics?.renumber(seqs, retracted);
+    const owner = cp.state!.players[cp.state!.roster.indexOf(this.playerId)].game.state;
+    const held = { left: owner.leftHeld, right: owner.rightHeld, soft: owner.softHeld };
+    let reissued = 0;
+    for (const [control, want] of wanted) {
+      if (held[control] === want) continue;
+      this.queue(want ? CONTROL_DOWN[control] : CONTROL_UP[control], at);
+      reissued++;
+    }
+    this.diagnostics?.recovered(this.options.now(), retracted.length, reissued);
+    return true;
   }
   private resync() {
     if (this.options.now() - this.resyncAt < 500) return;

@@ -26,7 +26,8 @@ export type DiagnosticEvent =
   | { type: "release"; at: number; reason: ReleaseReason; generation: number }
   | { type: "correction"; at: number; atMs: number; piece: boolean; board: boolean; garbage: boolean;
       controls: boolean; sent: boolean }
-  | { type: "frame"; at: number; gapMs: number };
+  | { type: "frame"; at: number; gapMs: number }
+  | { type: "staleRecovery"; at: number; retracted: number; reissued: number };
 
 export interface CorrectionFlags {
   piece: boolean;
@@ -44,6 +45,7 @@ export interface SessionDiagnosticsSnapshot {
   rtt: { samples: number; last: number | null; min: number | null; avg: number | null; max: number | null; jitter: number | null };
   rejections: { total: number; byCode: Record<string, number> };
   releases: { total: number; byReason: Record<string, number> };
+  staleRecovery: { count: number; retracted: number; reissued: number };
   corrections: { compared: number; skipped: number; total: number; piece: number; board: number;
     garbage: number; controls: number; sent: number };
 }
@@ -98,6 +100,7 @@ export class SessionDiagnostics {
     rejectionTotal: 0, releaseTotal: 0,
     compared: 0, skipped: 0, corrections: 0,
   };
+  private recoveries = { count: 0, retracted: 0, reissued: 0 };
   private rejectionCodes: Record<string, number> = Object.create(null);
   private releaseReasons: Record<string, number> = Object.create(null);
   private correctionCounts = { piece: 0, board: 0, garbage: 0, controls: 0, sent: 0 };
@@ -192,6 +195,24 @@ export class SessionDiagnostics {
     }
   }
 
+  /** Keep queue timing attached to inputs whose local sequence number changed. */
+  renumber(seqs: Map<number, number>, retracted: readonly number[]): void {
+    for (const seq of retracted) this.queued.delete(seq);
+    for (const [from, to] of seqs) {
+      const queuedAt = this.queued.get(from);
+      if (queuedAt === undefined) continue;
+      this.queued.delete(from);
+      this.queued.set(to, queuedAt);
+    }
+  }
+
+  recovered(at: number, retracted: number, reissued: number): void {
+    this.recoveries.count++;
+    this.recoveries.retracted += retracted;
+    this.recoveries.reissued += reissued;
+    this.push({ type: "staleRecovery", at, retracted, reissued });
+  }
+
   release(reason: ReleaseReason, at: number, generation: number): void {
     this.counts.releaseTotal++;
     this.releaseReasons[reason] = (this.releaseReasons[reason] ?? 0) + 1;
@@ -234,6 +255,7 @@ export class SessionDiagnostics {
         avg, max: this.rttSamples.length ? Math.max(...this.rttSamples) : null, jitter },
       rejections: { total: this.counts.rejectionTotal, byCode: { ...this.rejectionCodes } },
       releases: { total: this.counts.releaseTotal, byReason: { ...this.releaseReasons } },
+      staleRecovery: { ...this.recoveries },
       corrections: { compared: this.counts.compared, skipped: this.counts.skipped, total: this.counts.corrections,
         ...this.correctionCounts },
     };

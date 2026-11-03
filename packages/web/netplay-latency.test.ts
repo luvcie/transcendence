@@ -23,6 +23,17 @@ function quad(game: GameState) {
   }
 }
 
+function converged(harness: NetHarness): boolean {
+  const { prediction, checkpoint, playerId } = harness.a.session;
+  const authoritative = new OwnerPrediction(checkpoint!.state!, playerId);
+  authoritative.advanceToTime(prediction!.atMs);
+  return JSON.stringify(prediction!.gameState()) === JSON.stringify(authoritative.gameState());
+}
+
+function transmitted(harness: NetHarness): number[] {
+  return harness.a.batches.flatMap(batch => batch.items.map(item => item.input));
+}
+
 describe("netplay latency and stalls", () => {
   test("stable low latency applies each accepted input exactly once without corrections", () => {
     const h = new NetHarness({ diagnostics: true });
@@ -34,6 +45,8 @@ describe("netplay latency and stalls", () => {
     h.runUntil(() => h.a.session.pending.length === 0, 2000);
 
     expect(seqs(h)).toEqual([1, 2]);
+    // Local bookkeeping such as the sent/transmitted flags must not reach the wire.
+    expect(Object.keys(h.a.batches[0].items[0]).sort()).toEqual(["frame", "input", "seq", "subframe"]);
     const checkpoint = h.a.session.checkpoint!;
     expect(checkpoint.owner.rejections).toEqual([]);
     expect(checkpoint.owner.resolvedThroughSeq).toBe(2);
@@ -171,9 +184,10 @@ describe("netplay latency and stalls", () => {
     expect(checkpoint.owner.resolvedThroughSeq).toBe(4);
   });
 
-  test("a stall between a key event and its trailing flush drops prediction and releases controls", () => {
+  test("a stall between a key event and its trailing flush re-issues the release instead of resetting", () => {
     const h = new NetHarness({ diagnostics: true });
     h.startMatch();
+    const generation = h.a.session.checkpoint!.owner.generation;
     h.press("a", Input.LeftDown);
     h.advance(5);
     h.press("a", Input.LeftUp); // inside the 34 ms throttle: only a trailing timer holds it
@@ -181,14 +195,16 @@ describe("netplay latency and stalls", () => {
     h.advance(300);
 
     const diagnostics = h.a.diagnostics!.snapshot();
-    expect(diagnostics.releases.byReason["stale-prediction"]).toBe(1);
-    expect(h.a.commands.filter(command => command.type === "releaseControls")).toHaveLength(1);
-    expect(seqs(h)).toEqual([1]);
+    expect(diagnostics.releases.total).toBe(0);
+    expect(diagnostics.staleRecovery).toEqual({ count: 1, retracted: 1, reissued: 1 });
+    expect(h.a.commands.filter(command => command.type === "releaseControls")).toHaveLength(0);
+    expect(h.a.session.checkpoint!.owner.generation).toBe(generation);
 
-    h.runUntil(() => h.a.session.canPlay, 2000);
-    expect(h.a.session.checkpoint!.owner.generation).toBeGreaterThan(0);
+    h.runUntil(() => h.a.session.pending.length === 0, 2000);
+    expect(seqs(h)).toEqual([1, 2]);
+    expect(h.a.session.checkpoint!.owner.rejections).toEqual([]);
     expect(ownerState(h).state.leftHeld).toBe(false);
-    expect(h.a.session.pending).toHaveLength(0);
+    expect(converged(h)).toBe(true);
   });
 
   test("asymmetric upstream latency produces late inputs, server rejections, and one control reset", () => {
@@ -312,6 +328,161 @@ describe("netplay latency and stalls", () => {
     authoritative.advanceToTime(prediction.atMs);
     expect(prediction.gameState().board).toEqual(authoritative.gameState().board);
     expect(prediction.gameState().board.some(cell => cell === GARBAGE)).toBe(true);
+  });
+});
+
+describe("stale input recovery", () => {
+  test("a 500 ms stall during a rapid press and release keeps controls neutral", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    h.press("a", Input.LeftDown); // flushed at once, then accepted
+    h.advance(5);
+    h.press("a", Input.LeftUp); // the rest sit behind the 34 ms throttle
+    h.advance(5);
+    h.press("a", Input.RightDown);
+    h.advance(5);
+    h.press("a", Input.RightUp);
+    h.stall("a", 500);
+    h.advance(500);
+
+    const diagnostics = h.a.diagnostics!.snapshot();
+    expect(diagnostics.releases.total).toBe(0);
+    // Only the last transition per control survives, so the tap does not replay
+    // as a stray one-cell move.
+    expect(diagnostics.staleRecovery).toEqual({ count: 1, retracted: 3, reissued: 1 });
+
+    h.runUntil(() => h.a.session.pending.length === 0, 2000);
+    expect(transmitted(h)).toEqual([Input.LeftDown, Input.LeftUp]);
+    expect(ownerState(h).state.leftHeld).toBe(false);
+    expect(ownerState(h).state.rightHeld).toBe(false);
+    expect(converged(h)).toBe(true);
+  });
+
+  test("an unsent stale hard drop is dropped, not replayed onto a later piece", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    const playerId = h.a.session.playerId;
+    const locks = () => h.room!.events.filter(entry => entry.event.type === "lock" && entry.event.player === playerId).length;
+    const before = locks();
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.HardDrop); // queued behind the throttle when the stall starts
+    h.advance(5);
+    h.stall("a", 300);
+    h.advance(300);
+
+    expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+    expect(h.a.diagnostics!.snapshot().staleRecovery).toEqual({ count: 1, retracted: 1, reissued: 0 });
+    expect(transmitted(h)).toEqual([Input.LeftDown]);
+    expect(locks()).toBe(before);
+
+    // The retracted sequence number is reused, not skipped: the server still
+    // expects it next, so the following batch stays contiguous.
+    h.press("a", Input.RightDown);
+    h.advance(60);
+    h.press("a", Input.RightUp);
+    h.runUntil(() => h.a.session.pending.length === 0, 2000);
+    expect(h.a.session.checkpoint!.owner.rejections).toEqual([]);
+    expect(h.a.batches.flatMap(batch => batch.items).filter(item => item.input === Input.RightDown)
+      .map(item => item.seq)).toEqual([2]);
+    expect(ownerState(h).state.rightHeld).toBe(false);
+    expect(converged(h)).toBe(true);
+  });
+
+  test("an unsent stale rotation is dropped instead of rotating the current piece later", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    const rot = ownerState(h).state.rot;
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.RotateCw);
+    h.advance(5);
+    h.stall("a", 300);
+    h.advance(300);
+
+    expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+    expect(h.a.diagnostics!.snapshot().staleRecovery).toEqual({ count: 1, retracted: 1, reissued: 0 });
+    expect(transmitted(h)).toEqual([Input.LeftDown]);
+    expect(ownerState(h).state.rot).toBe(rot);
+
+    h.press("a", Input.RotateCw);
+    h.runUntil(() => h.a.session.pending.length === 0, 2000);
+    expect(ownerState(h).state.rot).toBe((rot + 1) & 3);
+  });
+
+  test("a direction held through a stall stays held and releases when the key does", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    h.press("a", Input.LeftDown);
+    h.advance(40);
+    h.stall("a", 300);
+    h.advance(300);
+
+    expect(h.a.diagnostics!.snapshot().staleRecovery.count).toBe(0);
+    expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+    expect(ownerState(h).state.leftHeld).toBe(true);
+
+    h.press("a", Input.LeftUp);
+    h.runUntil(() => h.a.session.pending.length === 0, 2000);
+    expect(ownerState(h).state.leftHeld).toBe(false);
+    expect(ownerState(h).state.direction).toBe(0);
+    expect(converged(h)).toBe(true);
+  });
+
+  test("soft drop held during a stall does not stay held after the key is released", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    h.press("a", Input.SoftDropDown);
+    h.advance(5);
+    h.press("a", Input.SoftDropUp);
+    h.advance(5);
+    h.stall("a", 300);
+    h.advance(300);
+
+    expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+    expect(h.a.diagnostics!.snapshot().staleRecovery).toEqual({ count: 1, retracted: 1, reissued: 1 });
+    h.runUntil(() => h.a.session.pending.length === 0, 2000);
+    expect(transmitted(h)).toEqual([Input.SoftDropDown, Input.SoftDropUp]);
+    expect(ownerState(h).state.softHeld).toBe(false);
+    expect(converged(h)).toBe(true);
+  });
+
+  test("repeated stalls each recover without a generation reset", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    const generation = h.a.session.checkpoint!.owner.generation;
+    for (let i = 0; i < 3; i++) {
+      h.advance(100);
+      h.press("a", Input.LeftDown);
+      h.advance(5);
+      h.press("a", Input.LeftUp);
+      h.stall("a", 300);
+      h.advance(300);
+      h.runUntil(() => h.a.session.pending.length === 0, 2000);
+    }
+
+    const diagnostics = h.a.diagnostics!.snapshot();
+    expect(diagnostics.staleRecovery.count).toBe(3);
+    expect(diagnostics.releases.total).toBe(0);
+    expect(h.a.session.checkpoint!.owner.generation).toBe(generation);
+    expect(seqs(h)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(ownerState(h).state.leftHeld).toBe(false);
+    expect(converged(h)).toBe(true);
+  });
+
+  test("a transmitted but unacknowledged stale input still needs the full release", () => {
+    const h = new NetHarness({ diagnostics: true, a: { up: 250, down: 10 }, b: { up: 10, down: 10 } });
+    h.startMatch();
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.runUntil(() => h.a.diagnostics!.snapshot().releases.total === 1, 3000);
+
+    const diagnostics = h.a.diagnostics!.snapshot();
+    expect(diagnostics.staleRecovery.count).toBe(0);
+    expect(h.a.commands.filter(command => command.type === "releaseControls")).toHaveLength(1);
+    h.runUntil(() => h.a.session.canPlay, 2000);
+    expect(ownerState(h).state.leftHeld).toBe(false);
   });
 });
 
