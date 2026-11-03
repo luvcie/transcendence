@@ -33,6 +33,8 @@ export interface NetHarnessOptions {
   frameMs?: number;
   serverTickMs?: number;
   snapshotMs?: number;
+  /** Dispatch a stalled physical input before timers and animation frames. */
+  inputFirst?: boolean;
 }
 
 type Callbacks = Parameters<SessionOptions["connect"]>[0];
@@ -105,6 +107,7 @@ export class NetHarness {
   private readonly downNext: Record<ClientKey, number> = { a: 0, b: 0 };
   private readonly connectMs: number;
   private readonly frameMs: number;
+  private readonly inputPriority: number;
 
   constructor(options: NetHarnessOptions = {}) {
     this.random = seeded(options.seed ?? 1);
@@ -114,6 +117,7 @@ export class NetHarness {
     };
     this.connectMs = options.connectMs ?? 5;
     this.frameMs = options.frameMs ?? FRAME_MS;
+    this.inputPriority = options.inputFirst ? PRIORITY.message + 0.5 : PRIORITY.action;
     this.rooms = new Rooms(() => this.now);
     this.a = new HarnessClient(this, "a", !!options.diagnostics);
     this.b = new HarnessClient(this, "b", !!options.diagnostics);
@@ -160,7 +164,7 @@ export class NetHarness {
   /** Queue an input now, or at stall end when the browser cannot run its handler. */
   press(key: ClientKey, input: InputId): void {
     if (this.now < this.stallUntil[key]) {
-      this.schedule(this.stallUntil[key], PRIORITY.action, "action", key, () => this[key].session.input(input));
+      this.schedule(this.stallUntil[key], this.inputPriority, "action", key, () => this[key].session.input(input));
       return;
     }
     this[key].session.input(input);
@@ -231,6 +235,11 @@ export class NetHarness {
       const index = this.events.indexOf(event);
       if (index >= 0) this.events.splice(index, 1);
     };
+  }
+
+  scheduledTimers(key: ClientKey): ReadonlyArray<{ at: number; run(): void }> {
+    return this.events.filter(event => event.client === key && event.kind === "timer")
+      .map(({ at, run }) => ({ at, run }));
   }
 
   connectClient(client: HarnessClient, callbacks: Callbacks): Transport {

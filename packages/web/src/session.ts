@@ -24,6 +24,7 @@ type Control = "left" | "right" | "soft";
 // Attempts at 0, 600, 1800, 4200 and 8200 ms cover a half-open lease's
 // six-second heartbeat timeout plus its next heartbeat sweep.
 const DUPLICATE_RETRIES = 4;
+const DEFER_MAX_MS = 500;
 
 // Held controls carry state; one-shot actions do something at one moment. Only
 // the first can move to the resume frame without changing what it does.
@@ -61,6 +62,7 @@ export class Session {
   private openedAt = 0;
   private lastFlush = -Infinity;
   private cancelFlush?: () => void;
+  private deferred?: { first: Pending; until: number; cancel?: () => void };
   private lastPing = -Infinity;
   private probes = new Map<string, number>();
   private offset = 0;
@@ -213,13 +215,15 @@ export class Session {
     this.release();
     this.send({ type });
   }
-  get canPlay() {
+  private get controlsReady() {
     const state = this.checkpoint?.state;
     const owner = state?.players[state.roster.indexOf(this.playerId)];
     return this.connected && !this.releasing && !this.gap && this.room?.phase === "playing" && !!this.prediction
-      && !this.checkpoint?.clock.frozen && this.options.now() - this.receivedAt < 2000
+      && this.room.code === this.checkpoint?.room.code && this.room.matchId === this.checkpoint?.matchId
+      && !this.checkpoint?.clock.frozen
       && !owner?.withdrawn && !(state?.mode === "competitive" && (owner?.eliminated || owner?.game.state.topOut));
   }
+  get canPlay() { return this.controlsReady && this.options.now() - this.receivedAt < 2000; }
   private target() {
     const cp = this.checkpoint!;
     const elapsed = cp.clock.frozen || this.room?.phase !== "playing" ? 0 : Math.max(0, this.serverNow() - cp.serverNow);
@@ -245,9 +249,39 @@ export class Session {
     this.diagnostics?.queuedInput(item.seq, this.options.now());
   }
   private flushInputs(now: number) {
-    if (!this.canPlay) { this.cancelScheduledFlush(); return; }
+    if (!this.canPlay) {
+      if (!this.deferred || !this.controlsReady) this.cancelScheduledFlush();
+      return;
+    }
     const items = this.pending.filter(i => !i.sent).slice(0, 32);
     if (!items.length) { this.cancelScheduledFlush(); return; }
+    const previous = this.deferred;
+    if (previous && previous.first !== items[0]) this.cancelScheduledFlush();
+    if (this.deferred) {
+      if (now >= this.deferred.until) this.release("stale-prediction");
+      return;
+    }
+    const cp = this.checkpoint!;
+    const committed = cp.clock.simulationNow + Math.max(0, this.serverNow() - cp.serverNow) - cp.clock.commitDelayMs;
+    const first = items[0];
+    if (!first.transmitted && (first.frame + first.subframe) * FRAME_MS < committed - FRAME_MS) {
+      // Partial checkpoint recovery can replace the first item without making
+      // the surviving tail safe to send. It must not renew the waiting budget.
+      const until = previous?.until ?? now + DEFER_MAX_MS;
+      if (now >= until) { this.release("stale-prediction"); return; }
+      this.cancelScheduledFlush();
+      const deferred = { first, until };
+      this.deferred = deferred;
+      this.deferred.cancel = this.schedule(() => {
+        if (this.deferred !== deferred) return;
+        this.cancelScheduledFlush();
+        // A clock estimate cannot retract inputs. Without a checkpoint, use the
+        // existing generation reset rather than send a likely-stale batch.
+        this.release("stale-prediction");
+      }, until - now);
+      this.resync();
+      return;
+    }
     if (now - this.lastFlush < 34) { this.scheduleFlush(now); return; }
     this.cancelScheduledFlush();
     this.send({ type: "inputBatch", matchId: this.checkpoint!.matchId!,
@@ -261,14 +295,19 @@ export class Session {
   private cancelScheduledFlush() {
     this.cancelFlush?.();
     this.cancelFlush = undefined;
+    this.deferred?.cancel?.();
+    this.deferred = undefined;
   }
-  private scheduleFlush(now: number) {
-    if (this.cancelFlush) return;
+  private schedule(callback: () => void, delay: number) {
     const schedule = this.options.schedule ?? ((callback, delay) => {
       const timer = setTimeout(callback, delay);
       return () => clearTimeout(timer);
     });
-    this.cancelFlush = schedule(() => {
+    return schedule(callback, delay);
+  }
+  private scheduleFlush(now: number) {
+    if (this.cancelFlush || this.deferred) return;
+    this.cancelFlush = this.schedule(() => {
       this.cancelFlush = undefined;
       this.flushInputs(this.options.now());
     }, Math.max(0, Math.ceil(this.lastFlush + 34 - now)));
@@ -305,11 +344,11 @@ export class Session {
   /**
    * A queued input that never left the browser is the one stale input the client
    * can retract: the server has no record of it and its sequence number was never
-   * used. Held controls are re-issued once at the resume frame, netted to the
-   * transition the checkpoint does not already carry. One-shot actions are
-   * dropped instead of being replayed onto a different board. Anything already
-   * transmitted still needs the full release, because it can no longer be taken
-   * back from the server.
+   * used. Held controls are re-issued before surviving unsent actions (or at the
+   * resume frame), netted to the transition the checkpoint does not already
+   * carry. One-shot actions are dropped instead of being replayed onto a
+   * different board. Anything already transmitted still needs the full release,
+   * because it can no longer be taken back from the server.
    */
   private recover(cp: Checkpoint, accepted: Set<number>): boolean {
     const frame = cp.state!.frame;
@@ -322,7 +361,6 @@ export class Session {
       // A gap retry can clear `sent` on an input the server may still hold; its
       // number is spoken for, so the whole tail has to stay put.
       || this.pending.some(item => !item.sent && item.transmitted)) return false;
-    const at = this.target();
     const wanted = new Map<Control, boolean>();
     for (const item of stale) {
       const control = CONTROL_OF[item.input];
@@ -335,26 +373,31 @@ export class Session {
     const retracted = stale.map(item => item.seq);
     const removed = new Set<InputItem>(stale);
     this.pending = this.pending.filter(item => !removed.has(item));
+    const unsent = this.pending.filter(item => !item.sent);
+    const first = unsent[0];
+    const at = Math.min(this.target(), first ? (first.frame + first.subframe) * FRAME_MS : Infinity);
+    const owner = cp.state!.players[cp.state!.roster.indexOf(this.playerId)].game.state;
+    const held = { left: owner.leftHeld, right: owner.rightHeld, soft: owner.softHeld };
+    const corrections: InputId[] = [];
+    for (const [control, want] of wanted) {
+      if (held[control] !== want) corrections.push(want ? CONTROL_DOWN[control] : CONTROL_UP[control]);
+    }
     // The dropped numbers were never sent, so close the hole locally: the server
-    // still expects the first of them next.
+    // still expects the first of them next. Correct held state before newer
+    // actions at their original time; never retime a surviving one-shot.
     const seqs = new Map<number, number>();
-    let seq = cp.owner.nextSeq;
-    for (const item of this.pending) {
-      if (item.sent) continue;
+    let seq = cp.owner.nextSeq + corrections.length;
+    for (const item of unsent) {
       seqs.set(item.seq, seq);
       item.seq = seq++;
     }
-    this.nextSeq = seq;
     this.diagnostics?.renumber(seqs, retracted);
-    const owner = cp.state!.players[cp.state!.roster.indexOf(this.playerId)].game.state;
-    const held = { left: owner.leftHeld, right: owner.rightHeld, soft: owner.softHeld };
-    let reissued = 0;
-    for (const [control, want] of wanted) {
-      if (held[control] === want) continue;
-      this.queue(want ? CONTROL_DOWN[control] : CONTROL_UP[control], at);
-      reissued++;
-    }
-    this.diagnostics?.recovered(this.options.now(), retracted.length, reissued);
+    this.pending = this.pending.filter(item => item.sent);
+    this.nextSeq = cp.owner.nextSeq;
+    for (const input of corrections) this.queue(input, at);
+    this.pending.push(...unsent);
+    this.nextSeq = seq;
+    this.diagnostics?.recovered(this.options.now(), retracted.length, corrections.length);
     return true;
   }
   private resync() {
@@ -393,7 +436,7 @@ export class Session {
         if (message.room.players.find(p => p.playerId === this.playerId)?.name === this.name) this.previousName = null;
         this.room = message.room;
         this.invite = "";
-        if (!this.canPlay) this.cancelScheduledFlush();
+        if (!this.canPlay && (!this.deferred || !this.controlsReady)) this.cancelScheduledFlush();
         if (message.room.phase !== "playing") this.options.clearKeys();
         break;
       case "checkpoint": {
@@ -402,7 +445,7 @@ export class Session {
         this.receivedAt = this.options.now();
         this.room = message.room;
         this.invite = "";
-        const identity = [message.matchId, message.state?.round, message.owner.generation, message.owner.epoch].join(":");
+        const identity = [message.room.code, message.matchId, message.state?.round, message.owner.generation, message.owner.epoch].join(":");
         const changed = identity !== this.identity;
         this.diagnostics?.checkpoint(this.receivedAt, { sequence: message.serverSequence, serverNow: message.serverNow,
           frame: message.state?.frame ?? 0, round: message.state?.round ?? 0,
@@ -430,6 +473,7 @@ export class Session {
           for (const item of this.pending) if (item.seq >= message.owner.nextSeq) item.sent = false;
         }
         this.rebuild(true);
+        if (this.deferred && !this.pending.includes(this.deferred.first)) this.flushInputs(this.options.now());
         if (!this.canPlay || !this.pending.some(i => !i.sent)) this.cancelScheduledFlush();
         else if (!this.cancelFlush) this.scheduleFlush(this.options.now());
         if (message.room.phase !== "playing") this.options.clearKeys();
@@ -521,7 +565,12 @@ export class Session {
       this.send({ type: "ping", nonce });
       this.lastPing = now;
     }
-    if (this.checkpoint?.state && now - this.receivedAt >= 2000) { this.cancelScheduledFlush(); this.resync(); return; }
+    if (this.checkpoint?.state && now - this.receivedAt >= 2000) {
+      // Suspending play must not cancel the pending recovery deadline.
+      if (!this.deferred || !this.controlsReady) this.cancelScheduledFlush();
+      this.resync();
+      return;
+    }
     if (this.canPlay) {
       this.prediction!.advanceToTime(this.target());
       this.flushInputs(now);

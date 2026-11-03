@@ -1,6 +1,8 @@
 import { describe, expect, spyOn, test } from "bun:test";
-import { GARBAGE, Input, Piece, type GameState } from "@42tris/core";
+import { FRAME_MS, GARBAGE, Input, Piece, type GameState } from "@42tris/core";
 import { Match, OwnerPrediction } from "@42tris/match";
+import type { Checkpoint } from "@42tris/protocol";
+import { verifyMatchReplayExecution } from "@42tris/replay";
 import { NetHarness } from "./netplay-harness";
 import { classifyCorrection, SessionDiagnostics } from "./src/session-diagnostics";
 
@@ -32,6 +34,15 @@ function converged(harness: NetHarness): boolean {
 
 function transmitted(harness: NetHarness): number[] {
   return harness.a.batches.flatMap(batch => batch.items.map(item => item.input));
+}
+
+function expectSequenceOwnership(harness: NetHarness) {
+  const owned = new Map<string, unknown>();
+  for (const batch of harness.a.batches) for (const item of batch.items) {
+    const key = `${batch.matchId}:${batch.generation}:${item.seq}`;
+    if (owned.has(key)) expect(item).toEqual(owned.get(key));
+    else owned.set(key, item);
+  }
 }
 
 describe("netplay latency and stalls", () => {
@@ -197,6 +208,7 @@ describe("netplay latency and stalls", () => {
     const diagnostics = h.a.diagnostics!.snapshot();
     expect(diagnostics.releases.total).toBe(0);
     expect(diagnostics.staleRecovery).toEqual({ count: 1, retracted: 1, reissued: 1 });
+    expect(diagnostics.rejections.total).toBe(0);
     expect(h.a.commands.filter(command => command.type === "releaseControls")).toHaveLength(0);
     expect(h.a.session.checkpoint!.owner.generation).toBe(generation);
 
@@ -483,6 +495,473 @@ describe("stale input recovery", () => {
     expect(h.a.commands.filter(command => command.type === "releaseControls")).toHaveLength(1);
     h.runUntil(() => h.a.session.canPlay, 2000);
     expect(ownerState(h).state.leftHeld).toBe(false);
+  });
+});
+
+describe("post-stall input ordering", () => {
+  test.each(["available", "rate-limited"] as const)("the 500 ms deadline releases once without frames or checkpoints when resync is %s", resync => {
+    const h = new NetHarness({ diagnostics: true, frameMs: 10_000 });
+    h.startMatch();
+    const resynced = resync === "rate-limited";
+    if (resynced) {
+      h.a.session.receive({ type: "error", code: "SEQ_GAP", message: "Retry" });
+      h.runUntil(() => h.a.session.canPlay);
+    }
+    const resyncs = h.a.commands.filter(c => c.type === "resync").length;
+    const rejections = h.a.diagnostics!.snapshot().rejections.total;
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.stall("a", 300);
+    h.holdDownstream("a", 1300);
+    h.advance(300);
+    expect(transmitted(h)).toEqual([Input.LeftDown]);
+    expect(h.scheduledTimers("a")).toHaveLength(1);
+    expect(h.a.commands.filter(c => c.type === "resync")).toHaveLength(resyncs + (resynced ? 0 : 1));
+    const keysCleared = h.a.keysCleared;
+    h.advance(499);
+    expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+    h.advance(1);
+    expect(h.a.diagnostics!.snapshot().releases.byReason).toEqual({ "stale-prediction": 1 });
+    expect(h.a.keysCleared).toBe(keysCleared + 1);
+    expect(h.a.session.pending).toEqual([]);
+    expect(h.a.session.canPlay).toBe(false);
+    expect(h.scheduledTimers("a")).toHaveLength(0);
+    h.advance(20);
+    expect(h.room!.match!.playerState(h.a.session.playerId).state.leftHeld).toBe(false);
+    h.advance(600);
+    expect(h.a.commands.filter(c => c.type === "releaseControls")).toHaveLength(1);
+    expect(h.a.diagnostics!.snapshot().rejections.total).toBe(rejections);
+    expect(transmitted(h)).toEqual([Input.LeftDown]);
+    expect(h.a.session.canPlay).toBe(true);
+    h.press("a", Input.RightDown);
+    h.runUntil(() => h.a.session.pending.length === 0);
+    expect(h.a.batches.at(-1)!.items[0].seq).toBe(1);
+    expect(h.a.batches.at(-1)!.generation).toBeGreaterThan(h.a.batches[0].generation);
+    expectSequenceOwnership(h);
+  });
+
+  test.each([300, 1000])("a %i ms stall defers the trailing timer until checkpoint recovery", duration => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    const generation = h.a.session.checkpoint!.owner.generation;
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    const unsent = { ...h.a.session.pending.at(-1)! };
+    h.stall("a", duration);
+    h.holdDownstream("a", duration + 25);
+    h.advance(duration);
+
+    expect(transmitted(h)).toEqual([Input.LeftDown]);
+    expect(h.a.session.pending.at(-1)).toEqual(unsent);
+    expect(h.a.commands.filter(c => c.type === "resync")).toHaveLength(1);
+    h.advance(25);
+    h.runUntil(() => h.a.session.pending.length === 0, 2000);
+    expect(h.a.diagnostics!.snapshot()).toMatchObject({
+      staleRecovery: { count: 1, retracted: 1, reissued: 1 },
+      rejections: { total: 0 }, releases: { total: 0 },
+    });
+    expect(h.a.session.checkpoint!.owner.generation).toBe(generation);
+    expect(ownerState(h).state.leftHeld).toBe(false);
+    expect(seqs(h)).toEqual([1, 2]);
+    expect(converged(h)).toBe(true);
+    const batches = h.a.batches.length;
+    h.advance(600); // the former deferral deadline must have been cancelled
+    expect(h.a.batches).toHaveLength(batches);
+    expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+  });
+
+  test("checkpoint freshness expiring during deferral cannot cancel its 500 ms fallback", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.stall("a", 1800);
+    h.holdDownstream("a", 2800);
+    h.advance(1800);
+    expect(h.a.session.canPlay).toBe(true);
+    expect(h.scheduledTimers("a")).toHaveLength(1);
+    h.advance(499);
+    expect(h.a.session.canPlay).toBe(false);
+    expect(h.scheduledTimers("a")).toHaveLength(1);
+    expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+    h.advance(1);
+    expect(h.a.diagnostics!.snapshot().releases.byReason).toEqual({ "stale-prediction": 1 });
+    expect(h.a.session.pending).toHaveLength(0);
+    expect(h.scheduledTimers("a")).toHaveLength(0);
+    h.advance(20);
+    expect(h.room!.match!.playerState(h.a.session.playerId).state.leftHeld).toBe(false);
+    h.advance(600);
+    h.runUntil(() => h.a.session.canPlay);
+    expect(h.a.commands.filter(c => c.type === "releaseControls")).toHaveLength(1);
+    expect(h.a.diagnostics!.snapshot().rejections.total).toBe(0);
+    expectSequenceOwnership(h);
+  });
+
+  test("a room update after checkpoint expiry cannot cancel the deferral deadline", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.stall("a", 1800);
+    h.holdDownstream("a", 2800);
+    h.advance(1800);
+    const [deadline] = h.scheduledTimers("a");
+    h.advance(250);
+    expect(h.a.session.canPlay).toBe(false);
+    // Cosmetic/readiness room updates do not refresh the simulation checkpoint.
+    h.a.session.receive({ type: "roomState", room: h.rooms.view(h.room!) });
+    expect(h.scheduledTimers("a")[0]?.at).toBe(deadline.at);
+    h.advance(250);
+    expect(h.a.diagnostics!.snapshot().releases.byReason).toEqual({ "stale-prediction": 1 });
+    h.advance(20);
+    expect(h.room!.match!.playerState(h.a.session.playerId).state.leftHeld).toBe(false);
+    expect(h.a.session.pending).toHaveLength(0);
+    expect(h.scheduledTimers("a")).toHaveLength(0);
+    expectSequenceOwnership(h);
+  });
+
+  test.each(["timeout", "recovered"] as const)("partial recoveries retain the original 500 ms deadline: %s", outcome => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    const checkpoints: Checkpoint[] = [];
+    const send = h.a.peer!.send;
+    h.a.peer!.send = message => {
+      if (message.type === "checkpoint") checkpoints.push(message);
+      else send(message);
+    };
+    h.holdDownstream("a", 3000);
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    const releaseFrame = h.a.session.pending.at(-1)!.frame;
+    h.stall("a", 300);
+    h.advance(300);
+    const [deadline] = h.scheduledTimers("a");
+    h.press("a", Input.RotateCw);
+    const rotationFrame = h.a.session.pending.at(-1)!.frame;
+    h.advance(95);
+    h.press("a", Input.Hold);
+    const holdFrame = h.a.session.pending.at(-1)!.frame;
+    h.advance(255);
+
+    // Deliver real checkpoints whose frames only validate a prefix of the tail.
+    // Each rewrites the correction, but the rest is already late by the clock.
+    h.a.session.receive(checkpoints.find(cp => cp.state!.frame > releaseFrame && cp.state!.frame < rotationFrame)!);
+    h.advance(0);
+    expect(h.scheduledTimers("a")[0].at).toBe(deadline.at);
+    const [replacement] = h.scheduledTimers("a");
+    deadline.run();
+    expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+    h.advance(50);
+    h.a.session.receive(checkpoints.find(cp => cp.state!.frame > rotationFrame && cp.state!.frame < holdFrame)!);
+    h.advance(0);
+    expect(h.scheduledTimers("a")[0].at).toBe(deadline.at);
+    replacement.run();
+    expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+    if (outcome === "recovered") {
+      const [lastDeadline] = h.scheduledTimers("a");
+      h.a.session.receive(checkpoints.at(-1)!);
+      lastDeadline.run();
+      h.advance(200);
+      h.a.session.receive(checkpoints.at(-1)!);
+      expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+      expect(transmitted(h)).toEqual([Input.LeftDown, Input.LeftUp]);
+    } else {
+      h.advance(100);
+      expect(h.a.diagnostics!.snapshot().releases.byReason).toEqual({ "stale-prediction": 1 });
+      expect(transmitted(h)).toEqual([Input.LeftDown]);
+    }
+    expect(h.a.session.pending).toHaveLength(0);
+    expect(h.scheduledTimers("a")).toHaveLength(0);
+    h.advance(20);
+    expect(h.room!.match!.playerState(h.a.session.playerId).state.leftHeld).toBe(false);
+    expectSequenceOwnership(h);
+  });
+
+  test("a key handler ahead of an overdue deadline cannot renew or transmit the deferred batch", () => {
+    const h = new NetHarness({ diagnostics: true, inputFirst: true });
+    h.startMatch();
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.stall("a", 300);
+    h.holdDownstream("a", 1600);
+    h.advance(300);
+    const [deadline] = h.scheduledTimers("a");
+    h.stall("a", 600);
+    h.press("a", Input.RotateCw);
+    h.advance(600);
+    expect(h.a.diagnostics!.snapshot().releases.byReason).toEqual({ "stale-prediction": 1 });
+    expect(h.a.session.pending).toHaveLength(0);
+    expect(transmitted(h)).toEqual([Input.LeftDown]);
+    expect(h.scheduledTimers("a")).toHaveLength(0);
+    deadline.run();
+    h.advance(20);
+    expect(h.a.commands.filter(c => c.type === "releaseControls")).toHaveLength(1);
+    expect(h.room!.match!.playerState(h.a.session.playerId).state.leftHeld).toBe(false);
+    expectSequenceOwnership(h);
+  });
+
+  test("three corrective releases reserve only unused sequences before surviving one-shots", async () => {
+    const h = new NetHarness({ diagnostics: true, inputFirst: true });
+    h.startMatch();
+    const generation = h.a.session.checkpoint!.owner.generation;
+    h.press("a", Input.LeftDown);
+    h.advance(34);
+    h.press("a", Input.RightDown);
+    h.advance(34);
+    h.press("a", Input.SoftDropDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.press("a", Input.RightUp);
+    h.press("a", Input.SoftDropUp);
+    h.stall("a", 300);
+    h.holdDownstream("a", 325);
+    h.press("a", Input.RotateCw);
+    h.press("a", Input.HardDrop);
+    h.advance(325);
+    const batch = h.a.batches.at(-1)!;
+    expect(batch.items.map(i => i.input)).toEqual([
+      Input.LeftUp, Input.RightUp, Input.SoftDropUp, Input.RotateCw, Input.HardDrop,
+    ]);
+    expect(batch.items.map(i => i.seq)).toEqual([4, 5, 6, 7, 8]);
+    expect(batch.items.every(i => i.frame === batch.items[0].frame && i.subframe === batch.items[0].subframe)).toBe(true);
+    h.runUntil(() => h.a.session.pending.length === 0);
+    expect(ownerState(h).state).toMatchObject({ leftHeld: false, rightHeld: false, softHeld: false, sequence: 1 });
+    expect(h.a.session.checkpoint!.owner.generation).toBe(generation);
+    expect(h.a.diagnostics!.snapshot()).toMatchObject({ releases: { total: 0 }, rejections: { total: 0 },
+      staleRecovery: { count: 1, retracted: 3, reissued: 3 } });
+    expectSequenceOwnership(h);
+    const journal = await h.room!.recorder!.buildIncompleteReplay();
+    expect(journal).not.toBeNull();
+    expect((await verifyMatchReplayExecution(journal!)).state).toEqual(h.room!.match!.saveState());
+  });
+
+  test("a key handler first recovers Left-up before newer rotation and hard drop at their original time", async () => {
+    const h = new NetHarness({ diagnostics: true, inputFirst: true });
+    h.startMatch();
+    const generation = h.a.session.checkpoint!.owner.generation;
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.stall("a", 300);
+    h.holdDownstream("a", 325);
+    h.press("a", Input.RotateCw); // queued handler has priority over the stalled timer
+    h.press("a", Input.HardDrop);
+    h.advance(300);
+    expect(transmitted(h)).toEqual([Input.LeftDown]);
+    const actions = h.a.session.pending.filter(i => i.input === Input.RotateCw || i.input === Input.HardDrop)
+      .map(({ seq, sent, transmitted, ...item }) => item);
+    expect(actions).toHaveLength(2);
+    const at = (actions[0].frame + actions[0].subframe) * FRAME_MS;
+    h.advance(25);
+    const checkpoint = h.a.session.checkpoint!;
+    const batch = h.a.batches.at(-1)!;
+    expect(batch.items.map(i => i.input)).toEqual([Input.LeftUp, Input.RotateCw, Input.HardDrop]);
+    expect(batch.items.map(i => i.seq)).toEqual([2, 3, 4]);
+    expect(batch.items.slice(1).map(({ seq, ...item }) => item)).toEqual(actions);
+    expect((batch.items[0].frame + batch.items[0].subframe) * FRAME_MS).toBe(at);
+
+    // Execute the same ordered inputs from the authority's pre-recovery state.
+    // The journal and prediction must lock the same piece in the same cells.
+    const replay = Match.fromState(checkpoint.state!);
+    for (const item of batch.items) replay.submit({ ...item, player: h.a.session.playerId,
+      order: item.seq, epoch: checkpoint.owner.epoch });
+    h.runUntil(() => h.a.session.pending.length === 0, 2000);
+    replay.advanceToFrame(h.a.session.checkpoint!.state!.frame);
+    expect(ownerState(h)).toEqual(replay.playerState(h.a.session.playerId));
+    expect(ownerState(h).state.sequence).toBe(checkpoint.state!.players[0].game.state.sequence + 1);
+    expect(ownerState(h).board.some(cell => cell !== 0)).toBe(true);
+    expect(ownerState(h).state.leftHeld).toBe(false);
+    expect(h.a.session.checkpoint!.owner.generation).toBe(generation);
+    expect(h.a.diagnostics!.snapshot()).toMatchObject({ releases: { total: 0 }, rejections: { total: 0 },
+      staleRecovery: { count: 1, retracted: 1, reissued: 1 } });
+    expect(converged(h)).toBe(true);
+    expectSequenceOwnership(h);
+    const journal = await h.room!.recorder!.buildIncompleteReplay();
+    expect(journal).not.toBeNull();
+    const verified = await verifyMatchReplayExecution(journal!);
+    expect(verified.state).toEqual(h.room!.match!.saveState());
+  });
+
+  test.each([Input.HardDrop, Input.Hold, Input.RotateCw])("a newer one-shot %i that ages during deferral is dropped without retiming", input => {
+    const h = new NetHarness({ diagnostics: true, inputFirst: true });
+    h.startMatch();
+    const sequence = ownerState(h).state.sequence;
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.stall("a", 300);
+    h.holdDownstream("a", 525);
+    h.press("a", input);
+    h.advance(300);
+    const [deadline] = h.scheduledTimers("a");
+    h.advance(100);
+    expect(h.scheduledTimers("a")[0].at).toBe(deadline.at);
+    expect(h.a.commands.filter(c => c.type === "resync")).toHaveLength(1);
+    h.advance(125);
+    h.runUntil(() => h.a.session.pending.length === 0);
+    expect(transmitted(h)).toEqual([Input.LeftDown, Input.LeftUp]);
+    expect(ownerState(h).state.sequence).toBe(sequence);
+    expect(ownerState(h).state.rot).toBe(0);
+    expect(ownerState(h).state.leftHeld).toBe(false);
+    expect(h.a.diagnostics!.snapshot()).toMatchObject({ releases: { total: 0 }, rejections: { total: 0 },
+      // The queued checkpoint burst first recovers the old release, then drops
+      // that still-unsent correction together with the now-stale one-shot.
+      staleRecovery: { count: 2, retracted: 3, reissued: 2 } });
+    expectSequenceOwnership(h);
+  });
+
+  test("a recovered release precedes a newer press of the same held control", () => {
+    const h = new NetHarness({ diagnostics: true, inputFirst: true });
+    h.startMatch();
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.stall("a", 300);
+    h.holdDownstream("a", 325);
+    h.press("a", Input.LeftDown);
+    h.advance(325);
+    expect(transmitted(h)).toEqual([Input.LeftDown, Input.LeftUp, Input.LeftDown]);
+    const recovered = h.a.batches.at(-1)!.items;
+    expect(recovered[0].frame).toBe(recovered[1].frame);
+    expect(recovered[0].subframe).toBe(recovered[1].subframe);
+    h.runUntil(() => h.a.session.pending.length === 0);
+    expect(ownerState(h).state.leftHeld).toBe(true);
+    h.press("a", Input.LeftUp);
+    h.runUntil(() => h.a.session.pending.length === 0);
+    expect(ownerState(h).state.leftHeld).toBe(false);
+    expect(h.a.diagnostics!.snapshot()).toMatchObject({ releases: { total: 0 }, rejections: { total: 0 } });
+    expectSequenceOwnership(h);
+  });
+
+  test("a gap retry stays transmitted and resends the original fingerprint even when the clock calls it stale", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    h.holdDownstream("a", 400);
+    h.press("a", Input.LeftDown);
+    const original = structuredClone(h.a.batches[0].items[0]);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    // Reliable ordered transport cannot naturally create a gap. Inject a gap
+    // response and an old ack while the real server still receives the original.
+    h.a.session.receive({ type: "error", code: "SEQ_GAP", message: "Retry" });
+    const cp = structuredClone(h.a.session.checkpoint!);
+    cp.serverSequence++;
+    h.a.session.receive(cp);
+    expect(h.a.session.pending[0]).toMatchObject({ sent: false, transmitted: true });
+    h.stall("a", 300);
+    h.advance(300);
+    expect(h.a.batches[1].items[0]).toEqual(original);
+    expect(h.a.session.pending[0]).toMatchObject({ sent: true, transmitted: true });
+    expect(h.scheduledTimers("a")).toHaveLength(0);
+    h.advance(300);
+    h.runUntil(() => h.a.session.canPlay && h.a.session.pending.length === 0);
+    expect(h.a.diagnostics!.snapshot()).toMatchObject({ staleRecovery: { count: 0 }, releases: { total: 1 } });
+    expect(h.a.messages.filter(m => m.type === "error" && m.code === "SEQ_CONFLICT")).toHaveLength(0);
+    expect(ownerState(h).state.leftHeld).toBe(false);
+    expectSequenceOwnership(h);
+  });
+
+  test.each(["stop", "reconnect", "generation", "epoch", "round", "match", "room", "match-state", "room-state", "paused", "frozen", "left"] as const)(
+    "%s invalidates a deferred callback, including after fresh input is queued", change => {
+      const h = new NetHarness({ diagnostics: true });
+      h.startMatch();
+      h.press("a", Input.LeftDown);
+      h.advance(5);
+      h.press("a", Input.LeftUp);
+      h.stall("a", 300);
+      h.holdDownstream("a", 1000);
+      h.advance(300);
+      const [deadline] = h.scheduledTimers("a");
+      expect(deadline).toBeDefined();
+      // Use real checkpoint shapes to exercise each identity component in
+      // isolation; actual server pause/resume is covered separately below.
+      const cp = structuredClone(h.a.session.checkpoint!);
+      cp.serverSequence++;
+      if (change === "stop") h.a.session.stop();
+      else if (change === "reconnect") h.a.session.retry();
+      else if (change === "left") h.a.session.receive({ type: "left" });
+      else {
+        if (change === "generation") cp.owner.generation++;
+        if (change === "epoch") {
+          cp.owner.epoch++;
+          cp.state!.players[cp.state!.roster.indexOf(h.a.session.playerId)].epoch++;
+        }
+        if (change === "round") cp.state!.round++;
+        if (change === "match" || change === "match-state") cp.matchId = cp.room.matchId = "new-match";
+        if (change === "room" || change === "room-state") cp.room.code = "NEWROM";
+        if (change === "paused") cp.room.phase = "paused";
+        if (change === "frozen") cp.clock.frozen = true;
+        h.a.session.receive(change === "match-state" || change === "room-state" ? { type: "roomState", room: cp.room } : cp);
+      }
+      expect(h.scheduledTimers("a")).toHaveLength(0);
+      h.press("a", Input.RightDown);
+      const pending = structuredClone(h.a.session.pending);
+      const batches = h.a.batches.length;
+      deadline.run(); // even an already-dispatched cancelled task is harmless
+      expect(h.a.session.pending).toEqual(pending);
+      expect(h.a.batches).toHaveLength(batches);
+      expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
+    });
+
+  test.each(["a", "b"] as const)("a real %s disconnect and reconnect clear deferral before the room resumes", key => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    h.press("a", Input.LeftDown);
+    h.advance(5);
+    h.press("a", Input.LeftUp);
+    h.stall("a", 300);
+    h.holdDownstream("a", 325);
+    h.advance(300);
+    const [deadline] = h.scheduledTimers("a");
+    if (key === "a") h.a.peer!.close();
+    else h.b.session.stop();
+    h.advance(25);
+    const watcher = key === "a" ? h.b : h.a;
+    expect(watcher.session.room!.phase).toBe("paused");
+    expect(watcher.session.checkpoint!.clock.frozen).toBe(true);
+    if (key === "a") expect(h.a.session.connected).toBe(false);
+    expect(h.a.session.pending).toHaveLength(0);
+    expect(h.scheduledTimers("a")).toHaveLength(0);
+    const frozenAt = watcher.session.prediction!.atMs;
+    h.advance(600);
+    expect(watcher.session.prediction!.atMs).toBe(frozenAt);
+    if (key === "b") h.b.session.start();
+    h.runUntil(() => h.a.session.canPlay && h.b.session.canPlay, 6000);
+    h.press("a", Input.RightDown);
+    deadline.run();
+    h.advance(40);
+    h.press("a", Input.RightUp);
+    h.runUntil(() => h.a.session.pending.length === 0);
+    expect(ownerState(h).state.leftHeld).toBe(false);
+    expect(ownerState(h).state.rightHeld).toBe(false);
+    expect(h.a.diagnostics!.snapshot()).toMatchObject({ releases: { total: 0 }, rejections: { total: 0 } });
+  });
+
+  test("healthy 34 ms batching never requests a deferral or adds latency", () => {
+    const h = new NetHarness({ diagnostics: true });
+    h.startMatch();
+    for (let i = 0; i < 10; i++) {
+      h.press("a", Input.LeftDown);
+      h.advance(5);
+      h.press("a", Input.LeftUp);
+      const queued = h.time;
+      expect(h.scheduledTimers("a")[0].at).toBe(queued + 29);
+      h.advance(29);
+      expect(h.a.batches.at(-1)!.items.at(-1)!.input).toBe(Input.LeftUp);
+      expect(h.a.session.pending.every(i => i.transmitted)).toBe(true);
+      h.advance(100);
+    }
+    h.runUntil(() => h.a.session.pending.length === 0);
+    expect(h.a.commands.filter(c => c.type === "resync")).toHaveLength(0);
+    expect(h.a.diagnostics!.snapshot()).toMatchObject({ releases: { total: 0 }, rejections: { total: 0 },
+      staleRecovery: { count: 0 } });
+    expect(h.scheduledTimers("a")).toHaveLength(0);
   });
 });
 
