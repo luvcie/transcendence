@@ -1,32 +1,11 @@
 import { soundUrls, type SoundClip, type SoundPack } from "./sound-pack";
 import { MAX_TETRIO_EXPORT_BYTES, parseTetrioExport, tetrioClipSource, tetrioClipUrl, tetrioSoundPack, type SoundAtlas } from "./tetrio-sounds";
+import { fetchExternalFile } from "./external-file";
 
 export interface LoadedSounds { pack: SoundPack; buffers: Map<string, AudioBuffer>; failed: number }
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const MAX_DECODED_BYTES = 64 * 1024 * 1024;
 const MAX_TETRIO_DECODED_BYTES = 256 * 1024 * 1024;
-
-export async function fetchSoundFile(url: string, limit: number, signal: AbortSignal, timeoutMs = 12000): Promise<ArrayBuffer> {
-  const response = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]), credentials: "omit", referrerPolicy: "no-referrer" });
-  if (!response.ok) throw new Error(`Could not load file (HTTP ${response.status}).`);
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("The file was empty.");
-  const chunks: Uint8Array[] = [];
-  let length = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      length += value.byteLength;
-      if (length > limit) throw new Error("The file is too large.");
-      chunks.push(value);
-    }
-  } finally { await reader.cancel(); }
-  const bytes = new Uint8Array(length);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  return bytes.buffer;
-}
 
 export class SoundPlayer {
   private context?: AudioContext;
@@ -39,7 +18,7 @@ export class SoundPlayer {
   private previewRequest?: AbortController;
   volume = 0.5;
 
-  constructor(private makeContext = () => new AudioContext({ latencyHint: "interactive" }), private fetchFile = fetchSoundFile) {}
+  constructor(private makeContext = () => new AudioContext({ latencyHint: "interactive" }), private fetchFile = fetchExternalFile) {}
 
   private audio() {
     if (!this.context) {

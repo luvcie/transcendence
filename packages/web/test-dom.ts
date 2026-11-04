@@ -6,6 +6,7 @@ export class Element extends EventTarget {
   disabled = false;
   checked = false;
   open = false;
+  dataset: Record<string, string> = {};
   width = 300;
   height = 600;
   children: Element[] = [];

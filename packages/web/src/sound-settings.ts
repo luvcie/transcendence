@@ -1,8 +1,8 @@
 import { BUILTIN_SOUNDS, JSTRIS_SOUND_PRESETS, SOUND_DATABASE, TETRIO_SOUND_DATABASE, type SoundDef } from "./sound-catalog";
 import { comboClip, type SoundClip } from "./sound-pack";
 import { SoundPlayer } from "./sound-player";
-import { customSound, SoundState } from "./sound-state";
-import { setupSettingsSearch } from "./settings-search";
+import { customSound, resolveSound, SoundState } from "./sound-state";
+import { createSettingsGroup, setupSettingsSearch } from "./settings-search";
 
 export function setupSounds(state: SoundState, player: SoundPlayer) {
   const panel = document.querySelector<HTMLElement>("#settings-sounds")!;
@@ -18,6 +18,7 @@ export function setupSounds(state: SoundState, player: SoundPlayer) {
   const output = document.querySelector<HTMLOutputElement>("#sound-volume-value")!;
   let generation = 0;
   function refresh() {
+    document.querySelector("#sound-selected")!.textContent = `Selected: ${resolveSound(state.preferences).label}`;
     enabled.checked = state.preferences.enabled;
     volume.value = String(Math.round(state.preferences.volume * 100));
     output.value = `${volume.value}%`;
@@ -106,12 +107,22 @@ export function setupSounds(state: SoundState, player: SoundPlayer) {
     } else {
       const status = document.createElement("p"); status.className = "hint"; status.textContent = "No sound effects."; item.append(status);
     }
-    list.append(item);
+    return item;
   }
   function render() {
     generation++; list.replaceChildren();
-    for (const def of BUILTIN_SOUNDS) option(def);
-    state.preferences.customs.forEach((custom, index) => option(customSound(custom, index), index));
+    const groups: [string, readonly SoundDef[]][] = [
+      ["42tris", BUILTIN_SOUNDS.filter(def => !def.source)],
+      ["Jstris+ presets", BUILTIN_SOUNDS.filter(def => def.source === JSTRIS_SOUND_PRESETS)],
+      ["Eddiez-Soundz", BUILTIN_SOUNDS.filter(def => def.source === SOUND_DATABASE)],
+      ["TETR.IO+ database", BUILTIN_SOUNDS.filter(def => def.source?.startsWith(TETRIO_SOUND_DATABASE))],
+      ["Custom sounds", state.preferences.customs.map(customSound)],
+    ];
+    for (const [label, defs] of groups) {
+      if (!defs.length) continue;
+      const options = createSettingsGroup(list, label, defs.some(def => def.id === state.preferences.active));
+      defs.forEach((def, index) => options.append(option(def, def.id.startsWith("custom:") ? index : undefined)));
+    }
     filter();
     refresh();
   }

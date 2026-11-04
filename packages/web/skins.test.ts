@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MINOS, Piece, type PieceId } from "@42tris/core";
-import { BUILTIN_SKINS, CLASSIC, customSkin } from "./src/skin-catalog";
+import { BUILTIN_SKINS, CLASSIC, customSkin, TETRIO_SKIN_DATABASE } from "./src/skin-catalog";
 import { createSkinLoader, sheetTile, SKIN_CACHE_LIMIT, type LoadedSkin } from "./src/skin-loader";
 import { parseCustomSkinUrl, parseSkinPreferences, removeCustom } from "./src/skin-preferences";
 import { SkinState } from "./src/skin-state";
@@ -51,9 +51,10 @@ describe("skin preferences", () => {
 });
 
 describe("sheet layout and rendering", () => {
-  test("catalog includes all 65 image skins, fixed tiles and FOUR join metadata", () => {
-    expect(BUILTIN_SKINS).toHaveLength(66);
-    expect(new Set(BUILTIN_SKINS.map(def => def.id)).size).toBe(66);
+  test("catalog keeps the 65 original image skins alongside TETR.IO+ exports", () => {
+    expect(BUILTIN_SKINS.filter(def => !def.url?.startsWith(TETRIO_SKIN_DATABASE))).toHaveLength(66);
+    expect(BUILTIN_SKINS.filter(def => def.url?.startsWith(TETRIO_SKIN_DATABASE))).toHaveLength(286);
+    expect(new Set(BUILTIN_SKINS.map(def => def.id)).size).toBe(BUILTIN_SKINS.length);
     expect(tetrio.tile).toBe(30);
     expect(BUILTIN_SKINS.find(def => def.id === "ppt")!.tile).toBe(36);
     expect(four.join).toEqual({ open: 0, joined: 1 });

@@ -1,3 +1,5 @@
+import tetrioSkins from "./tetrio-skin-presets.json";
+
 export interface SkinDef {
   id: string;
   label: string;
@@ -9,6 +11,7 @@ export interface SkinDef {
 }
 
 export const SKIN_DATABASE = "https://konsola5.github.io/jstris-customization-database/";
+export const TETRIO_SKIN_DATABASE = "https://you.have.fail/tetrioplus/";
 export const CLASSIC: SkinDef = { id: "classic", label: "Classic", tile: 0 };
 
 // Catalog and source links ported from memominolab's jstris database selection.
@@ -84,7 +87,10 @@ export const BUILTIN_SKINS: readonly SkinDef[] = [CLASSIC, ...catalog.map(([id, 
   const url = `https://i.imgur.com/${image}.png`;
   return { id, label, url, tile, source: id === "four" ? "https://imgur.com/zIFJEZ9" : url,
     ...(id === "four" ? { join: { open: 0, joined: 1 } } : {}) };
-})];
+}), ...tetrioSkins.map(([id, label, author, path, gallery]) => ({
+  id, label, tile: 0, url: `${TETRIO_SKIN_DATABASE}data/${path}`,
+  source: `${TETRIO_SKIN_DATABASE}#${gallery}`, credit: `${author} (TETR.IO+)`,
+}))];
 
 export function customSkin(url: string, index: number): SkinDef {
   return { id: `custom:${index}`, label: `Custom ${index + 1}`, url, tile: 0, source: url };

@@ -1,6 +1,7 @@
 import { BUILTIN_SOUNDS, SILENT, type SoundDef } from "./sound-catalog";
 import { MAX_PACK_LENGTH, parseSoundPack, soundUrl, type SoundPack } from "./sound-pack";
-import { fetchSoundFile, type LoadedSounds } from "./sound-player";
+import type { LoadedSounds } from "./sound-player";
+import { fetchExternalFile } from "./external-file";
 import { isTetrioExportUrl } from "./tetrio-sounds";
 
 export const SOUND_STORAGE_KEY = "42tris.sounds.v1";
@@ -83,7 +84,7 @@ export class SoundState {
           const name = decodeURIComponent(new URL(url).pathname.split("/").pop()!).replace(/(?:\.zip)?\.tpse$|\.zip$/i, "").replaceAll("_", " ");
           json = JSON.stringify({ name, tetrioPlus: url });
         } else {
-          const bytes = await fetchSoundFile(url, MAX_PACK_LENGTH, request.signal);
+          const bytes = await fetchExternalFile(url, MAX_PACK_LENGTH, request.signal);
           json = new TextDecoder().decode(bytes);
         }
       }

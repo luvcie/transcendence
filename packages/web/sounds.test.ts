@@ -2,7 +2,8 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { Game, INITIAL_FINESSE, INITIAL_STATS, Input, Piece, type LockResult } from "@42tris/core";
 import { BUILTIN_SOUNDS } from "./src/sound-catalog";
 import { clearClips, comboClip, parseSoundPack, soundUrl, soundUrls, type SoundClip, type SoundPack } from "./src/sound-pack";
-import { fetchSoundFile, SoundPlayer, type LoadedSounds } from "./src/sound-player";
+import { SoundPlayer, type LoadedSounds } from "./src/sound-player";
+import { fetchExternalFile } from "./src/external-file";
 import { MAX_CUSTOM_SOUNDS, parseSoundPreferences, resolveSound, SoundState } from "./src/sound-state";
 import { GameSounds } from "./src/game-sounds";
 import { snapshotDisplay } from "./src/game-display";
@@ -206,7 +207,7 @@ describe("audio loading and playback", () => {
   test("caps streamed files without trusting Content-Length", async () => {
     const fetch = spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(new Uint8Array(1025), { headers: { "Content-Length": "1" } }));
     try {
-      await expect(fetchSoundFile(a, 1024, new AbortController().signal)).rejects.toThrow("too large");
+      await expect(fetchExternalFile(a, 1024, new AbortController().signal)).rejects.toThrow("too large");
     } finally { fetch.mockRestore(); }
   });
   function audio() {

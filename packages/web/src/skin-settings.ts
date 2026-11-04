@@ -1,8 +1,9 @@
 import type { PieceId } from "@42tris/core";
-import { BUILTIN_SKINS, customSkin, SKIN_DATABASE, type SkinDef } from "./skin-catalog";
+import { BUILTIN_SKINS, customSkin, SKIN_DATABASE, TETRIO_SKIN_DATABASE, type SkinDef } from "./skin-catalog";
 import { SkinState } from "./skin-state";
 import { drawPiecePreview } from "./tile-renderer";
-import { setupSettingsSearch } from "./settings-search";
+import { resolveSkin } from "./skin-preferences";
+import { createSettingsGroup, setupSettingsSearch } from "./settings-search";
 
 export function setupSkins(state: SkinState) {
   const panel = document.querySelector<HTMLElement>("#settings-skins")!;
@@ -25,6 +26,7 @@ export function setupSkins(state: SkinState) {
   }, { root: document.querySelector("#settings-dialog"), rootMargin: "100px" });
 
   function refreshSelection() {
+    document.querySelector("#skin-selected")!.textContent = `Selected: ${resolveSkin(state.preferences).label}`;
     for (const button of list.querySelectorAll<HTMLButtonElement>("button[data-skin]")) {
       const selected = button.dataset.skin === state.preferences.active;
       button.setAttribute("aria-pressed", String(selected));
@@ -38,7 +40,7 @@ export function setupSkins(state: SkinState) {
     return anchor;
   }
   document.querySelector("#skin-credit")!.append("Artwork and skin links from the ",
-    link(SKIN_DATABASE, "jstris customization database"), ".", document.createElement("br"),
+    link(SKIN_DATABASE, "jstris customization database"), " and the ", link(TETRIO_SKIN_DATABASE, "TETR.IO+ database"), ".", document.createElement("br"),
     "42tris ships no skin assets other than its own originals, community skins are loaded live from external links.");
 
   function option(def: SkinDef, index?: number) {
@@ -88,9 +90,9 @@ export function setupSkins(state: SkinState) {
         drawPiecePreview(ctx, (i + 1) as PieceId, 16, 72, 72, 0, skin);
       });
     };
-    paint();
     const current = generation;
     const load = () => {
+      paint();
       status.textContent = def.url ? "Loading preview…" : "Made with code.";
       void state.load(def).then(skin => {
         if (current !== generation) return;
@@ -103,17 +105,26 @@ export function setupSkins(state: SkinState) {
     if (def.source) {
       const source = document.createElement("p"); source.className = "hint";
       if (def.credit) source.append(`Art by ${def.credit}. `);
-      source.append(link(def.source, "Source image")); item.append(source);
+      source.append(link(def.source, "Source")); item.append(source);
     }
-    list.append(item);
     if (observer) { previews.set(item, load); observer.observe(item); }
     else load();
+    return item;
   }
   function render() {
     generation++;
     observer?.disconnect(); previews.clear(); list.replaceChildren();
-    for (const def of BUILTIN_SKINS) option(def);
-    state.preferences.customs.forEach((url, i) => option(customSkin(url, i), i));
+    const groups: [string, readonly SkinDef[]][] = [
+      ["42tris", BUILTIN_SKINS.filter(def => !def.url)],
+      ["Jstris community", BUILTIN_SKINS.filter(def => def.url && !def.url.startsWith(TETRIO_SKIN_DATABASE))],
+      ["TETR.IO+ database", BUILTIN_SKINS.filter(def => def.url?.startsWith(TETRIO_SKIN_DATABASE))],
+      ["Custom skins", state.preferences.customs.map(customSkin)],
+    ];
+    for (const [label, defs] of groups) {
+      if (!defs.length) continue;
+      const options = createSettingsGroup(list, label, defs.some(def => def.id === state.preferences.active));
+      defs.forEach((def, index) => options.append(option(def, def.id.startsWith("custom:") ? index : undefined)));
+    }
     filter();
     refreshSelection();
   }

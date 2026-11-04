@@ -36,7 +36,7 @@ export class SkinState {
   }
   async add(raw: string): Promise<boolean> {
     const url = parseCustomSkinUrl(raw);
-    if (!url) { this.message = "Paste an HTTPS image link (maximum 512 characters, no credentials)."; return false; }
+    if (!url) { this.message = "Paste an HTTPS image or .tpse link (maximum 512 characters, no credentials)."; return false; }
     if (this.preferences.customs.includes(url)) { this.message = "That link is already saved."; return false; }
     if (this.preferences.customs.length >= MAX_CUSTOM_SKINS) { this.message = "The list is full. Remove a custom skin first."; return false; }
     const revision = ++this.addRevision;
