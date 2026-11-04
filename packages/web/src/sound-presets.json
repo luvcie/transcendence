@@ -112,15 +112,6 @@
       "TSPIN_TRIPLE": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearspin.ogg",
       "PERFECT_CLEAR": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/allclear.ogg"
     },
-    "spawns": {
-      "I": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/i.ogg",
-      "O": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/o.ogg",
-      "T": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/t.ogg",
-      "L": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/l.ogg",
-      "J": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/j.ogg",
-      "S": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/s.ogg",
-      "Z": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/z.ogg"
-    },
     "specialScoring": {
       "ALLSPIN": [
         {
