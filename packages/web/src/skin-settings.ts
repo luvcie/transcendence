@@ -2,10 +2,13 @@ import type { PieceId } from "@42tris/core";
 import { BUILTIN_SKINS, customSkin, SKIN_DATABASE, type SkinDef } from "./skin-catalog";
 import { SkinState } from "./skin-state";
 import { drawPiecePreview } from "./tile-renderer";
+import { setupSettingsSearch } from "./settings-search";
 
 export function setupSkins(state: SkinState) {
   const panel = document.querySelector<HTMLElement>("#settings-skins")!;
   const list = document.querySelector<HTMLElement>("#skin-list")!;
+  const filter = setupSettingsSearch(document.querySelector<HTMLInputElement>("#skin-search")!, list,
+    document.querySelector<HTMLElement>("#skin-empty")!);
   const note = document.querySelector<HTMLElement>("#skin-note")!;
   const form = document.querySelector<HTMLFormElement>("#skin-form")!;
   const input = document.querySelector<HTMLInputElement>("#custom-skin")!;
@@ -41,6 +44,7 @@ export function setupSkins(state: SkinState) {
   function option(def: SkinDef, index?: number) {
     const item = document.createElement("article");
     item.className = "skin-option";
+    item.dataset.search = [def.id, def.label, def.credit, def.url].join(" ");
     const head = document.createElement("div");
     head.className = "skin-head";
     const title = document.createElement("h3");
@@ -110,6 +114,7 @@ export function setupSkins(state: SkinState) {
     observer?.disconnect(); previews.clear(); list.replaceChildren();
     for (const def of BUILTIN_SKINS) option(def);
     state.preferences.customs.forEach((url, i) => option(customSkin(url, i), i));
+    filter();
     refreshSelection();
   }
   form.addEventListener("submit", event => {

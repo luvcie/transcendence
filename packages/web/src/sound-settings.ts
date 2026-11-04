@@ -2,10 +2,13 @@ import { BUILTIN_SOUNDS, JSTRIS_SOUND_PRESETS, SOUND_DATABASE, TETRIO_SOUND_DATA
 import { comboClip, type SoundClip } from "./sound-pack";
 import { SoundPlayer } from "./sound-player";
 import { customSound, SoundState } from "./sound-state";
+import { setupSettingsSearch } from "./settings-search";
 
 export function setupSounds(state: SoundState, player: SoundPlayer) {
   const panel = document.querySelector<HTMLElement>("#settings-sounds")!;
   const list = document.querySelector<HTMLElement>("#sound-list")!;
+  const filter = setupSettingsSearch(document.querySelector<HTMLInputElement>("#sound-search")!, list,
+    document.querySelector<HTMLElement>("#sound-empty")!);
   const note = document.querySelector<HTMLElement>("#sound-note")!;
   const form = document.querySelector<HTMLFormElement>("#sound-form")!;
   const input = document.querySelector<HTMLTextAreaElement>("#custom-sound")!;
@@ -44,6 +47,7 @@ export function setupSounds(state: SoundState, player: SoundPlayer) {
     "42tris ships no sound effect assets other than its own originals, community sounds are loaded from external links.");
   function option(def: SoundDef, index?: number) {
     const item = document.createElement("article"); item.className = "sound-option";
+    item.dataset.search = [def.id, def.label, def.credit, def.source].join(" ");
     const head = document.createElement("div"); head.className = "sound-head";
     const title = document.createElement("h3"); title.textContent = def.label;
     const use = document.createElement("button");
@@ -108,6 +112,7 @@ export function setupSounds(state: SoundState, player: SoundPlayer) {
     generation++; list.replaceChildren();
     for (const def of BUILTIN_SOUNDS) option(def);
     state.preferences.customs.forEach((custom, index) => option(customSound(custom, index), index));
+    filter();
     refresh();
   }
   form.addEventListener("submit", event => {

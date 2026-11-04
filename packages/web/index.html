@@ -87,6 +87,9 @@
       .skin-head, .sound-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
       .skin-head h3, .sound-head h3 { flex: 1; min-width: 140px; font-size: 14px; margin: 0; }
       .skin-head button, .sound-head button { padding: 6px 8px; }
+      .catalog-search { margin: 16px 0; }
+      .catalog-search label { display: block; margin-bottom: 8px; }
+      .catalog-search input { width: 100%; background: #111; color: #eee; border: 1px solid #666; padding: 8px; }
       .sound-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
       .sound-preview button { padding: 5px 8px; font-size: 12px; }
       #sound-form { margin: 20px 0; }
@@ -398,6 +401,11 @@
           </div>
         </form>
         <p id="skin-note" class="hint" role="status"></p>
+        <div class="catalog-search">
+          <label for="skin-search">Search skins</label>
+          <input id="skin-search" type="search" placeholder="Name, creator, or link" autocomplete="off" spellcheck="false" aria-controls="skin-list">
+        </div>
+        <p id="skin-empty" class="hint" role="status" hidden>No skins match your search.</p>
         <div id="skin-list"></div>
       </section>
       <section id="settings-sounds" role="tabpanel" aria-labelledby="tab-sounds" tabindex="0" hidden>
@@ -421,6 +429,11 @@
           <p>JSON needs quoted keys and no comments. Audio and JSON hosts must allow cross-origin loading (CORS). Packs are saved on this device; no upload is needed.</p>
         </details>
         <p id="sound-note" class="hint" role="status"></p>
+        <div class="catalog-search">
+          <label for="sound-search">Search sounds</label>
+          <input id="sound-search" type="search" placeholder="Name, creator, or link" autocomplete="off" spellcheck="false" aria-controls="sound-list">
+        </div>
+        <p id="sound-empty" class="hint" role="status" hidden>No sound packs match your search.</p>
         <div id="sound-list"></div>
       </section>
       <h2>Custom</h2>
