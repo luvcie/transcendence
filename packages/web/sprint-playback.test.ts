@@ -1,6 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import {
   DEFAULT_HANDLING,
+  boardEdges,
   Input,
   MINOS,
   ROWS,
@@ -470,6 +471,7 @@ describe("Sprint replay seeking", () => {
     const expected = referenceAt(replay, position);
     expect(playback.positionMs).toBe(position);
     expect(playback.state).toEqual(expected.state);
+    expect(boardEdges(playback.state.board)).toEqual(boardEdges(expected.state.board));
     expect(playback.elapsedMs).toBe(expected.modeState.elapsed);
     expect(playback.started).toBe(expected.modeState.running);
     expect(playback.result).toEqual(expected.result);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Input, FRAME_MS } from "@42tris/core";
+import { boardEdges, copyBoardEdges, createBoard, Input, FRAME_MS, Piece, place } from "@42tris/core";
 import { Match } from "@42tris/match";
 import type { Checkpoint, ClientCommand, ServerMessage } from "@42tris/protocol";
 import { Session, type SessionOptions } from "./src/session";
@@ -403,4 +403,24 @@ describe("owner session", () => {
     expect(h.sent.at(-1)).toEqual({ type: "releaseControls" });
     expect(h.session.canPlay).toBe(false);
   });
+});
+
+test("checkpoint visual edges survive JSON transport and prediction without changing game state", () => {
+  const h = harness(), board = createBoard();
+  place(board, Piece.S, 1, 0, 24);
+  place(board, Piece.S, 3, 0, 25);
+  h.cp.state!.players[0].game.board = copyBoardEdges(board, [...board]);
+  const cp: Checkpoint = JSON.parse(JSON.stringify({ ...h.cp, serverSequence: 2,
+    boardEdges: h.cp.state!.players.map(player => btoa(String.fromCharCode(...boardEdges(player.game.board)))),
+  }));
+  expect(boardEdges(cp.state!.players[0].game.board).some(Boolean)).toBe(false);
+  const json = JSON.stringify(cp.state);
+  h.receive(cp);
+  expect(boardEdges(cp.state!.players[0].game.board)).toEqual(boardEdges(board));
+  expect(boardEdges(h.session.prediction!.gameState().board)).toEqual(boardEdges(board));
+  expect(JSON.stringify(cp.state)).toBe(json);
+  const before = h.session.checkpoint;
+  expect(() => h.receive({ ...cp, serverSequence: 3, boardEdges: cp.boardEdges!.slice(0, 1) })).toThrow("roster");
+  expect(() => h.receive({ ...cp, serverSequence: 3, boardEdges: [btoa("wrong length"), cp.boardEdges![1]] })).toThrow("dimensions");
+  expect(h.session.checkpoint).toBe(before);
 });

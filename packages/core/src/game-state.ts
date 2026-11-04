@@ -1,4 +1,5 @@
 import { COLS, ROWS, validateBoardWidth } from "./board";
+import { copyBoardEdges } from "./board-edges";
 import type { GameEvent, LockResult } from "./game";
 import { FRAME_MS, validateHandling, type Handling } from "./handling";
 import { MINOS, type PieceId } from "./pieces";
@@ -187,7 +188,7 @@ export function readGameState(value: unknown): GameState {
   for (const key of FIELD_KEYS) Object.assign(state, { [key]: f[key] });
   return {
     version: GAME_STATE_VERSION, rulesVersion: RULES_VERSION,
-    board: [...s.board], previews: [...s.previews], bag: { rng: s.bag.rng, pieces: [...s.bag.pieces], index: s.bag.index },
+    board: copyBoardEdges(s.board, [...s.board]), previews: [...s.previews], bag: { rng: s.bag.rng, pieces: [...s.bag.pieces], index: s.bag.index },
     config: { width, gravityMs: s.config.gravityMs, lockProfile: s.config.lockProfile, handling: {
       das: s.config.handling.das, arr: s.config.handling.arr, sddas: s.config.handling.sddas, sdarr: s.config.handling.sdarr,
     } },

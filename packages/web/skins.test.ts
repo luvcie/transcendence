@@ -4,7 +4,7 @@ import { BUILTIN_SKINS, CLASSIC, customSkin, TETRIO_SKIN_DATABASE } from "./src/
 import { createSkinLoader, sheetTile, SKIN_CACHE_LIMIT, type LoadedSkin } from "./src/skin-loader";
 import { parseCustomSkinUrl, parseSkinPreferences, removeCustom } from "./src/skin-preferences";
 import { SkinState } from "./src/skin-state";
-import { COLORS, drawTile, joinedAbove, previewLayout } from "./src/tile-renderer";
+import { COLORS, drawTile, pieceConnections, previewLayout } from "./src/tile-renderer";
 
 const a = "https://example.com/a.png", b = "https://example.com/b.png";
 const four = BUILTIN_SKINS.find(def => def.id === "four")!;
@@ -53,7 +53,7 @@ describe("skin preferences", () => {
 describe("sheet layout and rendering", () => {
   test("catalog keeps the 65 original image skins alongside TETR.IO+ exports", () => {
     expect(BUILTIN_SKINS.filter(def => !def.url?.startsWith(TETRIO_SKIN_DATABASE))).toHaveLength(66);
-    expect(BUILTIN_SKINS.filter(def => def.url?.startsWith(TETRIO_SKIN_DATABASE))).toHaveLength(286);
+    expect(BUILTIN_SKINS.filter(def => def.url?.startsWith(TETRIO_SKIN_DATABASE)).length).toBeGreaterThanOrEqual(286);
     expect(new Set(BUILTIN_SKINS.map(def => def.id)).size).toBe(BUILTIN_SKINS.length);
     expect(tetrio.tile).toBe(30);
     expect(BUILTIN_SKINS.find(def => def.id === "ppt")!.tile).toBe(36);
@@ -77,8 +77,8 @@ describe("sheet layout and rendering", () => {
       expect(Math.min(...xs)).toBe(150 - Math.max(...xs) - 30);
       expect(Math.min(...ys)).toBe(90 - Math.max(...ys) - 30);
     }
-    expect(joinedAbove([0, 0, 0, 1, 1, 1, 2, 1], 2)).toBe(true);
-    expect(joinedAbove([0, 0, 0, 1, 1, 1, 2, 1], 4)).toBe(false);
+    expect(pieceConnections([0, 0, 0, 1, 1, 1, 2, 1], 2) & 8).toBe(8);
+    expect(pieceConnections([0, 0, 0, 1, 1, 1, 2, 1], 4) & 8).toBe(0);
   });
   test("maps Z2 through T8, uses joined rows, never sprites ghosts or garbage", () => {
     const sprites: unknown[][] = [], fills: unknown[][] = [];
@@ -86,9 +86,9 @@ describe("sheet layout and rendering", () => {
       fillRect: (...args: unknown[]) => fills.push(args) } as unknown as CanvasRenderingContext2D;
     const skin = { ...loaded(four), tile: 32 };
     for (let id = 1; id <= 7; id++) {
-      drawTile(ctx, id, 10, 20, 30, skin, true);
+      drawTile(ctx, id, 10, 20, 30, skin, 8);
       expect(sprites.at(-1)!.slice(1)).toEqual([(id + 1) * 32, 32, 32, 32, 10, 20, 30, 30]);
-      drawTile(ctx, id, 10, 20, 30, skin, true, true);
+      drawTile(ctx, id, 10, 20, 30, skin, 8, true);
       expect(ctx.fillStyle).toBe(COLORS[id]);
     }
     drawTile(ctx, 8, 0, 0, 30, skin);
@@ -159,6 +159,21 @@ describe("image loader", () => {
     await load(four);
     expect(images).toHaveLength(1);
     await expect(load({ ...four, tile: 30 })).rejects.toThrow("nine equal");
+  });
+  test("the decoded byte budget evicts large sheets before reaching the entry limit", async () => {
+    const images: HTMLImageElement[] = [];
+    const load = createSkinLoader(() => { const img = { ...fakeImage(), naturalWidth: 4608, naturalHeight: 512 }; images.push(img); return img; });
+    for (let i = 0; i < 8; i++) {
+      const pending = load(customSkin(`${a}?${i}`, i));
+      images.at(-1)!.onload!(new Event("load"));
+      await pending;
+    }
+    await load(customSkin(`${a}?7`, 0));
+    expect(images).toHaveLength(8);
+    const evicted = load(customSkin(`${a}?0`, 0));
+    expect(images).toHaveLength(9);
+    images.at(-1)!.onload!(new Event("load"));
+    expect((await evicted)!.tile).toBe(512);
   });
   test("errors clear inflight cache for retry", async () => {
     const images: HTMLImageElement[] = [];

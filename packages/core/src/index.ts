@@ -1,5 +1,6 @@
 export * from "./pieces";
 export * from "./board";
+export * from "./board-edges";
 export * from "./rng";
 export * from "./bag";
 export * from "./game";

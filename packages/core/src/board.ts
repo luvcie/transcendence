@@ -1,4 +1,5 @@
 import { GARBAGE, MINOS, type PieceId } from "./pieces";
+import { boardEdges, pieceEdges } from "./board-edges";
 
 export const COLS = 10;
 // top 20 rows are a hidden buffer above the visible field
@@ -45,13 +46,16 @@ export function place(
 ): void {
   const width = board.length / ROWS;
   const m = MINOS[piece][rot & 3];
+  const edges = boardEdges(board);
   for (let i = 0; i < 8; i += 2) {
     board[(y + m[i + 1]) * width + (x + m[i])] = piece;
+    edges[(y + m[i + 1]) * width + (x + m[i])] = pieceEdges(m, i);
   }
 }
 
 export function clearRows(board: Uint8Array): { rows: number[]; garbage: boolean } {
   const width = board.length / ROWS;
+  const edges = boardEdges(board);
   const rows: number[] = [];
   let garbage = false;
   let target = ROWS - 1;
@@ -61,11 +65,18 @@ export function clearRows(board: Uint8Array): { rows: number[]; garbage: boolean
     if (row.every(cell => cell !== 0)) {
       rows.push(y);
       garbage ||= row.includes(GARBAGE);
+      // Cut links before collapsing; newly adjacent fragments must not join.
+      if (y > 0) for (let x = 0; x < width; x++) edges[(y - 1) * width + x] &= ~(2 | 32 | 64);
+      if (target < ROWS - 1) for (let x = 0; x < width; x++) edges[(target + 1) * width + x] &= ~(8 | 16 | 128);
     } else {
-      if (target !== y) board.copyWithin(target * width, start, start + width);
+      if (target !== y) {
+        board.copyWithin(target * width, start, start + width);
+        edges.copyWithin(target * width, start, start + width);
+      }
       target--;
     }
   }
   board.fill(0, 0, (target + 1) * width);
+  edges.fill(0, 0, (target + 1) * width);
   return { rows: rows.reverse(), garbage };
 }

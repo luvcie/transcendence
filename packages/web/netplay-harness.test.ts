@@ -327,7 +327,7 @@ describe("socket byte queues and bounded inspection", () => {
     expect(h.queuedBytes("a")).toBe(0);
   });
 
-  test.each([[69_673, true], [68_139, false]] as const)("retry discards a %i-byte old backlog and delivers a new welcome without another attempt", async (expectedBytes, legacy) => {
+  test.each([[69_673, true], [69_504, false]] as const)("retry discards a %i-byte old backlog and delivers a new welcome without another attempt", async (expectedBytes, legacy) => {
     const h = new NetHarness({ messageHistory: 0 });
     if (legacy) useLegacyCheckpoints(h.rooms);
     h.startMatch();

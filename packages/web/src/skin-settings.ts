@@ -16,13 +16,9 @@ export function setupSkins(state: SkinState) {
   const add = form.querySelector<HTMLButtonElement>("button")!;
   let visible = false;
   let generation = 0;
-  const previews = new Map<Element, () => void>();
+  const previews = new Map<Element, (visible: boolean) => void>();
   const observer = typeof IntersectionObserver === "undefined" ? undefined : new IntersectionObserver(entries => {
-    for (const entry of entries) if (entry.isIntersecting) {
-      previews.get(entry.target)?.();
-      previews.delete(entry.target);
-      observer!.unobserve(entry.target);
-    }
+    for (const entry of entries) previews.get(entry.target)?.(entry.isIntersecting);
   }, { root: document.querySelector("#settings-dialog"), rootMargin: "100px" });
 
   function refreshSelection() {
@@ -91,14 +87,24 @@ export function setupSkins(state: SkinState) {
       });
     };
     const current = generation;
+    let onScreen = false, started = false, frame = 0, revision = 0;
+    let previewSkin: Awaited<ReturnType<typeof state.load>>;
+    const animate = () => {
+      if (current !== generation || !onScreen) return;
+      paint(previewSkin);
+      if (previewSkin?.animation) frame = requestAnimationFrame(animate);
+    };
     const load = () => {
+      const request = ++revision;
       paint();
       status.textContent = def.url ? "Loading preview…" : "Made with code.";
       void state.load(def).then(skin => {
-        if (current !== generation) return;
-        paint(skin); status.textContent = def.url ? "" : "Made with code.";
+        if (current !== generation || request !== revision) return;
+        if (skin?.animation) { previewSkin = skin; animate(); }
+        else paint(skin);
+        status.textContent = def.url ? "" : "Made with code.";
       }).catch((error: Error) => {
-        if (current === generation) status.textContent = `${error.message} Preview uses Classic colors.`;
+        if (current === generation && request === revision) status.textContent = `${error.message} Preview uses Classic colors.`;
       });
     };
     item.append(head, row, status);
@@ -107,13 +113,20 @@ export function setupSkins(state: SkinState) {
       if (def.credit) source.append(`Art by ${def.credit}. `);
       source.append(link(def.source, "Source")); item.append(source);
     }
-    if (observer) { previews.set(item, load); observer.observe(item); }
-    else load();
+    const show = (show: boolean) => {
+      onScreen = show;
+      cancelAnimationFrame(frame);
+      if (!show) { revision++; previewSkin = undefined; started = false; return; }
+      if (!started) { started = true; load(); }
+      else if (previewSkin) animate();
+    };
+    if (observer) { previews.set(item, show); observer.observe(item); }
+    else show(true);
     return item;
   }
   function render() {
     generation++;
-    observer?.disconnect(); previews.clear(); list.replaceChildren();
+    observer?.disconnect(); previews.forEach(show => show(false)); previews.clear(); list.replaceChildren();
     const groups: [string, readonly SkinDef[]][] = [
       ["42tris", BUILTIN_SKINS.filter(def => !def.url)],
       ["Jstris community", BUILTIN_SKINS.filter(def => def.url && !def.url.startsWith(TETRIO_SKIN_DATABASE))],
@@ -143,7 +156,7 @@ export function setupSkins(state: SkinState) {
     visible = open;
     if (open) render();
     else {
-      generation++; observer?.disconnect(); previews.clear();
+      generation++; observer?.disconnect(); previews.forEach(show => show(false)); previews.clear();
       state.cancelPendingAdd();
     }
     panel.hidden = !open;

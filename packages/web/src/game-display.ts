@@ -1,4 +1,4 @@
-import { INITIAL_STATS, INITIAL_FINESSE, type ClearStats, type FinesseStats, type GameState, type LockResult, type PieceId } from "@42tris/core";
+import { copyBoardEdges, INITIAL_STATS, INITIAL_FINESSE, type ClearStats, type FinesseStats, type GameState, type LockResult, type PieceId } from "@42tris/core";
 
 export interface GameDisplay {
   readonly board: Readonly<Uint8Array>;
@@ -21,7 +21,7 @@ export interface GameDisplay {
 export function snapshotDisplay(snapshot: GameState): GameDisplay {
   const state = snapshot.state;
   return {
-    board: Uint8Array.from(snapshot.board), previews: snapshot.previews,
+    board: copyBoardEdges(snapshot.board, Uint8Array.from(snapshot.board)), previews: snapshot.previews,
     piece: state.piece, rot: state.rot, x: state.x, y: state.y,
     starting: state.readyMs > 0, topOut: state.topOut, paused: state.paused,
     held: state.held, holdUsed: state.holdUsed,

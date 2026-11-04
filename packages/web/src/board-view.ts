@@ -1,6 +1,6 @@
-import { ROWS, VISIBLE_ROWS, MINOS, canPlace, cellAt, type GameState } from "@42tris/core";
+import { ROWS, VISIBLE_ROWS, MINOS, boardEdges, canPlace, cellAt, type GameState } from "@42tris/core";
 import type { LoadedSkin } from "./skin-loader";
-import { drawTile, joinedAbove } from "./tile-renderer";
+import { connectionMask, drawTile, pieceConnections } from "./tile-renderer";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
 
 type BoardView = Pick<GameDisplay, "board" | "piece" | "rot" | "x" | "y" | "starting" | "topOut">;
@@ -14,11 +14,16 @@ export function drawBoard(ctx: CanvasRenderingContext2D, game: BoardView, skin?:
   if (ctx.canvas.width !== width * 30) ctx.canvas.width = width * 30;
   const cell = ctx.canvas.width / width;
   const hidden = ROWS - VISIBLE_ROWS;
+  const edges = skin?.connected ? boardEdges(game.board) : undefined;
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   for (let y = 0; y < VISIBLE_ROWS; y++) {
     for (let x = 0; x < width; x++) {
       const id = cellAt(game.board, x, y + hidden);
-      if (id) drawTile(ctx, id, x * cell, y * cell, cell, skin, cellAt(game.board, x, y + hidden - 1) === id);
+      if (id) {
+        const connections = edges ? connectionMask(edges[(y + hidden) * width + x])
+          : cellAt(game.board, x, y + hidden - 1) === id ? 8 : 0;
+        drawTile(ctx, id, x * cell, y * cell, cell, skin, connections);
+      }
     }
   }
   const piece = (y: number, isGhost: boolean) => {
@@ -26,7 +31,7 @@ export function drawBoard(ctx: CanvasRenderingContext2D, game: BoardView, skin?:
     for (let i = 0; i < 8; i += 2) {
       const py = y + minos[i + 1] - hidden;
       if (py >= 0) drawTile(ctx, game.piece, (game.x + minos[i]) * cell, py * cell,
-        cell, skin, joinedAbove(minos, i), isGhost);
+        cell, skin, pieceConnections(minos, i), isGhost);
     }
   };
   if (!game.starting) {

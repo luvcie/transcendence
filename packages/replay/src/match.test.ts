@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   FRAME_MS,
+  boardEdges,
   Input,
   LEAGUE_LOCK,
   MINOS,
@@ -751,6 +752,7 @@ describe("competitive Match playback", () => {
     for (const frame of [boundary + 1, boundary, boundary - 1, 0, playback.durationFrames]) {
       playback.seek(frame);
       expect(playback.state).toEqual(states[frame]);
+      playback.state.players.forEach((player, i) => expect(boardEdges(player.game.board)).toEqual(boardEdges(states[frame].players[i].game.board)));
     }
     const detached = playback.state;
     detached.players[0].game.board[0] = 99;

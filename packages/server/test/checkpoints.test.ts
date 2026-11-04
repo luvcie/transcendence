@@ -1,7 +1,8 @@
 import { describe, expect, spyOn, test } from "bun:test";
-import { DEFAULT_HANDLING, Input } from "@42tris/core";
+import { boardEdges, DEFAULT_HANDLING, Input } from "@42tris/core";
 import { Match } from "@42tris/match";
-import type { Checkpoint } from "@42tris/protocol";
+import { ServerMessageSchema, type Checkpoint } from "@42tris/protocol";
+import { Value } from "@sinclair/typebox/value";
 import { decodeReplayJson, isMatchReplay, verifyMatchReplayExecution } from "@42tris/replay";
 import { NetHarness } from "../../web/netplay-harness";
 import { useLegacyCheckpoints } from "./checkpoint-baseline";
@@ -270,4 +271,20 @@ describe("shared authoritative checkpoints", () => {
     if (!isMatchReplay(decoded)) throw new Error("Expected a competitive Match replay");
     expect((await verifyMatchReplayExecution(decoded)).state).toEqual(optimized.room!.match!.saveState());
   });
+});
+
+test("checkpoints carry original board edges separately from deterministic Match state", () => {
+  const h = fixture(2, 7, "practice");
+  h.press("a", Input.HardDrop);
+  h.advance(300);
+  const cp = checkpoint(h), index = cp.state!.roster.indexOf(h.a.session.playerId);
+  const wire = JSON.parse(JSON.stringify(cp)) as Checkpoint;
+  expect(Value.Check(ServerMessageSchema, wire)).toBe(true);
+  expect(Value.Check(ServerMessageSchema, { ...wire, boardEdges: ["x".repeat(641), wire.boardEdges![1]] })).toBe(false);
+  const expected = boardEdges(h.room!.match!.playerState(h.a.session.playerId).board);
+  expect(expected.some(Boolean)).toBe(true);
+  const decoded = Uint8Array.from(atob(wire.boardEdges![index]), char => char.charCodeAt(0));
+  expect([...decoded]).toEqual([...expected]);
+  expect(boardEdges(h.a.session.checkpoint!.state!.players[index].game.board)).toEqual(expected);
+  expect(JSON.stringify(wire.state)).toBe(JSON.stringify(cp.state));
 });

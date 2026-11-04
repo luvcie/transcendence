@@ -1,4 +1,4 @@
-import { DEFAULT_HANDLING, FRAME_MS, type Handling } from "@42tris/core";
+import { boardEdges, DEFAULT_HANDLING, FRAME_MS, type Handling } from "@42tris/core";
 import { Match } from "@42tris/match";
 import { MatchRecorder, type MatchRecorderOptions, type MatchReplay } from "@42tris/replay";
 import { ClientCommandSchema, MAX_INPUT_LEAD_MS, type Checkpoint, type ClientCommand, type ErrorCode, type InputItem, type ReplayAccessStatus, type RoomOptions, type RoomPhase, type RoomState, type ServerMessage } from "@42tris/protocol";
@@ -611,8 +611,9 @@ export class Rooms {
       events.push(entry);
     }
     const simulationNow = this.simulationNow(room);
+    const state = room.match?.saveState() ?? null;
     return { type: "checkpoint", serverNow: this.now(), room: this.view(room), matchId: room.matchId,
-      state: room.match?.saveState() ?? null,
+      state, ...(state ? { boardEdges: state.players.map(player => btoa(String.fromCharCode(...boardEdges(player.game.board)))) } : {}),
       clock: { currentTargetFrame: Math.floor(simulationNow / FRAME_MS), simulationNow, origin: room.origin, pausedTotal: room.pausedTotal,
         commitDelayMs: 100, frozen: room.phase !== "playing" }, roundDurations: room.roundDurations.map(duration => ({ ...duration })), events: structuredClone(events.reverse()) };
   }

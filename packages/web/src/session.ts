@@ -1,6 +1,6 @@
 import { AdaptiveInputLead, type AdaptiveDecision } from "./adaptive-input-lead";
 import { requestCompetitiveReplay } from "./replay-request";
-import { FRAME_MS, Input, type InputId } from "@42tris/core";
+import { FRAME_MS, Input, setBoardEdges, type InputId } from "@42tris/core";
 import { OwnerPrediction } from "@42tris/match";
 import { MAX_INPUT_LEAD_MS, type Checkpoint, type ClientCommand, type InputItem, type RoomState, type ServerMessage } from "@42tris/protocol";
 import type { ReleaseReason, SessionDiagnostics } from "./session-diagnostics";
@@ -535,6 +535,12 @@ export class Session {
         break;
       case "checkpoint": {
         if (message.serverSequence <= this.sequence) { this.diagnostics?.staleCheckpoint(this.options.now()); return; }
+        if (message.state && message.boardEdges) {
+          if (message.boardEdges.length !== message.state.players.length) throw new RangeError("Checkpoint edge roster differs");
+          const edges = message.boardEdges.map(value => Uint8Array.from(atob(value), char => char.charCodeAt(0)));
+          if (edges.some((value, i) => value.length !== message.state!.players[i].game.board.length)) throw new RangeError("Checkpoint edge dimensions differ");
+          message.state.players.forEach((player, i) => setBoardEdges(player.game.board, edges[i]));
+        }
         this.sequence = message.serverSequence;
         this.receivedAt = this.options.now();
         this.room = message.room;

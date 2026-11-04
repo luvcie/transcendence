@@ -1,4 +1,4 @@
-import { DEFAULT_HANDLING, FRAME_MS, Game, LEAGUE_LOCK, Rng, validateHandling, validateBoardWidth,
+import { copyBoardEdges, DEFAULT_HANDLING, FRAME_MS, Game, LEAGUE_LOCK, Rng, validateHandling, validateBoardWidth,
   type GameState, type Handling, type InputId, type LockResult } from "@42tris/core";
 import { GARBAGE_DELAY_MS, GARBAGE_PROFILE, GarbageQueue,
   type GarbageState, type Packet, type QueueRecord } from "./garbage";
@@ -372,7 +372,7 @@ export class Match {
   }
 
   saveState(): MatchState {
-    return structuredClone({ version: MATCH_VERSION, garbageProfile: GARBAGE_PROFILE,
+    const snapshot: MatchState = structuredClone({ version: MATCH_VERSION, garbageProfile: GARBAGE_PROFILE,
       roster: [...this.roster], firstTo: this.firstTo, width: this.width, round: this.round, seed: this.seed,
       mode: this.mode, attacksEnabled: this.attacks, handlingByPlayer: this.handlingByPlayer,
       frame: this.frame, ended: this.ended, complete: this.complete, scores: this.points,
@@ -382,6 +382,8 @@ export class Match {
         return { game: p.game.saveState(), garbage: p.garbage.saveState(), sent: p.sent, eliminated: p.eliminated,
           withdrawn: p.withdrawn, epoch: p.epoch };
       }) });
+    this.roster.forEach((id, i) => copyBoardEdges(this.player(id).game.board, snapshot.players[i].game.board));
+    return snapshot;
   }
 
   /** Trusted controller checkpoint, not a client protocol. Core states are validated by Game. */
@@ -422,6 +424,7 @@ export class Match {
       for (const key of ["das", "arr", "sddas", "sdarr"] as const) {
         if (p.game.config.handling[key] !== match.handlingByPlayer[id][key]) throw new RangeError("Checkpoint handling differs");
       }
+      copyBoardEdges(state.players[i].game.board, p.game.board);
       match.players.set(id, { game: Game.fromState(p.game, placement => match.settle(id, placement.result)),
         garbage: GarbageQueue.fromState(p.garbage, match.width), sent: p.sent, eliminated: p.eliminated,
         withdrawn: p.withdrawn, epoch: p.epoch });

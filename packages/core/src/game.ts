@@ -2,6 +2,7 @@ import { Bag } from "./bag";
 import { addFinesse, finessePlacement, INITIAL_FINESSE, type FinesseStats } from "./finesse";
 import { classifySpin, INITIAL_STATS, resolveClear, RULES_VERSION, type Attack, type ClearStats, type Spin } from "./rules";
 import { canPlace, clearRows, COLS, createBoard, place, validateBoardWidth } from "./board";
+import { boardEdges, copyBoardEdges } from "./board-edges";
 import { copyEvent, copyLock, GAME_STATE_VERSION, readGameState, type GameState } from "./game-state";
 import { kicksFor } from "./kicks";
 import { DEFAULT_HANDLING, FRAME_MS, validateHandling, type Handling } from "./handling";
@@ -140,7 +141,7 @@ export class Game {
     const bag = this.bag.save();
     return {
       version: GAME_STATE_VERSION, rulesVersion: RULES_VERSION,
-      board: [...this.board], previews: [...this.previews],
+      board: copyBoardEdges(this.board, [...this.board]), previews: [...this.previews],
       bag: { rng: bag.rng, pieces: [...bag.pieces], index: bag.index },
       config: { width: this.width, gravityMs: this.gravityMs, lockProfile: this.lockProfile, handling: {
         das: this.handling.das, arr: this.handling.arr, sddas: this.handling.sddas, sdarr: this.handling.sdarr,
@@ -180,6 +181,7 @@ export class Game {
     if (s.config.width !== this.width) throw new RangeError("Board width differs from GameState");
     if (s.previews.length !== this.previews.length) throw new RangeError("Preview count differs from GameState");
     this.board.set(s.board);
+    copyBoardEdges(s.board, this.board);
     this.previews.set(s.previews);
     this.bag.restore({ ...s.bag, pieces: new Uint8Array(s.bag.pieces) });
     Object.assign(this, s.state);
@@ -222,6 +224,7 @@ export class Game {
     const checkpoint = this.history.pop()!;
     const elapsed = Math.max(0, nowMs - checkpoint.atMs);
     this.board.set(checkpoint.board);
+    copyBoardEdges(checkpoint.board, this.board);
     this.previews.set(checkpoint.previews);
     this.bag.restore(checkpoint.bag);
     Object.assign(this, checkpoint.state);
@@ -237,7 +240,7 @@ export class Game {
   private capture() {
     return {
       atMs: this.lastNow,
-      board: this.board.slice(), previews: this.previews.slice(), bag: this.bag.save(),
+      board: copyBoardEdges(this.board, this.board.slice()), previews: this.previews.slice(), bag: this.bag.save(),
       state: {
         piece: this.piece, rot: this.rot, x: this.x, y: this.y, dealt: this.dealt,
         held: this.held, holdUsed: this.holdUsed, topOut: this.topOut,
@@ -333,7 +336,7 @@ export class Game {
 
   private lock(): void {
     const spin = classifySpin(this.board, this.piece, this.rot, this.x, this.y, this.lastWasRotation, this.lastKickIndex);
-    const board = this.board.slice();
+    const board = copyBoardEdges(this.board, this.board.slice());
     place(board, this.piece, this.rot, this.x, this.y);
     const { rows, garbage } = clearRows(board);
     const allClear = rows.length > 0 && board.every(cell => cell === 0);
@@ -367,12 +370,17 @@ export class Game {
       board.copyWithin(0, this.width);
       board.fill(GARBAGE, board.length - this.width);
       board[board.length - this.width + hole] = 0;
+      const edges = boardEdges(board);
+      edges.copyWithin(0, this.width);
+      edges.fill(0, edges.length - this.width);
+      for (let x = 0; x < this.width; x++) edges[x] &= ~(8 | 16 | 128);
     }
     if (this.turn) {
       if (this.history.length === UNDO_LIMIT) this.history.shift();
       this.history.push(this.turn);
     }
     this.board.set(board);
+    copyBoardEdges(board, this.board);
     this.sequence++;
     this.lastResult = result;
     this.events.push(result);

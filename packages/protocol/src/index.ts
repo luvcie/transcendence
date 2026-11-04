@@ -68,6 +68,7 @@ export interface Checkpoint {
   room: RoomState;
   matchId: string | null;
   state: MatchState | null;
+  boardEdges?: string[];
   owner: InputAck;
   clock: { currentTargetFrame: number; simulationNow: number; origin: number | null; pausedTotal: number; commitDelayMs: 100; frozen: boolean };
   roundDurations: { round: number; durationMs: number }[];
@@ -96,6 +97,7 @@ export const ServerMessageSchema = t.Unsafe<ServerMessage>(t.Union([
   object({ type: t.Literal("welcome"), guestSessionId: t.String(), playerId: t.String(), resumeToken: t.String(), name: t.String(), room: t.Union([RoomStateSchema, t.Null()]), generation: integer(), serverNow: t.Number() }),
   object({ type: t.Literal("checkpoint"), serverSequence: integer(), serverNow: t.Number(), room: RoomStateSchema, matchId: nullableId,
     state: t.Union([matchState, t.Null()]),
+    boardEdges: t.Optional(t.Array(t.String({ minLength: 216, maxLength: 640, pattern: "^[A-Za-z0-9+/]+={0,2}$" }), { minItems: 2, maxItems: 8 })),
     owner: object({ generation: integer(), epoch: integer(), nextSeq: integer(1), resolvedThroughSeq: integer(),
       pendingAccepted: t.Array(object({ ...InputItemSchema.properties, order: integer() })), rejections: t.Array(object({ seq: integer(1), code: t.String() })) }),
     clock: object({ currentTargetFrame: integer(), simulationNow: t.Number(), origin: nullableTime, pausedTotal: t.Number(), commitDelayMs: t.Literal(100), frozen: t.Boolean() }),
