@@ -17,6 +17,7 @@ import { SoundPlayer } from "./sound-player";
 import { SoundState } from "./sound-state";
 import { setupSounds } from "./sound-settings";
 import { GameSounds } from "./game-sounds";
+import { withMatchReplaySounds, withSprintReplaySounds, type ReplaySoundOutput } from "./replay-sounds";
 import { drawPiecePreview } from "./tile-renderer";
 import { drawBoard } from "./board-view";
 import { mountOnline } from "./online-view";
@@ -93,6 +94,13 @@ const gameSounds = new GameSounds(() => sounds.preferences.enabled ? sounds.load
   clips => {
     if (sounds.preferences.enabled && sounds.loaded && !document.hidden && !atHome && !settingsDialog.open && !activePlayback()) soundPlayer.play(clips, sounds.loaded);
   });
+const replaySoundOutput: ReplaySoundOutput = {
+  pack: () => sounds.preferences.enabled && sounds.preferences.active !== "silent" ? sounds.loaded?.pack : undefined,
+  play: clips => {
+    if (sounds.preferences.enabled && sounds.loaded && !document.hidden && !settingsDialog.open) soundPlayer.play(clips, sounds.loaded);
+  },
+  stop: () => soundPlayer.stop(),
+};
 setupSettingsTabs(cancelKeyCapture, setupSkins(skins), setupSounds(sounds, soundPlayer));
 void sounds.select(sounds.preferences.active, false);
 const unlockSounds = () => {
@@ -443,7 +451,8 @@ function backToResults(): void {
 
 function watchCompetitiveReplay(replay: Awaited<ReturnType<typeof requestCompetitiveReplay>>): void {
   stopPlayback();
-  competitivePlayback = mountCompetitivePlayback(matchReplayHost, replay.playback, replay.summary, replay.appearance, skins.load);
+  const audiblePlayback = withMatchReplaySounds(replay.playback, online?.session.playerId ?? replay.playback.state.roster[0], replaySoundOutput);
+  competitivePlayback = mountCompetitivePlayback(matchReplayHost, audiblePlayback, replay.summary, replay.appearance, skins.load);
   showView("matchReplay");
   status.textContent = `${replay.playback.state.roster.length} players`;
   status.hidden = false;
@@ -476,7 +485,7 @@ async function watchSprintReplay(): Promise<void> {
     next.dispose();
     return;
   }
-  playback = next;
+  playback = withSprintReplaySounds(next, replaySoundOutput);
   showView("sprintReplay");
   resultPanel.hidden = true;
   replayBar.hidden = false;

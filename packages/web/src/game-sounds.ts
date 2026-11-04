@@ -1,4 +1,4 @@
-import { canPlace, GARBAGE, Input, type InputId } from "@42tris/core";
+import { canPlace, GARBAGE, Input, type InputId, type LockResult, type PieceId } from "@42tris/core";
 import type { GameDisplay } from "./game-display";
 import { clearClips, type SoundClip, type SoundEvent, type SoundPack } from "./sound-pack";
 
@@ -19,7 +19,17 @@ export class GameSounds {
     const url = this.pack()?.[event];
     if (url) this.play([{ url }]);
   }
-  observe(game: GameDisplay, identity: unknown, input?: InputId) {
+  spawn(piece: PieceId) {
+    const url = this.pack()?.spawns?.["_ZLOSIJT"[piece]];
+    if (url) this.play([{ url }]);
+  }
+  lock(result: LockResult, input?: InputId) {
+    const pack = this.pack();
+    this.event(input === Input.HardDrop && pack?.harddrop ? "harddrop" : "lock");
+    if (input === Input.HardDrop && pack?.scoring?.HARD_DROP) this.play([{ url: pack.scoring.HARD_DROP }]);
+    if (pack) this.play(clearClips(pack, result));
+  }
+  observe(game: GameDisplay, identity: unknown, input?: InputId, playLocks = true) {
     const current: SoundFrame = {
       x: game.x, y: game.y, rot: game.rot, holdUsed: game.holdUsed, held: game.held,
       starting: game.starting, topOut: game.topOut,
@@ -27,34 +37,28 @@ export class GameSounds {
       garbage: game.board.reduce((sum, cell) => sum + Number(cell === GARBAGE), 0),
     };
     const pack = this.pack();
-    const spawn = () => {
-      const url = pack?.spawns?.["_ZLOSIJT"[game.piece]];
-      if (url) this.play([{ url }]);
-    };
     if (this.identity !== identity || !this.previous) {
       this.identity = identity; this.previous = current; this.lastLock = game.lastClear?.sequence ?? 0;
       this.lastFaults = game.finesse.faults;
       this.died = current.topOut;
       if (current.topOut) return;
       this.event(current.starting ? "ready" : "go");
-      if (!current.starting) spawn();
+      if (!current.starting) this.spawn(game.piece);
       return;
     }
     const previous = this.previous;
     this.previous = current;
     if (game.paused) return;
-    if (previous.starting && !current.starting) { this.event("go"); spawn(); }
+    if (previous.starting && !current.starting) { this.event("go"); this.spawn(game.piece); }
     const result = game.lastClear;
     const locked = result !== null && result.sequence > this.lastLock;
     if (locked) {
       this.lastLock = result.sequence;
-      this.event(input === Input.HardDrop && pack?.harddrop ? "harddrop" : "lock");
-      if (input === Input.HardDrop && pack?.scoring?.HARD_DROP) this.play([{ url: pack.scoring.HARD_DROP }]);
-      if (pack) this.play(clearClips(pack, result));
-      if (!game.topOut) spawn();
+      if (playLocks) this.lock(result, input);
+      if (!game.topOut) this.spawn(game.piece);
     }
     const held = current.holdUsed && (!previous.holdUsed || previous.held !== current.held);
-    if (held) { this.event("hold"); spawn(); }
+    if (held) { this.event("hold"); this.spawn(game.piece); }
     if (!locked && !held && !current.starting && !previous.starting && !current.topOut) {
       if (current.rot !== previous.rot) this.event("rotate");
       else if (current.x !== previous.x) this.event("move");
