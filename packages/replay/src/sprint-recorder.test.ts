@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import {
   DEFAULT_HANDLING,
+  FRAME_MS,
   Input,
   MINOS,
   ROWS,
   canPlace,
   clearRows,
   place,
-  type Game,
+  Game,
   type GameState,
   type Handling,
   type InputId,
@@ -171,6 +172,43 @@ async function recordTopOut(recorder: SprintRecorder, firstInput: number,
 }
 
 describe("live Sprint recording", () => {
+  test("perfect-finesse training completion seals and verifies normally", async () => {
+    const recorder = new SprintRecorder(1, 0, { ...DEFAULT_HANDLING, das: 1, arr: 1 }, { abandonOnFinesseFault: true });
+    let now = 1;
+    let guard = 0;
+    while (!recorder.result && guard++ < 1000) {
+      let chosen: { input: InputId; at: number }[] | undefined;
+      for (const target of candidates(recorder.game)) {
+        const trial = Game.fromState(recorder.game.saveState(), null);
+        const inputs: { input: InputId; at: number }[] = [];
+        let at = 0;
+        const send = (input: InputId) => { inputs.push({ input, at }); trial.apply(input, recorder.elapsedMs + at); };
+        const rotation = (target.rot - trial.rot + 4) % 4;
+        if (rotation) send(rotation === 1 ? Input.RotateCw : rotation === 2 ? Input.Rotate180 : Input.RotateCcw);
+        const distance = target.x - trial.x;
+        if (distance) {
+          send(distance < 0 ? Input.LeftDown : Input.RightDown);
+          if (Math.abs(distance) > 1) at += (Math.abs(distance) - 1) * FRAME_MS + 0.01;
+          send(distance < 0 ? Input.LeftUp : Input.RightUp);
+        }
+        if (trial.x !== target.x) continue;
+        send(Input.HardDrop);
+        if (!trial.topOut && trial.finesse.faults === 0) { chosen = inputs; break; }
+      }
+      if (!chosen) throw new Error("No safe perfect-finesse placement");
+      for (const operation of chosen) recorder.apply(operation.input, now + operation.at);
+      now += chosen[chosen.length - 1].at + 1;
+      if (recorder.status === "abandoned") throw new Error("Unexpected finesse fault");
+    }
+    expect(recorder.result?.outcome).toBe("complete");
+    expect(recorder.game.finesse.faults).toBe(0);
+    expect(recorder.game.finesse.evaluated).toBeGreaterThan(0);
+    expect(recorder.game.finesse.points).toBe(recorder.game.finesse.evaluated * 5);
+    const { replay } = await completed(recorder);
+    expect(replay.summary.outcome).toBe("complete");
+    expect(replay.summary.finesse.faults).toBe(0);
+  });
+
   test("a completed attempt round-trips through the replay verifier", async () => {
     const recorder = new SprintRecorder(1, 1000, handling);
     await recordCompletion(recorder, 5001, 1);

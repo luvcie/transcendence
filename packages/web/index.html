@@ -209,6 +209,15 @@
       .mode-name { display: flex; justify-content: space-between; gap: 16px; font-size: 20px; font-weight: bold; }
       .mode-name > span { color: #22d3ee; }
       .mode-description { line-height: 1.5; }
+      .sprint-card { display: grid; }
+      .sprint-card > * { grid-area: 1 / 1; }
+      .sprint-card-back { display: grid; gap: 12px; align-content: center; padding: 16px 24px; background: #181818; border: 1px solid #444; visibility: hidden; }
+      .sprint-card-back label { display: flex; align-items: center; gap: 8px; }
+      .sprint-card-back input { accent-color: #22d3ee; }
+      .sprint-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .sprint-card.flipped .sprint-card-front { visibility: hidden; }
+      .sprint-card.flipped .sprint-card-back { visibility: visible; }
+      #sprint-countdown:not([hidden]) { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; background: #0009; color: #22d3ee; font-size: clamp(32px, 8vw, 72px); font-weight: bold; }
       #game-view { position: relative; }
       #elapsed-time, #result-time, #replay-time { font-variant-numeric: tabular-nums; }
       #replay-bar { flex: none; width: min(100%, 1000px); margin: 12px auto 0; display: grid; gap: 8px; padding: 12px 0 0; border-top: 1px solid #383838; }
@@ -267,7 +276,13 @@
       <section id="home-view" hidden aria-labelledby="home-title">
         <h2 id="home-title" class="menu-label" tabindex="-1">Singleplayer</h2>
         <div class="mode-list" aria-label="Singleplayer modes">
-          <button class="mode-choice" data-mode="sprint"><span class="mode-name">Sprint 40L <span aria-hidden="true">→</span></span><span class="mode-description">Clear 40 lines.</span></button>
+          <div class="sprint-card" id="sprint-card">
+            <button class="mode-choice sprint-card-front" id="sprint-card-front" aria-expanded="false" aria-controls="sprint-card-back"><span class="mode-name">Sprint 40L <span aria-hidden="true">→</span></span><span class="mode-description">Clear 40 lines.</span></button>
+            <div class="sprint-card-back" id="sprint-card-back" inert aria-hidden="true">
+              <label><input id="sprint-reset-finesse" type="checkbox"> Reset on finesse fault</label>
+              <div class="sprint-card-actions"><button id="sprint-back" type="button">Back</button><button class="primary" data-mode="sprint" type="button">Play</button></div>
+            </div>
+          </div>
           <button class="mode-choice" disabled><span class="mode-name">Blitz</span><span class="mode-description">Coming soon</span></button>
           <button class="mode-choice" disabled><span class="mode-name">Marathon</span><span class="mode-description">Coming soon</span></button>
           <button class="mode-choice" data-mode="zen"><span class="mode-name">Zen <span aria-hidden="true">→</span></span><span class="mode-description">Endless practice.</span></button>
@@ -285,7 +300,7 @@
           <canvas id="hold-preview" width="150" height="90" aria-label="Hold empty"></canvas>
           <button id="hold-button">Hold</button>
         </aside>
-        <div class="board-frame"><div data-local-meter class="garbage-meter" hidden role="meter" aria-label="Your incoming garbage lines" aria-valuemin="0" aria-valuemax="40" aria-valuenow="0"><div class="garbage-fill"></div></div><canvas id="board" width="300" height="600" aria-label="42tris playfield"></canvas></div>
+        <div class="board-frame"><div data-local-meter class="garbage-meter" hidden role="meter" aria-label="Your incoming garbage lines" aria-valuemin="0" aria-valuemax="40" aria-valuenow="0"><div class="garbage-fill"></div></div><canvas id="board" width="300" height="600" aria-label="42tris playfield"></canvas><div id="sprint-countdown" hidden aria-live="polite"></div></div>
         <aside class="preview-panel">
           <p>Next</p>
           <canvas id="next-preview" width="150" height="450" aria-label="Next pieces"></canvas>
@@ -360,19 +375,17 @@
       <section id="settings-skins" role="tabpanel" aria-labelledby="tab-skins" tabindex="0" hidden>
         <h2>Skins</h2>
         <label for="multiplayer-skins">Multiplayer boards</label>
-        <select id="multiplayer-skins" aria-describedby="multiplayer-skins-help">
+        <select id="multiplayer-skins">
           <option value="player" selected>Show each player's skin</option>
           <option value="local">Use my skin for all boards</option>
         </select>
-        <p id="multiplayer-skins-help" class="hint">This choice affects your view only and is saved on this device.</p>
         <p id="skin-credit" class="hint"></p>
         <form id="skin-form" novalidate>
           <label for="custom-skin">Custom skin image link</label>
           <div class="skin-input">
-            <input id="custom-skin" type="url" maxlength="512" placeholder="https://…/skin.png" aria-describedby="skin-help" autocomplete="off" spellcheck="false">
+            <input id="custom-skin" type="url" maxlength="512" placeholder="https://…/skin.png" autocomplete="off" spellcheck="false">
             <button type="submit">Add and use</button>
           </div>
-          <p id="skin-help" class="hint">Up to 12 HTTPS images. Nine equal square columns; Z, L, O, S, I, J, T use columns 2–8 (zero-based). Ghosts remain flat and translucent.</p>
         </form>
         <p id="skin-note" class="hint" role="status"></p>
         <div id="skin-list"></div>

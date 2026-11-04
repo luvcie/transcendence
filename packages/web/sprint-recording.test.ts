@@ -72,3 +72,18 @@ test("starting another attempt replaces the active recording without mixing jour
   expect(replay?.initial.seed).toBe(4);
   expect(replay?.records[0]).toEqual({ seq: 0, op: { type: "tick", atMs: 200 } });
 });
+
+test("a finesse-failed recording never replaces a previous completed recording", async () => {
+  const completed = startSprintRecording(17, 0, DEFAULT_HANDLING);
+  topOut(completed, 1);
+  await completed.completion;
+  const previous = lastSprintRecording();
+  expect(previous).not.toBeNull();
+  const failed = startSprintRecording(108, 100, DEFAULT_HANDLING, true);
+  let now = 101;
+  for (const input of [Input.LeftDown, Input.LeftUp, Input.RightDown, Input.RightUp, Input.HardDrop]) failed.apply(input, now++);
+  expect(failed.game.finesse.faults).toBe(1);
+  expect(await failed.completion).toBeNull();
+  expect(sprintRecordingFor(failed)).toBeNull();
+  expect(lastSprintRecording()).toBe(previous);
+});

@@ -29,6 +29,7 @@ import { abandonSprintRecording, sprintRecordingFor, startSprintRecording } from
 import { SprintPlayback } from "./sprint-playback";
 import { SessionDiagnostics } from "./session-diagnostics";
 import { configuredInputLead } from "./netplay-options";
+import { mountSprintCard, SprintCountdown } from "./sprint-training";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
@@ -72,6 +73,10 @@ const clearResult = document.querySelector("#clear-result")!;
 const zenStatus = document.querySelector<HTMLParagraphElement>("#zen-status")!;
 const LETTERS = "_ZLOSIJT";
 const pressed = new Map<string, Action>();
+const sprintOption = mountSprintCard(document, () => localStorage);
+const countdown = new SprintCountdown();
+const countdownOverlay = document.querySelector<HTMLElement>("#sprint-countdown")!;
+let resetOnFinesseFault = false;
 const bindings = loadKeybinds();
 const cancelKeyCapture = setupKeybinds(bindings, updateControls);
 const skins = new SkinState(() => localStorage);
@@ -128,6 +133,7 @@ function releaseSoloControls() {
   for (const action of new Set(pressed.values())) {
     const binding = ACTIONS[action];
     if ("up" in binding) solo?.apply(binding.up, performance.now());
+    if (restartOnFinesseFault()) break;
   }
   pressed.clear();
 }
@@ -178,14 +184,17 @@ function closeSettings() {
   pauseDialog.showModal();
 }
 
-function launchMode(mode: SingleplayerMode) {
+function launchMode(mode: SingleplayerMode, training = mode === "sprint" && sprintOption.checked) {
+  countdown.cancel();
+  countdownOverlay.hidden = true;
+  resetOnFinesseFault = mode === "sprint" && training;
   stopPlayback();
   const random = new Uint32Array(1);
   do { crypto.getRandomValues(random); } while (random[0] === seed);
   seed = random[0];
   const now = performance.now();
   if (mode === "sprint") {
-    solo = startSprintRecording(seed, now, handling);
+    solo = startSprintRecording(seed, now, handling, resetOnFinesseFault);
   } else {
     abandonSprintRecording();
     solo = new Singleplayer(mode, seed, now, handling, Number(widthSelect.value));
@@ -205,7 +214,15 @@ function launchMode(mode: SingleplayerMode) {
 function restart() {
   if (activePlayback()) return;
   if (online) { online.session.practice("practiceReset"); return; }
-  if (solo) launchMode(solo.mode);
+  if (solo) launchMode(solo.mode, resetOnFinesseFault);
+}
+
+function restartOnFinesseFault(): boolean {
+  if (!resetOnFinesseFault || !(solo instanceof SprintRecorder)
+    || !countdown.restartOnFault(solo.game.finesse.faults, () => launchMode("sprint", true), () => performance.now())) return false;
+  countdownOverlay.textContent = "3";
+  countdownOverlay.hidden = false;
+  return true;
 }
 
 async function abandonSolo(): Promise<boolean> {
@@ -242,6 +259,8 @@ function closeMenus() {
 
 async function enterHome() {
   if (!await abandonSolo()) return;
+  countdown.cancel();
+  countdownOverlay.hidden = true;
   stopPlayback();
   abandonSprintRecording();
   closeMenus();
@@ -274,6 +293,8 @@ async function chooseMode(mode: SingleplayerMode) {
 
 async function enterOnline() {
   if (!await abandonSolo()) return;
+  countdown.cancel();
+  countdownOverlay.hidden = true;
   stopPlayback();
   abandonSprintRecording();
   closeMenus();
@@ -499,9 +520,10 @@ function refreshHud() {
 }
 
 function applyInput(input: InputId) {
-  if (activePlayback()) return;
+  if (activePlayback() || countdown.active) return;
   if (online) { online.session.input(input); return; }
   solo?.apply(input, performance.now());
+  if (restartOnFinesseFault()) return;
   if (solo && display !== solo.game) pressed.clear();
   display = solo?.game ?? null;
   refreshHud();
@@ -521,7 +543,7 @@ function render() {
   document.querySelector<HTMLElement>("#game-view")!.style.setProperty("--board-ratio", String(width / 10));
   if (canvas.getAttribute("aria-label") !== "42tris playfield") canvas.setAttribute("aria-label", "42tris playfield");
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-  holdButton.disabled = playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay);
+  holdButton.disabled = countdown.active || playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay);
   holdCanvas.setAttribute("aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
   if (display.held !== null) drawPreview(holdCtx, display.held, 0);
 
@@ -538,7 +560,7 @@ function render() {
 const unmountInput = mountGameplayInput(window, {
   bindings, pressed,
   editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, summary, a, [contenteditable=true]"),
-  blocked: () => abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || activePlayback() !== null || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
+  blocked: () => countdown.active || abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || activePlayback() !== null || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
   settingsOpen: () => settingsDialog.open,
   starting: () => display?.starting ?? true,
   menu() {
@@ -593,7 +615,13 @@ function frame(now: number) {
     }
   } else if (solo) {
     status.hidden = false;
-    solo.tick(performance.now());
+    const label = countdown.label(now);
+    countdownOverlay.hidden = label === null;
+    if (label !== null) countdownOverlay.textContent = label;
+    else {
+      solo.tick(performance.now());
+      restartOnFinesseFault();
+    }
     if (display !== solo.game) pressed.clear();
     display = solo.game;
     refreshHud();

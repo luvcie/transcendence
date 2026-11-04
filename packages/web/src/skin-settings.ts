@@ -34,8 +34,8 @@ export function setupSkins(state: SkinState) {
     anchor.href = url; anchor.textContent = text; anchor.target = "_blank"; anchor.rel = "noreferrer";
     return anchor;
   }
-  document.querySelector("#skin-credit")!.append("Catalog ported from memominolab. Artwork and skin links from the ",
-    link(SKIN_DATABASE, "jstris customization database"), ". Classic uses 42tris colors.");
+  document.querySelector("#skin-credit")!.append("Artwork and skin links from the ",
+    link(SKIN_DATABASE, "jstris customization database"), ".");
 
   function option(def: SkinDef, index?: number) {
     const item = document.createElement("article");

@@ -14,9 +14,9 @@ interface StoredRecording {
 let active: SprintRecorder | null = null;
 let last: StoredRecording | null = null;
 
-export function startSprintRecording(seed: number, now: number, handling: Handling): SprintRecorder {
+export function startSprintRecording(seed: number, now: number, handling: Handling, resetOnFinesseFault = false): SprintRecorder {
   abandonSprintRecording();
-  const recorder = new SprintRecorder(seed, now, handling);
+  const recorder = new SprintRecorder(seed, now, handling, { abandonOnFinesseFault: resetOnFinesseFault });
   active = recorder;
   void recorder.completion.then(replay => {
     const json = recorder.json;

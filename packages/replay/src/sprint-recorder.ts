@@ -34,6 +34,7 @@ export type SprintRecorderStatus = "recording" | "finalizing" | "complete" | "fa
 export interface SprintRecorderOptions extends ReplayDecodeOptions {
   /** Stable replay identifier. Defaults to a seed/start-time identifier. */
   id?: string;
+  abandonOnFinesseFault?: boolean;
 }
 
 const ENVELOPE_RESERVE = 4096;
@@ -87,6 +88,7 @@ export class SprintRecorder {
   private readonly id: string;
   private readonly limits: ReplayLimits;
   private readonly startedAt: number;
+  private readonly abandonOnFinesseFault: boolean;
   private readonly records: SoloRecord[] = [];
   private readonly resolveCompletion: (replay: SprintReplay | null) => void;
   private statusValue: SprintRecorderStatus = "recording";
@@ -119,6 +121,7 @@ export class SprintRecorder {
       zen: false,
     };
     this.startedAt = now;
+    this.abandonOnFinesseFault = options.abandonOnFinesseFault ?? false;
     this.controller = new Singleplayer("sprint", normalizedSeed, now, handling);
     let resolveCompletion!: (replay: SprintReplay | null) => void;
     this.completion = new Promise<SprintReplay | null>(resolve => { resolveCompletion = resolve; });
@@ -213,6 +216,10 @@ export class SprintRecorder {
   }
 
   private observeTerminal(): void {
+    if (this.abandonOnFinesseFault && this.controller.game.finesse.faults > 0) {
+      this.abandon();
+      return;
+    }
     if (this.statusValue !== "recording" || !this.controller.result) return;
     const last = this.records[this.records.length - 1];
     if (!last) {
