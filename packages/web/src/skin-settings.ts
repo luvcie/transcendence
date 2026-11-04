@@ -74,7 +74,7 @@ export function setupSkins(state: SkinState) {
     const canvases: HTMLCanvasElement[] = [];
     for (let piece = 1; piece <= 7; piece++) {
       const canvas = document.createElement("canvas");
-      canvas.width = 72; canvas.height = 72;
+      canvas.width = 136; canvas.height = 80;
       canvases.push(canvas); row.append(canvas);
     }
     const status = document.createElement("p");
@@ -82,8 +82,8 @@ export function setupSkins(state: SkinState) {
     const paint = (skin?: Awaited<ReturnType<typeof state.load>>) => {
       canvases.forEach((canvas, i) => {
         const ctx = canvas.getContext("2d")!;
-        ctx.clearRect(0, 0, 72, 72);
-        drawPiecePreview(ctx, (i + 1) as PieceId, 16, 72, 72, 0, skin);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawPiecePreview(ctx, (i + 1) as PieceId, 32, canvas.width, canvas.height, 0, skin);
       });
     };
     const current = generation;
