@@ -43,7 +43,7 @@ export interface NetHarnessOptions {
   players?: readonly LinkProfile[];
   diagnostics?: boolean;
   /** Actual Session configuration, independent of clock offsets and link profiles. */
-  inputLeadMs?: Partial<Record<ClientKey, number>>;
+  inputLeadMs?: Partial<Record<ClientKey, number | "auto">>;
   /** Inspection caps: players API defaults to 16/256/128; legacy a/b API keeps complete capture.
    * Set a cap to Infinity for complete history, or zero to retain none. Delivery is unaffected. */
   messageHistory?: number;
@@ -128,7 +128,7 @@ export class HarnessClient {
   readonly control = { eligibleMs: 0, blockedMs: 0 };
   keysCleared = 0;
 
-  constructor(net: NetHarness, readonly key: ClientKey, diagnostics: boolean, inputLeadMs?: number) {
+  constructor(net: NetHarness, readonly key: ClientKey, diagnostics: boolean, inputLeadMs?: number | "auto") {
     this.diagnostics = diagnostics ? new SessionDiagnostics() : undefined;
     const values = new Map<string, string>([["42tris.profile", `harness-${key}`]]);
     const store = {

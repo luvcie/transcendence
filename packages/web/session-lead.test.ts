@@ -8,7 +8,7 @@ import { experimentalInputLead } from "./src/netplay-options";
 import { NetHarness } from "./netplay-harness";
 import { verifyMatchReplayExecution } from "@42tris/replay";
 
-function clockSession(inputLeadMs?: number, phase: Checkpoint["room"]["phase"] = "playing", frozen = false) {
+function clockSession(inputLeadMs?: number | "auto", phase: Checkpoint["room"]["phase"] = "playing", frozen = false) {
   let now = 0;
   const sent: ClientCommand[] = [];
   const store = { getItem: () => null, setItem() {}, removeItem() {} };
@@ -55,7 +55,7 @@ describe("experimental fixed lead configuration", () => {
 
   test("localStorage diagnostics alone cannot authorize lead; first URL value wins", () => {
     const lead = experimentalInputLead(new URLSearchParams("lead=104"));
-    expect(clockSession(lead).diagnostics.snapshot().lead).toEqual({ requestedMs: 0, appliedMs: 0 });
+    expect(clockSession(lead).diagnostics.snapshot().lead).toMatchObject({ requestedMs: 0, appliedMs: 0 });
     expect(experimentalInputLead(new URLSearchParams("diagnostics&lead=NaN&lead=104"))).toBe(0);
     expect(experimentalInputLead(new URLSearchParams("diagnostics&lead=104&lead=250"))).toBe(104);
   });
@@ -66,14 +66,14 @@ describe("experimental fixed lead configuration", () => {
     h.time(100);
     h.session.input(Input.RotateCw);
     expect(h.session.prediction!.atMs).toBe(100);
-    expect(h.diagnostics.snapshot().lead).toEqual({ requestedMs: 0, appliedMs: 0 });
+    expect(h.diagnostics.snapshot().lead).toMatchObject({ requestedMs: 0, appliedMs: 0 });
   });
 });
 
 describe("lead target and lifecycle", () => {
   test("latches before the first prediction; prospective stamps retain rounding and monotonicity", () => {
     const h = clockSession(104);
-    expect(h.initial.lead).toEqual({ requestedMs: 104, appliedMs: 0 });
+    expect(h.initial.lead).toMatchObject({ requestedMs: 104, appliedMs: 0 });
     expect(h.session.prediction!.atMs).toBe(104);
     expect(h.diagnostics.snapshot().clock).toMatchObject({ calibrated: false, bestRttMs: null, estimatedOffsetMs: 0 });
     h.time(116.9);
@@ -133,7 +133,7 @@ describe("lead target and lifecycle", () => {
         if (field === "match") cp.matchId = cp.room.matchId = "next-match";
         if (field === "room") cp.room.code = "NEWROM";
       });
-      expect(h.diagnostics.snapshot().lead).toEqual({ requestedMs: 104, appliedMs: 104 });
+      expect(h.diagnostics.snapshot().lead).toMatchObject({ requestedMs: 104, appliedMs: 104 });
       expect(h.session.prediction!.atMs).toBe(104);
     }
     h.session.release();
@@ -144,7 +144,7 @@ describe("lead target and lifecycle", () => {
     h.receive();
     expect(h.diagnostics.snapshot().lead.appliedMs).toBe(104);
     h.session.receive({ type: "left" });
-    expect(h.diagnostics.snapshot().lead).toEqual({ requestedMs: 104, appliedMs: 0 });
+    expect(h.diagnostics.snapshot().lead).toMatchObject({ requestedMs: 104, appliedMs: 0 });
     h.receive(cp => { cp.room.code = "THIRDR"; });
     expect(h.diagnostics.snapshot().lead.appliedMs).toBe(104);
     const fresh = clockSession();

@@ -15,7 +15,7 @@ export function mountOnline(root: HTMLElement, options: {
   replay?(replay: Awaited<ReturnType<typeof requestCompetitiveReplay>>): void;
   skin?(): string; skinMode(): MultiplayerSkinMode;
   session?: Session; invite?: string | null; view?(view: AppView): void; diagnostics?: SessionDiagnostics;
-  inputLeadMs?: number;
+  inputLeadMs?: number | "auto";
 }) {
   const document = root.ownerDocument;
   const location = document.location;

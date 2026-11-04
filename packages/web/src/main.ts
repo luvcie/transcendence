@@ -28,13 +28,13 @@ import { SprintRecorder } from "@42tris/replay";
 import { abandonSprintRecording, sprintRecordingFor, startSprintRecording } from "./sprint-recording";
 import { SprintPlayback } from "./sprint-playback";
 import { SessionDiagnostics } from "./session-diagnostics";
-import { experimentalInputLead } from "./netplay-options";
+import { configuredInputLead } from "./netplay-options";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
 // Configuration is immutable until page reload; localStorage cannot authorize lead.
 const netplayParams = new URL(location.href).searchParams;
-const inputLeadMs = experimentalInputLead(netplayParams);
+const inputLeadMs = configuredInputLead(netplayParams);
 // Opt-in only: append ?diagnostics or set localStorage["42tris.diagnostics"] = "1".
 const netDiagnostics = (() => {
   try {

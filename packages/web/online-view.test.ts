@@ -76,10 +76,10 @@ test.each(["success", "unavailable", "reject", "throw"] as const)("copy invite s
   } });
   try {
     // Keep ordinary invitation behavior as a control, including path/query/hash.
-    for (const lead of [104, 0]) {
+    for (const lead of [104, 0, "auto"] as const) {
       copied.length = 0;
       const href = lead
-        ? "https://example.com/play?diagnostics&lead=104&lead=250&room=OLDROM&keep=value#board"
+        ? `https://example.com/play?diagnostics&lead=${lead}${lead === 104 ? "&lead=250" : ""}&room=OLDROM&keep=value#board`
         : "https://example.com/play?room=OLDROM&keep=value#board";
       const expected = lead
         ? "https://example.com/play?diagnostics=&room=ABCDEF&keep=value#board"
@@ -90,7 +90,7 @@ test.each(["success", "unavailable", "reject", "throw"] as const)("copy invite s
       try {
         sender.session.receive(sender.cp);
         sender.render();
-        expect(diagnostics.snapshot().lead).toEqual({ requestedMs: lead, appliedMs: lead });
+        expect(diagnostics.snapshot().lead).toMatchObject({ requestedMs: lead === "auto" ? null : lead, appliedMs: lead === "auto" ? 0 : lead });
         const prediction = sender.session.prediction;
         sender.document.querySelector("[data-copy]").dispatchEvent(new Event("click"));
         await Promise.resolve(); await Promise.resolve();
@@ -112,11 +112,11 @@ test.each(["success", "unavailable", "reject", "throw"] as const)("copy invite s
         recipient = harness(url.searchParams.get("room")!, { href: invitation, diagnostics: recipientDiagnostics });
         expect(recipient.sent.filter(command => command.type === "join")).toEqual([{ type: "join", code: "ABCDEF" }]);
         recipient.session.receive(recipient.cp);
-        expect(recipientDiagnostics.snapshot().lead).toEqual({ requestedMs: 0, appliedMs: 0 });
+        expect(recipientDiagnostics.snapshot().lead).toMatchObject({ requestedMs: 0, appliedMs: 0 });
         expect(recipient.session.canPlay).toBe(true);
         expect(recipient.session.prediction!.atMs).toBe(0);
         expect(sender.document.location.href).toBe(href);
-        expect(diagnostics.snapshot().lead).toEqual({ requestedMs: lead, appliedMs: lead });
+        expect(diagnostics.snapshot().lead).toMatchObject({ requestedMs: lead === "auto" ? null : lead, appliedMs: lead === "auto" ? 0 : lead });
         expect(sender.session.prediction).toBe(prediction);
         expect(sender.session.canPlay).toBe(true);
       } finally {
@@ -137,7 +137,7 @@ test.each([
   const h = harness(undefined, { href: `https://example.com/?${query}`, diagnostics });
   try {
     h.session.receive(h.cp);
-    expect(diagnostics.snapshot().lead).toEqual({ requestedMs: expected, appliedMs: expected });
+    expect(diagnostics.snapshot().lead).toMatchObject({ requestedMs: expected, appliedMs: expected });
     expect(h.session.prediction!.atMs).toBe(expected);
   } finally { h.view.destroy(); }
 });
@@ -557,7 +557,7 @@ test.each([false, true])("native Eden message accounting is opt-in (%s) and pres
     expect(view.session.name).toBe("é🎮");
     expect(received.mock.calls.length).toBe(enabled ? 1 : 0);
     if (diagnostics) {
-      expect(diagnostics.snapshot().lead).toEqual({ requestedMs: 104, appliedMs: 0 });
+      expect(diagnostics.snapshot().lead).toMatchObject({ requestedMs: 104, appliedMs: 0 });
       expect(diagnostics.snapshot().transport.maxMessageBytes).toBe(new TextEncoder().encode(payload).byteLength);
       expect(JSON.stringify(diagnostics.snapshot())).not.toContain("private-token");
       expect(JSON.stringify(diagnostics.snapshot())).not.toContain("é🎮");

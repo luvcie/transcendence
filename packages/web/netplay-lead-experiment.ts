@@ -7,6 +7,7 @@ export interface LeadExperiment {
   options: NetHarnessOptions;
   /** Withhold application pongs for the first two seconds of physical play. */
   coldClock?: boolean;
+  beforeScript?(h: NetHarness): unknown;
 }
 
 export const leadExperiments: LeadExperiment[] = [
@@ -62,10 +63,12 @@ export async function runLeadExperiment(scenario: LeadExperiment) {
     admissions.push({ player, result, calibrated: client.diagnostics!.snapshot().clock.calibrated });
   };
   h.rooms.metrics = metrics;
+  const serverErrors = h.clients.map(() => ({} as Record<string, number>));
   let allowPongs = !scenario.coldClock;
   for (const [index, client] of h.clients.entries()) {
     const send = client.peer!.send;
     client.peer!.send = (message, ephemeral) => {
+      if (message.type === "error") serverErrors[index][message.code] = (serverErrors[index][message.code] ?? 0) + 1;
       if (message.type !== "pong" || allowPongs) send(message, ephemeral);
     };
     const diagnostics = client.diagnostics!;
@@ -79,6 +82,7 @@ export async function runLeadExperiment(scenario: LeadExperiment) {
   }
   h.startMatch();
   const start = h.time;
+  const setup = scenario.beforeScript?.(h);
   ages.forEach(samples => { samples.length = 0; });
   // The ordinary matrix already calibrates during preparation/countdown. Cold
   // scenarios explicitly retain welcome-only timing into active play.
@@ -101,7 +105,8 @@ export async function runLeadExperiment(scenario: LeadExperiment) {
         other: samples.filter(a => a.result !== "accepted" && a.result !== "late" && a.result !== "future").length };
     };
     const snapshot = client.diagnostics!.snapshot();
-    return { client: client.key, link: scenario.options.players![index], lead: snapshot.lead,
+    return { client: client.key, serverErrors: serverErrors[index], inputItemsSent: client.traffic.inputItems,
+      adaptive: snapshot.adaptive, link: scenario.options.players![index], lead: snapshot.lead,
       calibratedAtStart: calibratedAtStart[index], whole: admission(own),
       beforePong: admission(own.filter(a => !a.calibrated)), afterPong: admission(own.filter(a => a.calibrated)),
       resets: Object.entries(snapshot.releases.byReason).reduce((sum, [reason, count]) =>
@@ -112,5 +117,5 @@ export async function runLeadExperiment(scenario: LeadExperiment) {
       clock: snapshot.clock, corrections: snapshot.corrections };
   });
   return { h, journal, result: { name: scenario.name, seed: 42, scriptSeed: 8,
-    durationMs: h.time - start, replayVerified, clockChecks, clockViolations, clients: results } };
+    durationMs: h.time - start, setup, replayVerified, clockChecks, clockViolations, clients: results } };
 }

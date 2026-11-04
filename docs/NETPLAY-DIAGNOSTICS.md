@@ -323,3 +323,34 @@ share raw WS messages, storage dumps, request headers, replay appearance maps or
 unredacted screenshots publicly: those can contain credentials, room codes and
 player-identifying data. The snapshot is the intended export. Review surrounding
 notes and captures before sharing them.
+
+
+## N3-C adaptive input lead
+
+`?diagnostics&lead=auto` explicitly enables experimental round-boundary adaptation.
+LocalStorage diagnostics alone never enables it. Numeric fixed lead keeps its
+existing 250 ms limit; automatic lead is limited to 160 ms and a stricter
+uncertainty ceiling. Ordinary invitations remove every lead parameter.
+
+The snapshot adds `lead.mode` (`zero`, `fixed`, `adaptive`), nullable
+`requestedMs` (null for auto), `proposedNextMs`, `wantedMs`, `ceilingMs`, `reason`
+and `capped`. `appliedMs` is the round's latched decision. `adaptive` reports
+sample count/age, RTT min/median/nearest-rank p95, effective-transit median/p95,
+decrease confirmation and at most 32 anonymous decision events.
+
+`clock.effectiveOffsetMs` is the gameplay offset. Adaptive mode latches it with
+lead, while `estimatedOffsetMs` retains the legacy best-pong observation.
+`selectedSampleAgeMs` and `selectedSampleRttMs` identify the latched sample;
+`quality` describes proposal availability (`unwarmed`, `fresh`, `stale`, `capped`).
+The selected sample may age while new pongs continue informing future proposals.
+`wantedMs`/`ceilingMs` describe the current proposal; decision history preserves
+the boundary's values and cap reason. These observations include server processing
+and clock bias; they are not physical one-way latency measurements. With at most
+16 samples, nearest-rank p95 is the window maximum, not a population estimate.
+
+Unwarmed or stale starts use zero for the entire round. A route change cannot
+change an active adaptive lead or offset, even after input rejection or recovery.
+A capped proposal does not mean full compensation. Browser `INPUT_REJECTED`
+counts remain general rejections; only server admission metrics distinguish late
+from future-bound causes. See [the policy and measured results](NETPLAY-ADAPTIVE-LEAD.md)
+for calibration thresholds, route behavior, recovery evidence and fairness limits.

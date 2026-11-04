@@ -47,9 +47,16 @@ export interface SessionDiagnosticsSnapshot {
   rtt: { samples: number; last: number | null; min: number | null; avg: number | null; max: number | null; jitter: number | null };
   transport: { bytesPerSec: number; messagesPerSec: number; maxMessageBytes: number;
     measurement: "received-application-payload"; windowMs: number; sampleMs: number };
-  lead: { requestedMs: number; appliedMs: number };
+  lead: { mode: "zero" | "fixed" | "adaptive"; requestedMs: number | null; appliedMs: number;
+    proposedNextMs: number | null; wantedMs: number | null; ceilingMs: number | null; reason: string | null; capped: boolean };
+  adaptive: { sampleCount: number; newestSampleAgeMs: number | null; rttMin: number | null; rttMedian: number | null;
+    rttP95: number | null; effectiveTransitMedian: number | null; effectiveTransitP95: number | null; decreaseConfirmed: boolean;
+    decisions: { at: number; roundOrdinal: number; previousMs: number; appliedMs: number; reason: string;
+      wantedMs: number | null; ceilingMs: number | null; rttP95: number | null; effectiveTransitP95: number | null }[] };
   clock: { offsetSamples: number[]; driftMsPerMin: number | null;
-    estimatedOffsetMs: number | null; bestRttMs: number | null; calibrated: boolean };
+    estimatedOffsetMs: number | null; bestRttMs: number | null; calibrated: boolean;
+    effectiveOffsetMs: number | null; selectedSampleAgeMs: number | null; selectedSampleRttMs: number | null;
+    quality: "unwarmed" | "fresh" | "stale" | "capped" };
   control: { blockedMs: number; blockedPct: number; eligibleMs: number };
   rejections: { total: number; byCode: Record<string, number> };
   releases: { total: number; byReason: Record<string, number> };
@@ -129,7 +136,8 @@ export class SessionDiagnostics {
   private readControl?: () => ControlObservation;
   private readTiming?: () => {
     lead: SessionDiagnosticsSnapshot["lead"];
-    clock: Pick<SessionDiagnosticsSnapshot["clock"], "estimatedOffsetMs" | "bestRttMs" | "calibrated">;
+    adaptive: SessionDiagnosticsSnapshot["adaptive"];
+    clock: Omit<SessionDiagnosticsSnapshot["clock"], "offsetSamples" | "driftMsPerMin">;
   };
   private controlAt: number | null = null;
   private controlState?: ControlObservation;
@@ -410,9 +418,12 @@ export class SessionDiagnostics {
       transport: { bytesPerSec: sampleMs > 0 ? bytes * 1000 / sampleMs : 0,
         messagesPerSec: sampleMs > 0 ? messages * 1000 / sampleMs : 0, maxMessageBytes: this.maxMessageBytes,
         measurement: "received-application-payload", windowMs: 10_000, sampleMs },
-      lead: timing?.lead ?? { requestedMs: 0, appliedMs: 0 },
+      lead: timing?.lead ?? { mode: "zero", requestedMs: 0, appliedMs: 0, proposedNextMs: null,
+        wantedMs: null, ceilingMs: null, reason: null, capped: false },
+      adaptive: timing?.adaptive ?? { sampleCount: 0, newestSampleAgeMs: null, rttMin: null, rttMedian: null, rttP95: null,
+        effectiveTransitMedian: null, effectiveTransitP95: null, decreaseConfirmed: false, decisions: [] },
       clock: { offsetSamples: offsets.map(s => s.offset), driftMsPerMin: drift,
-        ...(timing?.clock ?? { estimatedOffsetMs: null, bestRttMs: null, calibrated: false }) },
+        ...(timing?.clock ?? { estimatedOffsetMs: null, bestRttMs: null, calibrated: false, effectiveOffsetMs: null, selectedSampleAgeMs: null, selectedSampleRttMs: null, quality: "unwarmed" }) },
       control: { blockedMs: this.blockedMs, blockedPct: this.eligibleMs > 0 ? this.blockedMs / this.eligibleMs * 100 : 0,
         eligibleMs: this.eligibleMs },
       rejections: { total: this.counts.rejectionTotal, byCode: { ...this.rejectionCodes } },

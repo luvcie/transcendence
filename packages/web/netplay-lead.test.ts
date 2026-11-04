@@ -65,7 +65,11 @@ describe("N3-B deterministic latency experiments", () => {
     for (const [index, client] of omitted.h.clients.entries()) {
       expect(client.commands).toEqual(zero.h.clients[index].commands);
       expect(client.session.checkpoint).toEqual(zero.h.clients[index].session.checkpoint);
-      expect(client.diagnostics!.snapshot()).toEqual(zero.h.clients[index].diagnostics!.snapshot());
+      const snapshot = client.diagnostics!.snapshot();
+      const explicit = zero.h.clients[index].diagnostics!.snapshot();
+      expect(snapshot.lead.mode).toBe("zero");
+      expect(explicit.lead.mode).toBe(index === 0 ? "fixed" : "zero");
+      expect({ ...snapshot, lead: { ...snapshot.lead, mode: explicit.lead.mode } }).toEqual(explicit);
     }
     expect(omitted.h.room!.match!.saveState()).toEqual(zero.h.room!.match!.saveState());
     expect(omitted.journal).toEqual(zero.journal);

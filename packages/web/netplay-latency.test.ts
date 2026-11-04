@@ -3,8 +3,26 @@ import { FRAME_MS, GARBAGE, Input, Piece, type GameState } from "@42tris/core";
 import { Match, OwnerPrediction } from "@42tris/match";
 import type { Checkpoint } from "@42tris/protocol";
 import { verifyMatchReplayExecution } from "@42tris/replay";
-import { NetHarness } from "./netplay-harness";
+import { NetHarness, type NetHarnessOptions } from "./netplay-harness";
 import { classifyCorrection, SessionDiagnostics } from "./src/session-diagnostics";
+
+// Warm real pongs on a distant waiting connection, then run the same recovery fixture.
+function recoveryHarness(inputLeadMs: number | "auto", options: NetHarnessOptions) {
+  if (inputLeadMs !== "auto") return new NetHarness({ ...options, inputLeadMs: { a: inputLeadMs } });
+  const h = new NetHarness({ ...options, inputLeadMs: { a: "auto" }, a: { up: 150, down: 150 } });
+  h.runUntil(() => h.a.session.connected);
+  for (let i = 0; i < 20; i++) { h.a.session.tick(); h.advance(100); }
+  h.setLink("a", { up: 10, down: 10, ...options.a });
+  // The no-RAF deadline fixtures still calibrate during countdown, before
+  // suspending frame callbacks for the recovery experiment itself.
+  h.scheduleTimer("a", () => h.a.session.tick(), 1000);
+  const startMatch = h.startMatch.bind(h);
+  h.startMatch = options => {
+    startMatch(options);
+    expect(h.a.diagnostics!.snapshot().lead.appliedMs).toBeGreaterThan(0);
+  };
+  return h;
+}
 
 function seqs(harness: NetHarness): number[] {
   return harness.a.batches.flatMap(batch => batch.items.map(item => item.seq));
@@ -344,9 +362,9 @@ describe("netplay latency and stalls", () => {
   });
 });
 
-describe.each([0, 104])("stale input recovery (lead %i ms)", inputLeadMs => {
+describe.each([0, 104, "auto"] as const)("stale input recovery (lead %i ms)", inputLeadMs => {
   test("a 500 ms stall during a rapid press and release keeps controls neutral", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     h.press("a", Input.LeftDown); // flushed at once, then accepted
     h.advance(5);
@@ -372,7 +390,7 @@ describe.each([0, 104])("stale input recovery (lead %i ms)", inputLeadMs => {
   });
 
   test("an unsent stale hard drop is dropped, not replayed onto a later piece", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     const playerId = h.a.session.playerId;
     const locks = () => h.room!.events.filter(entry => entry.event.type === "lock" && entry.event.player === playerId).length;
@@ -403,7 +421,7 @@ describe.each([0, 104])("stale input recovery (lead %i ms)", inputLeadMs => {
   });
 
   test("an unsent stale rotation is dropped instead of rotating the current piece later", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     const rot = ownerState(h).state.rot;
     h.press("a", Input.LeftDown);
@@ -424,7 +442,7 @@ describe.each([0, 104])("stale input recovery (lead %i ms)", inputLeadMs => {
   });
 
   test("a direction held through a stall stays held and releases when the key does", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     h.press("a", Input.LeftDown);
     h.advance(40);
@@ -443,7 +461,7 @@ describe.each([0, 104])("stale input recovery (lead %i ms)", inputLeadMs => {
   });
 
   test("soft drop held during a stall does not stay held after the key is released", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     h.press("a", Input.SoftDropDown);
     h.advance(5);
@@ -461,7 +479,7 @@ describe.each([0, 104])("stale input recovery (lead %i ms)", inputLeadMs => {
   });
 
   test("repeated stalls each recover without a generation reset", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     const generation = h.a.session.checkpoint!.owner.generation;
     for (let i = 0; i < 3; i++) {
@@ -484,11 +502,11 @@ describe.each([0, 104])("stale input recovery (lead %i ms)", inputLeadMs => {
   });
 
   test("a transmitted but unacknowledged stale input still needs the full release", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true, a: { up: 250, down: 10 }, b: { up: 10, down: 10 } });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true, a: { up: 250, down: 10 }, b: { up: 10, down: 10 } });
     h.startMatch();
     // Cover a genuinely stale transmitted input even when lead covers the
     // original steady-state link. This hold does not change clock calibration.
-    h.holdUpstream("a", inputLeadMs > 0 ? 500 : 0);
+    h.holdUpstream("a", (inputLeadMs === "auto" || inputLeadMs > 0) ? 500 : 0);
     h.press("a", Input.LeftDown);
     h.advance(5);
     h.press("a", Input.LeftUp);
@@ -502,9 +520,9 @@ describe.each([0, 104])("stale input recovery (lead %i ms)", inputLeadMs => {
   });
 });
 
-describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs => {
+describe.each([0, 104, "auto"] as const)("post-stall input ordering (lead %i ms)", inputLeadMs => {
   test.each(["available", "rate-limited"] as const)("the 500 ms deadline releases once without frames or checkpoints when resync is %s", resync => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true, frameMs: 10_000 });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true, frameMs: 10_000 });
     h.startMatch();
     const resynced = resync === "rate-limited";
     if (resynced) {
@@ -546,7 +564,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test.each([300, 1000])("a %i ms stall defers the trailing timer until checkpoint recovery", duration => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     const generation = h.a.session.checkpoint!.owner.generation;
     h.press("a", Input.LeftDown);
@@ -577,7 +595,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test("checkpoint freshness expiring during deferral cannot cancel its 500 ms fallback", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     h.press("a", Input.LeftDown);
     h.advance(5);
@@ -605,7 +623,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test("a room update after checkpoint expiry cannot cancel the deferral deadline", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     h.press("a", Input.LeftDown);
     h.advance(5);
@@ -629,7 +647,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test.each(["timeout", "recovered"] as const)("partial recoveries retain the original 500 ms deadline: %s", outcome => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     const checkpoints: Checkpoint[] = [];
     const send = h.a.peer!.send;
@@ -670,7 +688,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
       const [lastDeadline] = h.scheduledTimers("a");
       h.a.session.receive(checkpoints.at(-1)!);
       lastDeadline.run();
-      h.advance(200 + inputLeadMs);
+      h.advance(200 + (inputLeadMs === "auto" ? 104 : inputLeadMs));
       h.a.session.receive(checkpoints.at(-1)!);
       expect(h.a.diagnostics!.snapshot().releases.total).toBe(0);
       expect(transmitted(h)).toEqual([Input.LeftDown, Input.LeftUp]);
@@ -687,7 +705,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test("a key handler ahead of an overdue deadline cannot renew or transmit the deferred batch", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true, inputFirst: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true, inputFirst: true });
     h.startMatch();
     h.press("a", Input.LeftDown);
     h.advance(5);
@@ -711,7 +729,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test("three corrective releases reserve only unused sequences before surviving one-shots", async () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true, inputFirst: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true, inputFirst: true });
     h.startMatch();
     const generation = h.a.session.checkpoint!.owner.generation;
     h.press("a", Input.LeftDown);
@@ -746,7 +764,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test("a key handler first recovers Left-up before newer rotation and hard drop at their original time", async () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true, inputFirst: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true, inputFirst: true });
     h.startMatch();
     const generation = h.a.session.checkpoint!.owner.generation;
     h.press("a", Input.LeftDown);
@@ -793,7 +811,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test.each([Input.HardDrop, Input.Hold, Input.RotateCw])("a newer one-shot %i that ages during deferral is dropped without retiming", input => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true, inputFirst: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true, inputFirst: true });
     h.startMatch();
     const sequence = ownerState(h).state.sequence;
     h.press("a", Input.LeftDown);
@@ -821,7 +839,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test("a recovered release precedes a newer press of the same held control", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true, inputFirst: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true, inputFirst: true });
     h.startMatch();
     h.press("a", Input.LeftDown);
     h.advance(5);
@@ -844,7 +862,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test("a gap retry stays transmitted and resends the original fingerprint even when the clock calls it stale", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     h.holdDownstream("a", 400);
     h.press("a", Input.LeftDown);
@@ -873,7 +891,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
 
   test.each(["stop", "reconnect", "generation", "epoch", "round", "match", "room", "match-state", "room-state", "paused", "frozen", "left"] as const)(
     "%s invalidates a deferred callback, including after fresh input is queued", change => {
-      const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+      const h = recoveryHarness(inputLeadMs, { diagnostics: true });
       h.startMatch();
       h.press("a", Input.LeftDown);
       h.advance(5);
@@ -914,7 +932,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
     });
 
   test.each(["a", "b"] as const)("a real %s disconnect and reconnect clear deferral before the room resumes", key => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     h.press("a", Input.LeftDown);
     h.advance(5);
@@ -948,7 +966,7 @@ describe.each([0, 104])("post-stall input ordering (lead %i ms)", inputLeadMs =>
   });
 
   test("healthy 34 ms batching never requests a deferral or adds latency", () => {
-    const h = new NetHarness({ inputLeadMs: { a: inputLeadMs }, diagnostics: true });
+    const h = recoveryHarness(inputLeadMs, { diagnostics: true });
     h.startMatch();
     for (let i = 0; i < 10; i++) {
       h.press("a", Input.LeftDown);

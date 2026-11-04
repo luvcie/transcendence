@@ -1,3 +1,4 @@
+import { AdaptiveInputLead, type AdaptiveDecision } from "./adaptive-input-lead";
 import { requestCompetitiveReplay } from "./replay-request";
 import { FRAME_MS, Input, type InputId } from "@42tris/core";
 import { OwnerPrediction } from "@42tris/match";
@@ -19,7 +20,7 @@ export interface SessionOptions {
   /** Opt-in only. Never part of gameplay, checkpoints, or replay journals. */
   diagnostics?: SessionDiagnostics;
   /** Experimental, fixed at construction. The application authorizes this via ?diagnostics. */
-  inputLeadMs?: number;
+  inputLeadMs?: number | "auto";
 }
 
 export function normalizeInputLead(value: number = 0): number {
@@ -76,7 +77,13 @@ export class Session {
   private identity = "";
   private leadRound = "";
   private readonly requestedLeadMs: number;
+  private readonly leadMode: "zero" | "fixed" | "adaptive";
   private activeLeadMs = 0;
+  private readonly adaptive?: AdaptiveInputLead;
+  private roundOffsetMs: number | null = null;
+  private leadFinalized = false;
+  private leadMatch = "";
+  private adaptiveDecision?: AdaptiveDecision;
   private nextSeq = 1;
   private prepared = "";
   private releasing = false;
@@ -92,7 +99,9 @@ export class Session {
   notice = "";
 
   constructor(private options: SessionOptions) {
-    this.requestedLeadMs = normalizeInputLead(options.inputLeadMs);
+    this.adaptive = options.inputLeadMs === "auto" ? new AdaptiveInputLead() : undefined;
+    this.requestedLeadMs = options.inputLeadMs === "auto" ? 0 : normalizeInputLead(options.inputLeadMs);
+    this.leadMode = this.adaptive ? "adaptive" : options.inputLeadMs !== undefined && options.inputLeadMs === this.requestedLeadMs ? "fixed" : "zero";
     this.diagnostics = options.diagnostics;
     this.name = this.read(options.profile, "42tris.name") || "Guest";
     this.diagnostics?.attach(options.now, () => {
@@ -105,9 +114,7 @@ export class Session {
         playable: this.canPlay,
         expiresAt: this.receivedAt + 2000,
       };
-    }, () => ({ lead: { requestedMs: this.requestedLeadMs, appliedMs: this.activeLeadMs },
-      clock: { estimatedOffsetMs: this.offset, bestRttMs: Number.isFinite(this.bestRtt) ? this.bestRtt : null,
-        calibrated: this.connected && Number.isFinite(this.bestRtt) } }));
+    }, () => this.timingDiagnostics());
   }
   joinInvite(code: string) {
     const normalized = code.toUpperCase();
@@ -148,6 +155,8 @@ export class Session {
   private open() {
     this.invalidate();
     const serial = ++this.serial;
+    this.adaptive?.connection(serial);
+    if (this.adaptive) this.probes.clear();
     this.socket?.close();
     this.connected = false;
     this.diagnostics?.connection(this.options.now(), false);
@@ -217,10 +226,45 @@ export class Session {
     if (!code || !token) throw new Error("Reconnect to retrieve this replay.");
     return requestCompetitiveReplay(code, token, signal);
   }
-  serverNow() { return this.options.now() + this.offset; }
+  private get effectiveOffsetMs() { return this.roundOffsetMs ?? this.offset; }
+  serverNow() { return this.options.now() + this.effectiveOffsetMs; }
+  private timingDiagnostics() {
+    const now = this.options.now();
+    const proposal = this.adaptive?.proposal(now, this.checkpoint?.clock.commitDelayMs ?? 100);
+    const samples = this.adaptive?.observations(now) ?? [];
+    const selected = this.adaptiveDecision?.proposal?.selected;
+    return {
+      lead: { mode: this.leadMode,
+        requestedMs: this.adaptive ? null : this.requestedLeadMs, appliedMs: this.activeLeadMs,
+        proposedNextMs: proposal?.candidateMs ?? null, wantedMs: proposal?.wantedMs ?? null,
+        ceilingMs: proposal?.ceilingMs ?? null, reason: this.adaptiveDecision?.reason ?? null,
+        capped: proposal?.capped ?? false },
+      adaptive: { sampleCount: samples.length, newestSampleAgeMs: samples.length ? now - samples.at(-1)!.receivedAtClientMs : null,
+        rttMin: proposal?.rttMin ?? null, rttMedian: proposal?.rttMedian ?? null, rttP95: proposal?.rttP95 ?? null,
+        effectiveTransitMedian: proposal?.effectiveTransitMedian ?? null, effectiveTransitP95: proposal?.effectiveTransitP95 ?? null,
+        decreaseConfirmed: this.adaptive?.decreaseConfirmed ?? false,
+        decisions: this.adaptive?.decisions().map(d => ({ at: d.at, roundOrdinal: d.roundOrdinal,
+          previousMs: d.previousMs, appliedMs: d.appliedMs, reason: d.reason,
+          wantedMs: d.proposal?.wantedMs ?? null, ceilingMs: d.proposal?.ceilingMs ?? null,
+          rttP95: d.proposal?.rttP95 ?? null, effectiveTransitP95: d.proposal?.effectiveTransitP95 ?? null })) ?? [] },
+      clock: { estimatedOffsetMs: this.offset, effectiveOffsetMs: this.effectiveOffsetMs,
+        bestRttMs: Number.isFinite(this.bestRtt) ? this.bestRtt : null,
+        calibrated: this.connected && Number.isFinite(this.bestRtt),
+        selectedSampleAgeMs: selected ? now - selected.receivedAtClientMs : null,
+        selectedSampleRttMs: selected?.rttMs ?? null,
+        quality: !this.adaptive ? (Number.isFinite(this.bestRtt) ? "fresh" as const : "unwarmed" as const)
+          : !proposal ? (this.adaptive.fallbackReason === "fallback-unwarmed" ? "unwarmed" as const : "stale" as const)
+          : proposal.capped ? "capped" as const : "fresh" as const },
+    };
+  }
   private resetLead() {
     this.leadRound = "";
     this.activeLeadMs = 0;
+    this.roundOffsetMs = null;
+    this.leadFinalized = false;
+    this.leadMatch = "";
+    this.adaptiveDecision = undefined;
+    this.adaptive?.resetDecrease();
   }
   private invalidate() {
     this.cancelScheduledFlush();
@@ -266,6 +310,7 @@ export class Session {
       Math.min(cp.clock.simulationNow + elapsed + (running ? this.activeLeadMs : 0), base + 2000));
   }
   input(input: InputId) {
+    this.adaptive?.activity(this.options.now());
     if (!this.canPlay) return;
     if (this.pending.length >= 128) { this.release("pending-overflow"); return; }
     this.queue(input);
@@ -327,7 +372,7 @@ export class Session {
     this.diagnostics?.sentBatch(now, items.map(item => item.seq), this.pending.length);
     if (this.diagnostics) {
       // Input stamps are round-relative simulation time, not the process clock.
-      const deadline = cp.clock.simulationNow + Math.max(0, now + this.offset - cp.serverNow) - cp.clock.commitDelayMs;
+      const deadline = cp.clock.simulationNow + Math.max(0, now + this.effectiveOffsetMs - cp.serverNow) - cp.clock.commitDelayMs;
       for (const item of items) this.diagnostics.inputMargin((item.frame + item.subframe) * FRAME_MS, deadline);
     }
     if (this.pending.some(i => !i.sent)) this.scheduleFlush(now);
@@ -446,6 +491,7 @@ export class Session {
     this.send({ type: "resync" });
   }
   receive(message: ServerMessage) {
+    this.adaptive?.activity(this.options.now());
     try { this.receiveMessage(message); }
     finally { this.diagnostics?.updateControl(); }
   }
@@ -463,6 +509,7 @@ export class Session {
         this.name = message.name;
         this.previousName = null;
         this.room = message.room;
+        if (this.adaptive && (!message.room?.matchId || this.leadMatch && this.leadMatch !== JSON.stringify([message.room.code, message.room.matchId]))) this.resetLead();
         this.store(this.options.storage, "42tris.resume", message.resumeToken);
         this.status = `Connected as ${message.name}`;
         this.lastPing = -Infinity;
@@ -481,6 +528,7 @@ export class Session {
           || message.room.matchId !== this.checkpoint.matchId)) this.diagnostics.identityChanged();
         if (message.room.players.find(p => p.playerId === this.playerId)?.name === this.name) this.previousName = null;
         this.room = message.room;
+        if (this.adaptive && (!message.room.matchId || this.leadMatch && this.leadMatch !== JSON.stringify([message.room.code, message.room.matchId]))) this.resetLead();
         this.invite = "";
         if (!this.canPlay && (!this.deferred || !this.controlsReady)) this.cancelScheduledFlush();
         if (message.room.phase !== "playing") this.options.clearKeys();
@@ -493,10 +541,7 @@ export class Session {
         this.invite = "";
         const identity = [message.room.code, message.matchId, message.state?.round, message.owner.generation, message.owner.epoch].join(":");
         const changed = identity !== this.identity;
-        this.diagnostics?.checkpoint(this.receivedAt, { sequence: message.serverSequence, serverNow: message.serverNow,
-          frame: message.state?.frame ?? 0, round: message.state?.round ?? 0,
-          generation: message.owner.generation, identityChanged: changed,
-          estimatedOffset: this.connected ? this.offset : undefined });
+
         if (changed) {
           this.invalidate();
           this.nextSeq = message.owner.nextSeq;
@@ -509,10 +554,30 @@ export class Session {
           // starts a round. Latch before rebuilding its first prediction.
           const round = JSON.stringify([message.room.code, message.matchId, message.state.round]);
           if (round !== this.leadRound) {
+            const match = JSON.stringify([message.room.code, message.matchId]);
+            if (this.adaptive && match !== this.leadMatch) {
+              this.activeLeadMs = 0;
+              this.adaptive.resetDecrease();
+            }
+            this.leadMatch = match;
             this.leadRound = round;
-            this.activeLeadMs = this.requestedLeadMs;
+            this.roundOffsetMs = null;
+            this.leadFinalized = false;
+            this.adaptiveDecision = undefined;
+            if (!this.adaptive) this.activeLeadMs = this.requestedLeadMs;
+          }
+          if (this.adaptive && !this.leadFinalized && message.room.phase === "playing" && !message.clock.frozen) {
+            const decision = this.adaptive.decide(this.options.now(), message.clock.commitDelayMs, this.activeLeadMs);
+            this.activeLeadMs = decision.appliedMs;
+            this.roundOffsetMs = decision.offsetMs;
+            this.adaptiveDecision = decision;
+            this.leadFinalized = true;
           }
         } else this.resetLead();
+        this.diagnostics?.checkpoint(this.receivedAt, { sequence: message.serverSequence, serverNow: message.serverNow,
+          frame: message.state?.frame ?? 0, round: message.state?.round ?? 0,
+          generation: message.owner.generation, identityChanged: changed,
+          estimatedOffset: this.connected ? this.effectiveOffsetMs : undefined });
         const accepted = new Set(message.owner.pendingAccepted.map(i => i.seq));
         const rejected = new Set(message.owner.rejections.map(i => i.seq));
         const rejectedLocal = this.pending.some(i => rejected.has(i.seq));
@@ -549,6 +614,20 @@ export class Session {
         this.invalidate();
         break;
       case "pong": {
+        if (this.adaptive) {
+          const valid = this.adaptive.pong(message.nonce, message.serverNow, this.options.now(),
+            this.checkpoint?.clock.commitDelayMs ?? 100, this.activeLeadMs);
+          if (valid) {
+            const sample = this.adaptive.observations(this.options.now()).at(-1)!;
+            this.diagnostics?.rtt(sample.rttMs);
+            this.diagnostics?.clockOffset(sample.receivedAtClientMs, sample.impliedOffsetMs);
+            if (sample.rttMs < this.bestRtt) {
+              this.bestRtt = sample.rttMs;
+              this.offset = sample.impliedOffsetMs;
+            }
+          }
+          break;
+        }
         const sent = this.probes.get(message.nonce);
         if (sent === undefined) break;
         const rtt = this.options.now() - sent;
@@ -605,6 +684,7 @@ export class Session {
   }
   tick() {
     const now = this.options.now();
+    this.adaptive?.activity(now);
     if (!this.active) return;
     if (!this.connected) {
       if (now >= this.retryAt) { ++this.attempts; this.open(); }
@@ -619,12 +699,16 @@ export class Session {
       this.sharedSkin = skin;
       this.send({ type: "skin", skin });
     }
-    if (now - this.lastPing >= 2000) {
-      const nonce = String(now);
-      this.probes.clear();
-      this.probes.set(nonce, now);
-      this.send({ type: "ping", nonce });
-      this.lastPing = now;
+    if (now - this.lastPing >= (this.adaptive?.cadence(now) ?? 2000)) {
+      const nonce = this.adaptive ? this.adaptive.probe(now) : String(now);
+      if (nonce !== null) {
+        if (!this.adaptive) {
+          this.probes.clear();
+          this.probes.set(nonce, now);
+        }
+        this.send({ type: "ping", nonce });
+        this.lastPing = now;
+      }
     }
     if (this.checkpoint?.state && now - this.receivedAt >= 2000) {
       // Suspending play must not cancel the pending recovery deadline.

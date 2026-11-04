@@ -1,0 +1,4211 @@
+{
+  "baselineHead": "299ed7033bb57b8aae94de4d4752bffeb5a53807",
+  "results": [
+    {
+      "name": "adaptive RTT 40",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2454,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 563.3333333321934,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3220,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 16610,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 29730,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.04079967360261118,
+          "marginMs": {
+            "count": 152,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4563.333333332408,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 822,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 563.3333333321934,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3220,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 16610,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 29730,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.04079967360261118,
+          "marginMs": {
+            "count": 152,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4563.333333332408,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 822,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive RTT 180",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2462,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 859.9999999988795,
+            "rttMin": 180,
+            "rttMedian": 180,
+            "rttP95": 180,
+            "effectiveTransitMedian": 90,
+            "effectiveTransitP95": 90,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3790,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 44,
+                "reason": "selected",
+                "wantedMs": 44,
+                "ceilingMs": 160,
+                "rttP95": 180,
+                "effectiveTransitP95": 90
+              },
+              {
+                "at": 17240,
+                "roundOrdinal": 2,
+                "previousMs": 44,
+                "appliedMs": 44,
+                "reason": "selected",
+                "wantedMs": 44,
+                "ceilingMs": 160,
+                "rttP95": 180,
+                "effectiveTransitP95": 90
+              },
+              {
+                "at": 30360,
+                "roundOrdinal": 3,
+                "previousMs": 44,
+                "appliedMs": 44,
+                "reason": "selected",
+                "wantedMs": 44,
+                "ceilingMs": 160,
+                "rttP95": 180,
+                "effectiveTransitP95": 90
+              }
+            ]
+          },
+          "link": {
+            "up": 90,
+            "down": 90
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 44,
+            "proposedNextMs": 44,
+            "wantedMs": 44,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08156606851549755,
+          "marginMs": {
+            "count": 152,
+            "p5": 116,
+            "p50": 144,
+            "p95": 144,
+            "max": 144.00000000000006
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 90,
+            "p50": 90,
+            "p95": 90,
+            "max": 90
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 180,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4859.999999999065,
+            "selectedSampleRttMs": 180,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 153,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1133.3333333321934,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3720,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 17170,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 30290,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08133387555917039,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000073487
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5133.333333332408,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 827,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive RTT 200",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2461,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 883.3333333322153,
+            "rttMin": 200,
+            "rttMedian": 200,
+            "rttP95": 200,
+            "effectiveTransitMedian": 100,
+            "effectiveTransitP95": 100,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3850,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              },
+              {
+                "at": 17320,
+                "roundOrdinal": 2,
+                "previousMs": 54,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              },
+              {
+                "at": 30440,
+                "roundOrdinal": 3,
+                "previousMs": 54,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              }
+            ]
+          },
+          "link": {
+            "up": 100,
+            "down": 100
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 54,
+            "proposedNextMs": 54,
+            "wantedMs": 54,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 125,
+            "p50": 154,
+            "p95": 154,
+            "max": 154.00000000000006
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 100,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 199.99999999999997,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4883.333333332397,
+            "selectedSampleRttMs": 200,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1176.6666666655292,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3770,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 17240,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 30360,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5176.66666666574,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 826,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive RTT 300",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2466,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {
+            "WRONG_PHASE": 2
+          },
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1049.9999999989013,
+            "rttMin": 300,
+            "rttMedian": 300,
+            "rttP95": 300,
+            "effectiveTransitMedian": 150,
+            "effectiveTransitP95": 150,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 4250,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              },
+              {
+                "at": 17770,
+                "roundOrdinal": 2,
+                "previousMs": 104,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              },
+              {
+                "at": 30890,
+                "roundOrdinal": 3,
+                "previousMs": 104,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              }
+            ]
+          },
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 104,
+            "proposedNextMs": 104,
+            "wantedMs": 104,
+            "ceilingMs": 113,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 175.0000000000009,
+            "p50": 204,
+            "p95": 204,
+            "max": 204.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 762,
+            "p5": 150,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5049.999999999054,
+            "selectedSampleRttMs": 300,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1576.6666666655292,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 4120,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 17640,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 30760,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5576.66666666574,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive RTT 60 spikes",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2473,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 936.6666666655292,
+            "rttMin": 60,
+            "rttMedian": 60,
+            "rttP95": 210,
+            "effectiveTransitMedian": 30,
+            "effectiveTransitP95": 180,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3630,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 133,
+                "reason": "selected",
+                "wantedMs": 133,
+                "ceilingMs": 160,
+                "rttP95": 208.33333333333331,
+                "effectiveTransitP95": 178.33333333333331
+              },
+              {
+                "at": 17020,
+                "roundOrdinal": 2,
+                "previousMs": 133,
+                "appliedMs": 133,
+                "reason": "selected",
+                "wantedMs": 133,
+                "ceilingMs": 160,
+                "rttP95": 208.33333333333331,
+                "effectiveTransitP95": 178.33333333333331
+              },
+              {
+                "at": 30230,
+                "roundOrdinal": 3,
+                "previousMs": 133,
+                "appliedMs": 134,
+                "reason": "selected",
+                "wantedMs": 134,
+                "ceilingMs": 160,
+                "rttP95": 210,
+                "effectiveTransitP95": 180
+              }
+            ]
+          },
+          "link": {
+            "up": 30,
+            "down": 30,
+            "spikeChance": 0.05,
+            "spikeMs": 150
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 134,
+            "proposedNextMs": 134,
+            "wantedMs": 134,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.4061738424045491,
+          "marginMs": {
+            "count": 152,
+            "p5": 205,
+            "p50": 233,
+            "p95": 234,
+            "max": 234
+          },
+          "checkpointAgeMs": {
+            "count": 762,
+            "p5": 30,
+            "p50": 30,
+            "p95": 169.9999999999818,
+            "max": 180
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              -59.999999999990905,
+              0,
+              0,
+              0,
+              0,
+              0,
+              -75,
+              0,
+              75,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 47.45285321209446,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 60,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4936.66666666574,
+            "selectedSampleRttMs": 60,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 824,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 153,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 973.3333333321934,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3470,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 17010,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 30130,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.16194331983805668,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4973.333333332408,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 827,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive mixed",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2468,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1646.666666665522,
+            "rttMin": 20,
+            "rttMedian": 20,
+            "rttP95": 20,
+            "effectiveTransitMedian": 10,
+            "effectiveTransitP95": 10,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 4110,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -36,
+                "ceilingMs": 160,
+                "rttP95": 20,
+                "effectiveTransitP95": 10
+              },
+              {
+                "at": 17670,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -36,
+                "ceilingMs": 160,
+                "rttP95": 20,
+                "effectiveTransitP95": 10
+              },
+              {
+                "at": 30790,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -36,
+                "ceilingMs": 160,
+                "rttP95": 20,
+                "effectiveTransitP95": 10
+              }
+            ]
+          },
+          "link": {
+            "up": 10,
+            "down": 10
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -36,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08123476848090982,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 10,
+            "p50": 10,
+            "p95": 10,
+            "max": 10.000000000927685
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 20,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5646.666666665744,
+            "selectedSampleRttMs": 20,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1539.999999998865,
+            "rttMin": 60,
+            "rttMedian": 60,
+            "rttP95": 60,
+            "effectiveTransitMedian": 30,
+            "effectiveTransitP95": 30,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 4130,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -16,
+                "ceilingMs": 160,
+                "rttP95": 60,
+                "effectiveTransitP95": 30
+              },
+              {
+                "at": 17690,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -16,
+                "ceilingMs": 160,
+                "rttP95": 60,
+                "effectiveTransitP95": 30
+              },
+              {
+                "at": 30810,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -16,
+                "ceilingMs": 160,
+                "rttP95": 60,
+                "effectiveTransitP95": 30
+              }
+            ]
+          },
+          "link": {
+            "up": 30,
+            "down": 30
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -16,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08130081300813008,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 30,
+            "p50": 30,
+            "p95": 30,
+            "max": 30.00000000077125
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 60,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5539.999999999072,
+            "selectedSampleRttMs": 60,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "c",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1303.3333333322153,
+            "rttMin": 180,
+            "rttMedian": 180,
+            "rttP95": 180,
+            "effectiveTransitMedian": 90,
+            "effectiveTransitP95": 90,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 4190,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 44,
+                "reason": "selected",
+                "wantedMs": 44,
+                "ceilingMs": 160,
+                "rttP95": 180,
+                "effectiveTransitP95": 90
+              },
+              {
+                "at": 17750,
+                "roundOrdinal": 2,
+                "previousMs": 44,
+                "appliedMs": 44,
+                "reason": "selected",
+                "wantedMs": 44,
+                "ceilingMs": 160,
+                "rttP95": 180,
+                "effectiveTransitP95": 90
+              },
+              {
+                "at": 30870,
+                "roundOrdinal": 3,
+                "previousMs": 44,
+                "appliedMs": 44,
+                "reason": "selected",
+                "wantedMs": 44,
+                "ceilingMs": 160,
+                "rttP95": 180,
+                "effectiveTransitP95": 90
+              }
+            ]
+          },
+          "link": {
+            "up": 90,
+            "down": 90
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 44,
+            "proposedNextMs": 44,
+            "wantedMs": 44,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08136696501220504,
+          "marginMs": {
+            "count": 152,
+            "p5": 115,
+            "p50": 144,
+            "p95": 144,
+            "max": 144.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 90,
+            "p50": 90,
+            "p95": 90,
+            "max": 90
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 180,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5303.333333332397,
+            "selectedSampleRttMs": 180,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 828,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "d",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1049.9999999989013,
+            "rttMin": 300,
+            "rttMedian": 300,
+            "rttP95": 300,
+            "effectiveTransitMedian": 150,
+            "effectiveTransitP95": 150,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 4250,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              },
+              {
+                "at": 17810,
+                "roundOrdinal": 2,
+                "previousMs": 104,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              },
+              {
+                "at": 30930,
+                "roundOrdinal": 3,
+                "previousMs": 104,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              }
+            ]
+          },
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 104,
+            "proposedNextMs": 104,
+            "wantedMs": 104,
+            "ceilingMs": 113,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08156606851549755,
+          "marginMs": {
+            "count": 152,
+            "p5": 175,
+            "p50": 204,
+            "p95": 204,
+            "max": 204.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 150,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5049.999999999054,
+            "selectedSampleRttMs": 300,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 827,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive asymmetric 20/180",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2472,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {},
+          "inputItemsSent": 152,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 913.3333333322153,
+            "rttMin": 200,
+            "rttMedian": 200,
+            "rttP95": 200,
+            "effectiveTransitMedian": 100,
+            "effectiveTransitP95": 100,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3880,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              },
+              {
+                "at": 17400,
+                "roundOrdinal": 2,
+                "previousMs": 54,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              },
+              {
+                "at": 25550,
+                "roundOrdinal": 3,
+                "previousMs": 54,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 180
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 54,
+            "proposedNextMs": 54,
+            "wantedMs": 54,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.12229922543823889,
+          "marginMs": {
+            "count": 152,
+            "p5": 126,
+            "p50": 154,
+            "p95": 154,
+            "max": 154.0000000000001
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 100,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "clock": {
+            "offsetSamples": [
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": -79.99999999999997,
+            "effectiveOffsetMs": -80,
+            "bestRttMs": 199.99999999999997,
+            "calibrated": true,
+            "selectedSampleAgeMs": 8913.333333332688,
+            "selectedSampleRttMs": 200,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 153,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1223.3333333321934,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3720,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 17240,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 25390,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.12150668286755771,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 9223.3333333327,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive asymmetric 180/20",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2455,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {
+            "WRONG_PHASE": 2
+          },
+          "inputItemsSent": 153,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 903.3333333322153,
+            "rttMin": 200,
+            "rttMedian": 200,
+            "rttP95": 200,
+            "effectiveTransitMedian": 100,
+            "effectiveTransitP95": 100,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3870,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              },
+              {
+                "at": 17250,
+                "roundOrdinal": 2,
+                "previousMs": 54,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              },
+              {
+                "at": 30370,
+                "roundOrdinal": 3,
+                "previousMs": 54,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              }
+            ]
+          },
+          "link": {
+            "up": 180,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 54,
+            "proposedNextMs": 54,
+            "wantedMs": 54,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 151,
+            "accepted": 151,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 151,
+            "accepted": 151,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08156606851549755,
+          "marginMs": {
+            "count": 153,
+            "p5": 126,
+            "p50": 154,
+            "p95": 154,
+            "max": 154.0000000000009
+          },
+          "checkpointAgeMs": {
+            "count": 763,
+            "p5": 100,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "clock": {
+            "offsetSamples": [
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 80,
+            "effectiveOffsetMs": 80,
+            "bestRttMs": 199.99999999999997,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4903.333333332397,
+            "selectedSampleRttMs": 200,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 824,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 153,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1213.3333333321934,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3870,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 17250,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 30370,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08156606851549755,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5213.333333332408,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 826,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive route 300 to 40",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 80470,
+      "setup": {
+        "from": {
+          "up": 150,
+          "down": 150
+        },
+        "to": {
+          "up": 20,
+          "down": 20
+        },
+        "before": {
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 104,
+            "proposedNextMs": 104,
+            "wantedMs": 104,
+            "ceilingMs": 113,
+            "reason": "selected",
+            "capped": false
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true,
+            "selectedSampleAgeMs": 600,
+            "selectedSampleRttMs": 300,
+            "quality": "fresh"
+          }
+        },
+        "during": {
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 104,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 46600,
+            "selectedSampleRttMs": 300,
+            "quality": "fresh"
+          },
+          "decreaseConfirmed": true
+        },
+        "after": {
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 730,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          }
+        }
+      },
+      "replayVerified": true,
+      "clockChecks": 7163,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {},
+          "inputItemsSent": 177,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1229.9999999947904,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 4250,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              },
+              {
+                "at": 54220,
+                "roundOrdinal": 2,
+                "previousMs": 104,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 68220,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 81360,
+                "roundOrdinal": 4,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 177,
+            "accepted": 177,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 177,
+            "accepted": 177,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 177,
+            "p5": 72,
+            "p50": 100,
+            "p95": 191,
+            "max": 204.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 5229.999999995955,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 1853,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 161,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1496.6666666615347,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 4120,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 54220,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 68220,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 81360,
+                "roundOrdinal": 4,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 161,
+            "accepted": 161,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 161,
+            "accepted": 161,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 161,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 3496.6666666621168,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 1837,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive route 40 to 300",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 80600,
+      "setup": {
+        "from": {
+          "up": 20,
+          "down": 20
+        },
+        "to": {
+          "up": 150,
+          "down": 150
+        },
+        "before": {
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 96.66666666666697,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          }
+        },
+        "during": {
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 104,
+            "wantedMs": 104,
+            "ceilingMs": 113,
+            "reason": "selected",
+            "capped": false
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 46096.666666666664,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "decreaseConfirmed": false
+        },
+        "after": {
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 104,
+            "proposedNextMs": 104,
+            "wantedMs": 104,
+            "ceilingMs": 113,
+            "reason": "selected",
+            "capped": false
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 1820,
+            "selectedSampleRttMs": 300,
+            "quality": "fresh"
+          }
+        }
+      },
+      "replayVerified": true,
+      "clockChecks": 7164,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {
+            "WRONG_PHASE": 2
+          },
+          "inputItemsSent": 176,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 319.9999999948632,
+            "rttMin": 300,
+            "rttMedian": 300,
+            "rttP95": 300,
+            "effectiveTransitMedian": 150,
+            "effectiveTransitP95": 150,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3220,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 53320,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              },
+              {
+                "at": 67460,
+                "roundOrdinal": 3,
+                "previousMs": 104,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              },
+              {
+                "at": 81210,
+                "roundOrdinal": 4,
+                "previousMs": 104,
+                "appliedMs": 104,
+                "reason": "selected",
+                "wantedMs": 104,
+                "ceilingMs": 113,
+                "rttP95": 300,
+                "effectiveTransitP95": 150
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 104,
+            "proposedNextMs": 104,
+            "wantedMs": 104,
+            "ceilingMs": 113,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 174,
+            "accepted": 150,
+            "acceptedPct": 86.20689655172413,
+            "late": 24,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 174,
+            "accepted": 150,
+            "acceptedPct": 86.20689655172413,
+            "late": 24,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 8,
+          "releases": {
+            "total": 10,
+            "byReason": {
+              "stale-prediction": 4,
+              "rejected-input": 4,
+              "wrong-phase": 2
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 3.365451752548527,
+          "marginMs": {
+            "count": 176,
+            "p5": 87,
+            "p50": 203.99999999999955,
+            "p95": 204,
+            "max": 204.00000000000182
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 150,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4319.999999996027,
+            "selectedSampleRttMs": 300,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 1766,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 160,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 579.9999999948632,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3220,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 53190,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 67330,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 81080,
+                "roundOrdinal": 4,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 160,
+            "accepted": 160,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 160,
+            "accepted": 160,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.013964530093562352,
+          "marginMs": {
+            "count": 160,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4579.999999996027,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 1831,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "adaptive route 180/20 to 20/300",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 80760,
+      "setup": {
+        "from": {
+          "up": 180,
+          "down": 20
+        },
+        "to": {
+          "up": 20,
+          "down": 300
+        },
+        "before": {
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 54,
+            "proposedNextMs": 54,
+            "wantedMs": 54,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "clock": {
+            "offsetSamples": [
+              80,
+              80,
+              80,
+              80
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 80,
+            "effectiveOffsetMs": 80,
+            "bestRttMs": 199.99999999999997,
+            "calibrated": true,
+            "selectedSampleAgeMs": 436.66666666666697,
+            "selectedSampleRttMs": 200,
+            "quality": "fresh"
+          }
+        },
+        "during": {
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 54,
+            "proposedNextMs": 103,
+            "wantedMs": 114,
+            "ceilingMs": 103,
+            "reason": "selected",
+            "capped": true
+          },
+          "clock": {
+            "offsetSamples": [
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 80,
+            "effectiveOffsetMs": 80,
+            "bestRttMs": 199.99999999999997,
+            "calibrated": true,
+            "selectedSampleAgeMs": 46436.666666666664,
+            "selectedSampleRttMs": 200,
+            "quality": "capped"
+          },
+          "decreaseConfirmed": false
+        },
+        "after": {
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 103,
+            "proposedNextMs": 103,
+            "wantedMs": 114,
+            "ceilingMs": 103,
+            "reason": "capped",
+            "capped": true
+          },
+          "clock": {
+            "offsetSamples": [
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 80,
+            "effectiveOffsetMs": -140,
+            "bestRttMs": 199.99999999999997,
+            "calibrated": true,
+            "selectedSampleAgeMs": 476.6666666666715,
+            "selectedSampleRttMs": 320,
+            "quality": "capped"
+          }
+        }
+      },
+      "replayVerified": true,
+      "clockChecks": 7181,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "serverErrors": {
+            "WRONG_PHASE": 2
+          },
+          "inputItemsSent": 178,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 976.666666661491,
+            "rttMin": 320,
+            "rttMedian": 320,
+            "rttP95": 320,
+            "effectiveTransitMedian": 160,
+            "effectiveTransitP95": 160,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3870,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 54,
+                "reason": "selected",
+                "wantedMs": 54,
+                "ceilingMs": 160,
+                "rttP95": 200,
+                "effectiveTransitP95": 100
+              },
+              {
+                "at": 54130,
+                "roundOrdinal": 2,
+                "previousMs": 54,
+                "appliedMs": 103,
+                "reason": "capped",
+                "wantedMs": 114,
+                "ceilingMs": 103,
+                "rttP95": 320,
+                "effectiveTransitP95": 160
+              },
+              {
+                "at": 68380,
+                "roundOrdinal": 3,
+                "previousMs": 103,
+                "appliedMs": 103,
+                "reason": "capped",
+                "wantedMs": 114,
+                "ceilingMs": 103,
+                "rttP95": 320,
+                "effectiveTransitP95": 160
+              },
+              {
+                "at": 81550,
+                "roundOrdinal": 4,
+                "previousMs": 103,
+                "appliedMs": 103,
+                "reason": "capped",
+                "wantedMs": 114,
+                "ceilingMs": 103,
+                "rttP95": 320,
+                "effectiveTransitP95": 160
+              }
+            ]
+          },
+          "link": {
+            "up": 180,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 103,
+            "proposedNextMs": 103,
+            "wantedMs": 114,
+            "ceilingMs": 103,
+            "reason": "capped",
+            "capped": true
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 176,
+            "accepted": 176,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 176,
+            "accepted": 176,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.02786291446085261,
+          "marginMs": {
+            "count": 178,
+            "p5": 141,
+            "p50": 202.99999999999955,
+            "p95": 203,
+            "max": 203.00000000000045
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 160,
+            "p50": 160,
+            "p95": 160,
+            "max": 160
+          },
+          "clock": {
+            "offsetSamples": [
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140,
+              -140
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 80,
+            "effectiveOffsetMs": -140,
+            "bestRttMs": 199.99999999999997,
+            "calibrated": true,
+            "selectedSampleAgeMs": 4976.666666662655,
+            "selectedSampleRttMs": 320,
+            "quality": "capped"
+          },
+          "corrections": {
+            "compared": 1847,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "serverErrors": {},
+          "inputItemsSent": 161,
+          "adaptive": {
+            "sampleCount": 16,
+            "newestSampleAgeMs": 1406.6666666615347,
+            "rttMin": 40,
+            "rttMedian": 40,
+            "rttP95": 40,
+            "effectiveTransitMedian": 20,
+            "effectiveTransitP95": 20,
+            "decreaseConfirmed": false,
+            "decisions": [
+              {
+                "at": 3870,
+                "roundOrdinal": 1,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 53850,
+                "roundOrdinal": 2,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 68100,
+                "roundOrdinal": 3,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              },
+              {
+                "at": 81270,
+                "roundOrdinal": 4,
+                "previousMs": 0,
+                "appliedMs": 0,
+                "reason": "selected",
+                "wantedMs": -26,
+                "ceilingMs": 160,
+                "rttP95": 40,
+                "effectiveTransitP95": 20
+              }
+            ]
+          },
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "mode": "adaptive",
+            "requestedMs": null,
+            "appliedMs": 0,
+            "proposedNextMs": 0,
+            "wantedMs": -26,
+            "ceilingMs": 160,
+            "reason": "selected",
+            "capped": false
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 161,
+            "accepted": 161,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 161,
+            "accepted": 161,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.02786291446085261,
+          "marginMs": {
+            "count": 161,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "effectiveOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true,
+            "selectedSampleAgeMs": 3406.6666666621168,
+            "selectedSampleRttMs": 40,
+            "quality": "fresh"
+          },
+          "corrections": {
+            "compared": 1838,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    }
+  ]
+}
