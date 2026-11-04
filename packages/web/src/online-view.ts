@@ -15,6 +15,7 @@ export function mountOnline(root: HTMLElement, options: {
   replay?(replay: Awaited<ReturnType<typeof requestCompetitiveReplay>>): void;
   skin?(): string; skinMode(): MultiplayerSkinMode;
   session?: Session; invite?: string | null; view?(view: AppView): void; diagnostics?: SessionDiagnostics;
+  inputLeadMs?: number;
 }) {
   const document = root.ownerDocument;
   const location = document.location;
@@ -24,7 +25,7 @@ export function mountOnline(root: HTMLElement, options: {
     removeItem: (key: string) => window[kind].removeItem(key),
   });
   const session = options.session ?? new Session({ now: () => performance.now(), storage: storage("sessionStorage"), profile: storage("localStorage"),
-    clearKeys: options.clearKeys, skin: options.skin, diagnostics: options.diagnostics,
+    clearKeys: options.clearKeys, skin: options.skin, diagnostics: options.diagnostics, inputLeadMs: options.inputLeadMs,
     connect(callbacks) {
       const socket = createClient(location.origin).ws.subscribe();
       const diagnostics = options.diagnostics;
@@ -167,17 +168,18 @@ export function mountOnline(root: HTMLElement, options: {
   click("[data-reset]", () => { session.practice("practiceReset"); focusGame(); });
   click("[data-attacks]", () => { session.send({ type: "toggleAttacks", enabled: !session.room?.options.attacksEnabled }); focusGame(); });
   let notificationUntil = 0;
-  click("[data-copy]", () => {
+  click("[data-copy]", async () => {
     const url = new URL(location.href);
     url.searchParams.set("room", session.room!.code);
+    url.searchParams.delete("lead");
     if (!stageElement("#game-view").hidden) focusGame();
     if (!navigator.clipboard) { session.status = `Copy this invite: ${url.href}`; return; }
-    void navigator.clipboard.writeText(url.href).then(() => {
+    try {
+      await navigator.clipboard.writeText(url.href);
       text("[data-notification]", "Invite copied");
       element("[data-notification]").hidden = false;
       notificationUntil = performance.now() + 3000;
-    },
-      () => { session.status = `Copy this invite: ${url.href}`; });
+    } catch { session.status = `Copy this invite: ${url.href}`; }
   });
   const roomDialog = element<HTMLDialogElement>("[data-room-dialog]");
   const management = element("[data-management]");

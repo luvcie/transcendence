@@ -42,6 +42,8 @@ export interface NetHarnessOptions {
   /** 2–8 profiles. Omit to retain the a/b API and its defaults. */
   players?: readonly LinkProfile[];
   diagnostics?: boolean;
+  /** Actual Session configuration, independent of clock offsets and link profiles. */
+  inputLeadMs?: Partial<Record<ClientKey, number>>;
   /** Inspection caps: players API defaults to 16/256/128; legacy a/b API keeps complete capture.
    * Set a cap to Infinity for complete history, or zero to retain none. Delivery is unaffected. */
   messageHistory?: number;
@@ -126,7 +128,7 @@ export class HarnessClient {
   readonly control = { eligibleMs: 0, blockedMs: 0 };
   keysCleared = 0;
 
-  constructor(net: NetHarness, readonly key: ClientKey, diagnostics: boolean) {
+  constructor(net: NetHarness, readonly key: ClientKey, diagnostics: boolean, inputLeadMs?: number) {
     this.diagnostics = diagnostics ? new SessionDiagnostics() : undefined;
     const values = new Map<string, string>([["42tris.profile", `harness-${key}`]]);
     const store = {
@@ -140,6 +142,7 @@ export class HarnessClient {
       profile: store,
       clearKeys: () => { this.keysCleared++; },
       diagnostics: this.diagnostics,
+      inputLeadMs,
       schedule: (callback, delay) => net.scheduleTimer(this.key, callback, delay),
       connect: callbacks => net.connectClient(this, callbacks),
     });
@@ -197,7 +200,8 @@ export class NetHarness {
       seed: () => (random() * 0x1_0000_0000) | 0,
       code: () => Array.from({ length: 6 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(random() * 32)]).join(""),
     });
-    this.clients = profiles.map((_, index) => new HarnessClient(this, CLIENT_KEYS[index], !!options.diagnostics));
+    this.clients = profiles.map((_, index) => new HarnessClient(this, CLIENT_KEYS[index], !!options.diagnostics,
+      options.inputLeadMs?.[CLIENT_KEYS[index]]));
     [this.a, this.b] = this.clients;
     const tick = () => {
       this.rooms.tick();

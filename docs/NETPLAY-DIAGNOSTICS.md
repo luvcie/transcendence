@@ -1,7 +1,8 @@
 # Multiplayer latency diagnostics (N2-A)
 
-These tools measure the current networking behavior. They do not change input
-admission, prediction lead, recovery, checkpoint contents, or replay rules.
+Instrumentation measures networking behavior without changing gameplay. A separate
+experimental fixed input lead is available only with explicit URL authorization,
+as described below. Lead remains zero by default.
 
 ## Capture a browser snapshot
 
@@ -18,6 +19,42 @@ Diagnostics are off by default. For persistent local opt-in, set
 `localStorage["42tris.diagnostics"] = "1"` and reload. To disable, remove that key,
 remove the query parameter, and reload. No snapshot is uploaded automatically.
 The global exists only when diagnostics are enabled.
+
+## Experimental fixed input lead (N3-B)
+
+For controlled experiments against a server with **N3-A deployed**, use
+`?diagnostics&lead=104` (or append `&diagnostics&lead=104` to an invitation URL).
+Pushing N3-A to GitHub does not establish deployment compatibility. The protocol
+does not negotiate this capability. Do not enable lead for ordinary competitive play.
+
+Only the presence of `diagnostics` in the URL authorizes nonzero lead. Enabling
+diagnostics through localStorage alone does not. Omitted lead and explicit `lead=0`
+retain production timing. Values must be decimal digits with an optional fractional
+part, finite, and between 0 and the shared `MAX_INPUT_LEAD_MS` (250 ms), inclusive.
+Empty, negative, nonfinite, malformed and out-of-range values become zero; exponent,
+hexadecimal and whitespace forms are rejected. For duplicate `lead` parameters,
+the first value wins. `diagnostics=false` still enables diagnostics, matching the
+existing presence-based URL option.
+
+The URL is read once at page load. Reload to request a different value. Session
+captures that normalized value at construction and latches it before the first
+prediction for each `(room.code, matchId, state.round)`. Generation, practice epoch,
+releases, stale recovery, checkpoint expiry and same-round reconnects do not change
+it. A new room, match or round initializes its own latch with the same page option.
+Leaving a room or expiring its session clears the applied value until a new round
+checkpoint arrives.
+
+Lead advances prospective input stamps and owner prediction only while the room
+is playing and its simulation clock is unfrozen. It adds nothing in preparation,
+countdown, pause or results. Monotonic prediction can retain time already rendered
+ahead when a pause arrives; repeated paused checkpoints add no further lead.
+Existing transmitted inputs and surviving one-shots keep their timestamps.
+
+Inspect `lead.requestedMs`, `lead.appliedMs` and `clock.calibrated` alongside the
+existing RTT and clock samples. Welcome-only clock estimates can still produce late
+inputs before the first pong, even with lead. Lead is fixed, not an adaptive policy.
+Incoming attacks can cause more prediction corrections, and one-shot actions have
+no piece guard. See [the measurements and review](NETPLAY-FIXED-LEAD.md).
 
 For a host comparison, capture each player's snapshot after three rounds or about
 three minutes, with the same handling settings, player count, and play pattern.
@@ -45,6 +82,8 @@ fresh capture. `rtt` summarizes the latest 16 valid pong RTT observations.
 | `transport.measurement/windowMs/sampleMs` | Labels the measurement and nominal/actual rate denominator. These are decoded payload sizes, excluding wire overhead: exclude WebSocket framing, compression effects, TCP/IP, TLS, retransmits and control frames. Rates are zero with a zero-length observation interval. |
 | `clock.offsetSamples` | Latest 16 implied offsets from **every matched pong**, in milliseconds: `pong.serverNow - (pingSentAt + RTT/2)`. Cleared on connection changes. These are observations; the gameplay clock still uses its existing best-RTT estimate. |
 | `clock.driftMsPerMin` | Least-squares slope of these offset observations, in ms/min of client monotonic time. `null` with fewer than three observations or less than one second of time span. Centered arithmetic avoids subtracting large squared timestamps. A positive slope means the observed server offset is increasing. |
+| `lead.requestedMs/appliedMs` | Normalized immutable Session request and the value latched for the current room/match/round. Applied is initially zero and clears when leaving or expiring the session. It can remain nonzero during pauses, when the target actively adds zero lead. |
+| `clock.estimatedOffsetMs/bestRttMs/calibrated` | Current gameplay offset, best matched pong RTT (null before a pong), and whether the connected Session has calibrated from a pong. Before calibration the offset comes from welcome. Diagnostics without an attached Session report null/null/false. These fields do not change clock synchronization. |
 | `control.blockedMs/blockedPct` | Cumulative connected, playing, eligible time during which `Session.canPlay` is false, and its percentage of `control.eligibleMs`. Uses the most recent authoritative owner state; excludes eliminated, withdrawn and competitive top-out players, pre-round/result/pause/disconnected time, and deliberate user releases. Network recovery releases count. Snapshots include an ongoing blocked interval and analytically account for the exact 2-second checkpoint expiry. Server events become observable only when delivered; this is client-observed time, not an omniscient server timeline. |
 | `inputs.marginAtSendMs.{p5,p50}` | Latest 256 transmitted input margins, including retransmissions; `null` before sends. Input stamp minus estimated committed boundary. Computed in **round-relative simulation time**, using `cp.clock.simulationNow + max(0, estimatedServerNow - cp.serverNow) - cp.clock.commitDelayMs`. Cleared on connection/identity changes. A throttled, queued input is sampled only when transmitted. |
 

@@ -1,7 +1,7 @@
 import { requestCompetitiveReplay } from "./replay-request";
 import { FRAME_MS, Input, type InputId } from "@42tris/core";
 import { OwnerPrediction } from "@42tris/match";
-import type { Checkpoint, ClientCommand, InputItem, RoomState, ServerMessage } from "@42tris/protocol";
+import { MAX_INPUT_LEAD_MS, type Checkpoint, type ClientCommand, type InputItem, type RoomState, type ServerMessage } from "@42tris/protocol";
 import type { ReleaseReason, SessionDiagnostics } from "./session-diagnostics";
 
 export interface Transport {
@@ -18,6 +18,12 @@ export interface SessionOptions {
   schedule?(callback: () => void, delay: number): () => void;
   /** Opt-in only. Never part of gameplay, checkpoints, or replay journals. */
   diagnostics?: SessionDiagnostics;
+  /** Experimental, fixed at construction. The application authorizes this via ?diagnostics. */
+  inputLeadMs?: number;
+}
+
+export function normalizeInputLead(value: number = 0): number {
+  return Number.isFinite(value) && value >= 0 && value <= MAX_INPUT_LEAD_MS ? value : 0;
 }
 type Pending = InputItem & { sent: boolean; transmitted: boolean };
 type Control = "left" | "right" | "soft";
@@ -68,6 +74,9 @@ export class Session {
   private offset = 0;
   private bestRtt = Infinity;
   private identity = "";
+  private leadRound = "";
+  private readonly requestedLeadMs: number;
+  private activeLeadMs = 0;
   private nextSeq = 1;
   private prepared = "";
   private releasing = false;
@@ -83,6 +92,7 @@ export class Session {
   notice = "";
 
   constructor(private options: SessionOptions) {
+    this.requestedLeadMs = normalizeInputLead(options.inputLeadMs);
     this.diagnostics = options.diagnostics;
     this.name = this.read(options.profile, "42tris.name") || "Guest";
     this.diagnostics?.attach(options.now, () => {
@@ -95,7 +105,9 @@ export class Session {
         playable: this.canPlay,
         expiresAt: this.receivedAt + 2000,
       };
-    });
+    }, () => ({ lead: { requestedMs: this.requestedLeadMs, appliedMs: this.activeLeadMs },
+      clock: { estimatedOffsetMs: this.offset, bestRttMs: Number.isFinite(this.bestRtt) ? this.bestRtt : null,
+        calibrated: this.connected && Number.isFinite(this.bestRtt) } }));
   }
   joinInvite(code: string) {
     const normalized = code.toUpperCase();
@@ -184,6 +196,7 @@ export class Session {
     this.checkpoint = null;
     this.playerId = "";
     this.identity = "";
+    this.resetLead();
     this.duplicate = false;
     this.invalidate();
     this.retry();
@@ -205,6 +218,10 @@ export class Session {
     return requestCompetitiveReplay(code, token, signal);
   }
   serverNow() { return this.options.now() + this.offset; }
+  private resetLead() {
+    this.leadRound = "";
+    this.activeLeadMs = 0;
+  }
   private invalidate() {
     this.cancelScheduledFlush();
     this.pending = [];
@@ -242,9 +259,11 @@ export class Session {
   get canPlay() { return this.controlsReady && this.options.now() - this.receivedAt < 2000; }
   private target() {
     const cp = this.checkpoint!;
-    const elapsed = cp.clock.frozen || this.room?.phase !== "playing" ? 0 : Math.max(0, this.serverNow() - cp.serverNow);
-    return Math.max(this.prediction?.atMs ?? 0, cp.state!.frame * FRAME_MS,
-      Math.min(cp.clock.simulationNow + elapsed, cp.state!.frame * FRAME_MS + 2000));
+    const base = cp.state!.frame * FRAME_MS;
+    const running = !cp.clock.frozen && this.room?.phase === "playing";
+    const elapsed = running ? Math.max(0, this.serverNow() - cp.serverNow) : 0;
+    return Math.max(this.prediction?.atMs ?? 0, base,
+      Math.min(cp.clock.simulationNow + elapsed + (running ? this.activeLeadMs : 0), base + 2000));
   }
   input(input: InputId) {
     if (!this.canPlay) return;
@@ -485,6 +504,15 @@ export class Session {
           this.identity = identity;
         }
         this.checkpoint = message;
+        if (message.state && message.matchId) {
+          // Recovery identities include generation and practice epoch; neither
+          // starts a round. Latch before rebuilding its first prediction.
+          const round = JSON.stringify([message.room.code, message.matchId, message.state.round]);
+          if (round !== this.leadRound) {
+            this.leadRound = round;
+            this.activeLeadMs = this.requestedLeadMs;
+          }
+        } else this.resetLead();
         const accepted = new Set(message.owner.pendingAccepted.map(i => i.seq));
         const rejected = new Set(message.owner.rejections.map(i => i.seq));
         const rejectedLocal = this.pending.some(i => rejected.has(i.seq));
@@ -516,6 +544,7 @@ export class Session {
         this.room = null;
         this.checkpoint = null;
         this.identity = "";
+        this.resetLead();
         this.diagnostics?.identityChanged();
         this.invalidate();
         break;
@@ -554,6 +583,7 @@ export class Session {
           this.room = null;
           this.checkpoint = null;
           this.identity = "";
+          this.resetLead();
           this.diagnostics?.identityChanged();
           this.invalidate();
           this.socket?.send({ type: "hello", name: this.name,

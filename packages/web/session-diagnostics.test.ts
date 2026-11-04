@@ -21,7 +21,8 @@ describe("N2-A browser diagnostics", () => {
     d.checkpoint(550, info);
     expect(d.snapshot().checkpoints.ageMs).toEqual({ last: null, p50: null, p95: null, max: null });
     expect(d.snapshot().inputs.marginAtSendMs).toEqual({ p5: null, p50: null });
-    expect(d.snapshot().clock).toEqual({ offsetSamples: [], driftMsPerMin: null });
+    expect(d.snapshot().clock).toEqual({ offsetSamples: [], driftMsPerMin: null,
+      estimatedOffsetMs: null, bestRttMs: null, calibrated: false });
   });
 
   test("T-D1 age uses receive time plus estimated offset, including negative estimates", () => {

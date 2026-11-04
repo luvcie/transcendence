@@ -7,21 +7,25 @@ import { mountOnline } from "./src/online-view";
 import { renderOnlineWaiting } from "./src/waiting-view";
 import { Session } from "./src/session";
 import { SessionDiagnostics } from "./src/session-diagnostics";
+import { experimentalInputLead } from "./src/netplay-options";
 import { NetHarness } from "./netplay-harness";
 import { SkinState } from "./src/skin-state";
 import type { MultiplayerSkinMode } from "./src/multiplayer-skins";
 
 import { FakeDocument } from "./test-dom";
 
-function harness(invite?: string, settings: { skins?: SkinState; skinMode?: () => MultiplayerSkinMode; replay?: Parameters<typeof mountOnline>[1]["replay"] } = {}) {
+function harness(invite?: string, settings: { skins?: SkinState; skinMode?: () => MultiplayerSkinMode; replay?: Parameters<typeof mountOnline>[1]["replay"];
+  href?: string; diagnostics?: SessionDiagnostics } = {}) {
   const document = new FakeDocument();
   if (invite !== undefined) document.location = new URL(`https://example.com/?room=${invite}`);
+  if (settings.href !== undefined) document.location = new URL(settings.href);
   const storage = { getItem: () => null, setItem() {}, removeItem() {} };
   const sent: ClientCommand[] = [];
   let returnedLocal = false;
   const showView = mountAppView(document as unknown as Document);
   showView("solo");
   const session = new Session({ now: () => 0, storage, profile: storage, clearKeys() {},
+    diagnostics: settings.diagnostics, inputLeadMs: experimentalInputLead(document.location.searchParams),
     connect: () => ({ send(command) { sent.push(command); }, close() {} }) });
   const view = mountOnline(document.root as unknown as HTMLElement, {
     replay: settings.replay, session, invite, clearKeys() {}, handling: () => DEFAULT_HANDLING, view: showView,
@@ -58,6 +62,84 @@ test("invitation joins after welcome and displays the existing waiting interface
   expect(h.document.querySelector("[data-entry]").hidden).toBe(true);
   expect(h.sent.some(command => command.type === "ready")).toBe(false);
   h.view.destroy();
+});
+
+test.each(["success", "unavailable", "reject", "throw"] as const)("copy invite strips experimental lead on clipboard %s", async mode => {
+  const priorNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const copied: string[] = [];
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
+    clipboard: mode === "unavailable" ? undefined : { writeText(value: string) {
+      copied.push(value);
+      if (mode === "throw") throw new Error("Clipboard unavailable");
+      return mode === "reject" ? Promise.reject(new Error("Clipboard denied")) : Promise.resolve();
+    } },
+  } });
+  try {
+    // Keep ordinary invitation behavior as a control, including path/query/hash.
+    for (const lead of [104, 0]) {
+      copied.length = 0;
+      const href = lead
+        ? "https://example.com/play?diagnostics&lead=104&lead=250&room=OLDROM&keep=value#board"
+        : "https://example.com/play?room=OLDROM&keep=value#board";
+      const expected = lead
+        ? "https://example.com/play?diagnostics=&room=ABCDEF&keep=value#board"
+        : "https://example.com/play?room=ABCDEF&keep=value#board";
+      const diagnostics = new SessionDiagnostics();
+      const sender = harness(undefined, { href, diagnostics });
+      let recipient: ReturnType<typeof harness> | undefined;
+      try {
+        sender.session.receive(sender.cp);
+        sender.render();
+        expect(diagnostics.snapshot().lead).toEqual({ requestedMs: lead, appliedMs: lead });
+        const prediction = sender.session.prediction;
+        sender.document.querySelector("[data-copy]").dispatchEvent(new Event("click"));
+        await Promise.resolve(); await Promise.resolve();
+        let invitation: string;
+        if (mode === "success") {
+          expect(copied).toEqual([expected]);
+          expect(sender.document.querySelector("[data-notification]").textContent).toBe("Invite copied");
+          expect(sender.document.querySelector("[data-notification]").hidden).toBe(false);
+          invitation = copied[0];
+        } else {
+          expect(copied).toEqual(mode === "unavailable" ? [] : [expected]);
+          expect(sender.session.status).toBe(`Copy this invite: ${expected}`);
+          invitation = sender.session.status.slice("Copy this invite: ".length);
+        }
+        const url = new URL(invitation);
+        expect(url.searchParams.get("room")).toBe("ABCDEF");
+        expect(url.searchParams.has("lead")).toBe(false);
+        const recipientDiagnostics = new SessionDiagnostics();
+        recipient = harness(url.searchParams.get("room")!, { href: invitation, diagnostics: recipientDiagnostics });
+        expect(recipient.sent.filter(command => command.type === "join")).toEqual([{ type: "join", code: "ABCDEF" }]);
+        recipient.session.receive(recipient.cp);
+        expect(recipientDiagnostics.snapshot().lead).toEqual({ requestedMs: 0, appliedMs: 0 });
+        expect(recipient.session.canPlay).toBe(true);
+        expect(recipient.session.prediction!.atMs).toBe(0);
+        expect(sender.document.location.href).toBe(href);
+        expect(diagnostics.snapshot().lead).toEqual({ requestedMs: lead, appliedMs: lead });
+        expect(sender.session.prediction).toBe(prediction);
+        expect(sender.session.canPlay).toBe(true);
+      } finally {
+        recipient?.view.destroy(); sender.view.destroy();
+      }
+    }
+  } finally {
+    if (priorNavigator) Object.defineProperty(globalThis, "navigator", priorNavigator);
+    else Reflect.deleteProperty(globalThis, "navigator");
+  }
+});
+
+test.each([
+  ["diagnostics&lead=104", 104], ["lead=104", 0], ["diagnostics&lead=0", 0],
+  ["diagnostics&lead=251", 0], ["diagnostics&lead=NaN", 0],
+] as const)("explicit URL %s retains strict lead opt-in", (query, expected) => {
+  const diagnostics = new SessionDiagnostics();
+  const h = harness(undefined, { href: `https://example.com/?${query}`, diagnostics });
+  try {
+    h.session.receive(h.cp);
+    expect(diagnostics.snapshot().lead).toEqual({ requestedMs: expected, appliedMs: expected });
+    expect(h.session.prediction!.atMs).toBe(expected);
+  } finally { h.view.destroy(); }
 });
 
 test("mounted opponent view renders settlement-required snapshots without restoring or simulating a Game", () => {
@@ -465,7 +547,7 @@ test.each([false, true])("native Eden message accounting is opt-in (%s) and pres
   try {
     view = mountOnline(document.root as unknown as HTMLElement, {
       clearKeys() {}, handling: () => DEFAULT_HANDLING, local() {}, skins: new SkinState(() => storage),
-      skinMode: () => "player", diagnostics,
+      skinMode: () => "player", diagnostics, inputLeadMs: enabled ? 104 : undefined,
     });
     sockets[0].dispatchEvent(new Event("open"));
     const payload = JSON.stringify({ type: "welcome", guestSessionId: "a", playerId: "a", resumeToken: "private-token",
@@ -475,6 +557,7 @@ test.each([false, true])("native Eden message accounting is opt-in (%s) and pres
     expect(view.session.name).toBe("é🎮");
     expect(received.mock.calls.length).toBe(enabled ? 1 : 0);
     if (diagnostics) {
+      expect(diagnostics.snapshot().lead).toEqual({ requestedMs: 104, appliedMs: 0 });
       expect(diagnostics.snapshot().transport.maxMessageBytes).toBe(new TextEncoder().encode(payload).byteLength);
       expect(JSON.stringify(diagnostics.snapshot())).not.toContain("private-token");
       expect(JSON.stringify(diagnostics.snapshot())).not.toContain("é🎮");

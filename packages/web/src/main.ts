@@ -28,13 +28,17 @@ import { SprintRecorder } from "@42tris/replay";
 import { abandonSprintRecording, sprintRecordingFor, startSprintRecording } from "./sprint-recording";
 import { SprintPlayback } from "./sprint-playback";
 import { SessionDiagnostics } from "./session-diagnostics";
+import { experimentalInputLead } from "./netplay-options";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
+// Configuration is immutable until page reload; localStorage cannot authorize lead.
+const netplayParams = new URL(location.href).searchParams;
+const inputLeadMs = experimentalInputLead(netplayParams);
 // Opt-in only: append ?diagnostics or set localStorage["42tris.diagnostics"] = "1".
 const netDiagnostics = (() => {
   try {
-    return new URL(location.href).searchParams.has("diagnostics") || localStorage.getItem("42tris.diagnostics") === "1"
+    return netplayParams.has("diagnostics") || localStorage.getItem("42tris.diagnostics") === "1"
       ? new SessionDiagnostics() : undefined;
   } catch { return undefined; }
 })();
@@ -288,7 +292,7 @@ async function enterOnline() {
   }
   const root = document.querySelector<HTMLElement>("#online")!;
   online = mountOnline(root, {
-    clearKeys: () => pressed.clear(), handling: () => handling, skins, invite, diagnostics: netDiagnostics,
+    clearKeys: () => pressed.clear(), handling: () => handling, skins, invite, diagnostics: netDiagnostics, inputLeadMs,
     skin: () => shareableSkinId(skins.preferences.active), skinMode: () => multiplayerSkins.mode,
     replay: watchCompetitiveReplay,
     view: view => { if (!atHome && !competitivePlayback) showView(view); },

@@ -47,7 +47,9 @@ export interface SessionDiagnosticsSnapshot {
   rtt: { samples: number; last: number | null; min: number | null; avg: number | null; max: number | null; jitter: number | null };
   transport: { bytesPerSec: number; messagesPerSec: number; maxMessageBytes: number;
     measurement: "received-application-payload"; windowMs: number; sampleMs: number };
-  clock: { offsetSamples: number[]; driftMsPerMin: number | null };
+  lead: { requestedMs: number; appliedMs: number };
+  clock: { offsetSamples: number[]; driftMsPerMin: number | null;
+    estimatedOffsetMs: number | null; bestRttMs: number | null; calibrated: boolean };
   control: { blockedMs: number; blockedPct: number; eligibleMs: number };
   rejections: { total: number; byCode: Record<string, number> };
   releases: { total: number; byReason: Record<string, number> };
@@ -125,6 +127,10 @@ export function classifyCorrection(before: OwnerPredictionState, after: OwnerPre
 export class SessionDiagnostics {
   private now: () => number = () => performance.now();
   private readControl?: () => ControlObservation;
+  private readTiming?: () => {
+    lead: SessionDiagnosticsSnapshot["lead"];
+    clock: Pick<SessionDiagnosticsSnapshot["clock"], "estimatedOffsetMs" | "bestRttMs" | "calibrated">;
+  };
   private controlAt: number | null = null;
   private controlState?: ControlObservation;
   private eligibleMs = 0;
@@ -177,9 +183,10 @@ export class SessionDiagnostics {
   }
 
   /** Session supplies only scalar state; snapshots can include an open blocked interval. */
-  attach(now: () => number, readControl: () => ControlObservation): void {
+  attach(now: () => number, readControl: () => ControlObservation, readTiming?: SessionDiagnostics["readTiming"]): void {
     this.now = now;
     this.readControl = readControl;
+    this.readTiming = readTiming;
     this.updateControl();
   }
 
@@ -355,6 +362,7 @@ export class SessionDiagnostics {
     const sortedAges = [...ages].sort((a, b) => a - b);
     const margins = this.margins.values().sort((a, b) => a - b);
     const offsets = this.offsets.values();
+    const timing = this.readTiming?.();
     let drift: number | null = null;
     if (offsets.length >= 3 && offsets.at(-1)!.at - offsets[0].at >= 1000) {
       // Centre both coordinates before fitting to avoid cancellation at large clock values.
@@ -402,7 +410,9 @@ export class SessionDiagnostics {
       transport: { bytesPerSec: sampleMs > 0 ? bytes * 1000 / sampleMs : 0,
         messagesPerSec: sampleMs > 0 ? messages * 1000 / sampleMs : 0, maxMessageBytes: this.maxMessageBytes,
         measurement: "received-application-payload", windowMs: 10_000, sampleMs },
-      clock: { offsetSamples: offsets.map(s => s.offset), driftMsPerMin: drift },
+      lead: timing?.lead ?? { requestedMs: 0, appliedMs: 0 },
+      clock: { offsetSamples: offsets.map(s => s.offset), driftMsPerMin: drift,
+        ...(timing?.clock ?? { estimatedOffsetMs: null, bestRttMs: null, calibrated: false }) },
       control: { blockedMs: this.blockedMs, blockedPct: this.eligibleMs > 0 ? this.blockedMs / this.eligibleMs * 100 : 0,
         eligibleMs: this.eligibleMs },
       rejections: { total: this.counts.rejectionTotal, byCode: { ...this.rejectionCodes } },

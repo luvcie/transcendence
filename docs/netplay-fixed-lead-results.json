@@ -1,0 +1,5033 @@
+{
+  "head": "a91ee98",
+  "date": "2026-11-04",
+  "method": "30 seconds scripted play plus 500 ms drain; no input warm-up discarded; ages sampled throughout measured play",
+  "scenarios": [
+    {
+      "name": "40 omitted",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2454,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.04079967360261118,
+          "marginMs": {
+            "count": 152,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -2.6051645110177863e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 822,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.04079967360261118,
+          "marginMs": {
+            "count": 152,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -2.6051645110177863e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 822,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "40 lead 0",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2454,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.04079967360261118,
+          "marginMs": {
+            "count": 152,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -2.6051645110177863e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 822,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.04079967360261118,
+          "marginMs": {
+            "count": 152,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -2.6051645110177863e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 822,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "180 lead 0",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2462,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 90,
+            "down": 90
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 124,
+            "accepted": 96,
+            "acceptedPct": 77.41935483870968,
+            "late": 28,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 124,
+            "accepted": 96,
+            "acceptedPct": 77.41935483870968,
+            "late": 28,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 28,
+          "releases": {
+            "total": 28,
+            "byReason": {
+              "rejected-input": 28
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 20.636215334420882,
+          "marginMs": {
+            "count": 124,
+            "p5": 72,
+            "p50": 81,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 90,
+            "p50": 90,
+            "p95": 90,
+            "max": 90
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 180,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 657,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08133387555917039,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000073487
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.0072656498818453e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 827,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "180 lead 44",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2462,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 90,
+            "down": 90
+          },
+          "lead": {
+            "requestedMs": 44,
+            "appliedMs": 44
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08156606851549755,
+          "marginMs": {
+            "count": 152,
+            "p5": 116,
+            "p50": 144,
+            "p95": 144,
+            "max": 144.00000000000006
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 90,
+            "p50": 90,
+            "p95": 90,
+            "max": 90
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 180,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08133387555917039,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000073487
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.0072656498818453e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 827,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "200 lead 0",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2461,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 100,
+            "down": 100
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 125,
+            "accepted": 73,
+            "acceptedPct": 58.4,
+            "late": 52,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 125,
+            "accepted": 73,
+            "acceptedPct": 58.4,
+            "late": 52,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 35,
+          "releases": {
+            "total": 35,
+            "byReason": {
+              "rejected-input": 27,
+              "stale-prediction": 8
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 28.55918367346939,
+          "marginMs": {
+            "count": 125,
+            "p5": 71,
+            "p50": 81.00000000000023,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 772,
+            "p5": 100,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000364
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1.8189894035458565e-12,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -7.918433164190251e-14,
+            "estimatedOffsetMs": 1.8189894035458565e-12,
+            "bestRttMs": 199.99999999999818,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 581,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000001819
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.0072656498818463e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 826,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "200 lead 60",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2461,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 100,
+            "down": 100
+          },
+          "lead": {
+            "requestedMs": 60,
+            "appliedMs": 60
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 131,
+            "p50": 160,
+            "p95": 160,
+            "max": 160.0000000000009
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 100,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000364
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1.8189894035458565e-12,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -7.91843316419026e-14,
+            "estimatedOffsetMs": 1.8189894035458565e-12,
+            "bestRttMs": 199.99999999999818,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.000000000025466
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.007265649881848e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 826,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "300 lead 0",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2466,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 150,
+            "accepted": 0,
+            "acceptedPct": 0,
+            "late": 150,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 150,
+            "accepted": 0,
+            "acceptedPct": 0,
+            "late": 150,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 38,
+          "releases": {
+            "total": 38,
+            "byReason": {
+              "stale-prediction": 38
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 45.95918367346939,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 800,
+            "p5": 150,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 413,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000364
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000000091
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.007265649881848e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "300 lead 100",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2466,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "requestedMs": 100,
+            "appliedMs": 100
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 171,
+            "p50": 200,
+            "p95": 200,
+            "max": 200.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 762,
+            "p5": 150,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000364
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000000091
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.007265649881848e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "300 lead 104",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2466,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "requestedMs": 104,
+            "appliedMs": 104
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 175,
+            "p50": 204,
+            "p95": 204,
+            "max": 204.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 762,
+            "p5": 150,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000364
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000000091
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.007265649881848e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "300 lead 120",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2466,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "requestedMs": 120,
+            "appliedMs": 120
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 191,
+            "p50": 220,
+            "p95": 220,
+            "max": 220.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 762,
+            "p5": 150,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000364
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000000091
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.007265649881848e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "350 lead 0",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2471,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 175,
+            "down": 175
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 71,
+            "accepted": 0,
+            "acceptedPct": 0,
+            "late": 71,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 71,
+            "accepted": 0,
+            "acceptedPct": 0,
+            "late": 71,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 29,
+          "releases": {
+            "total": 29,
+            "byReason": {
+              "stale-prediction": 29
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 41.051773338768854,
+          "marginMs": {
+            "count": 73,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 712,
+            "p5": 175,
+            "p50": 175,
+            "p95": 175,
+            "max": 175.0000000000009
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 349.99999999999994,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 447,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.12153129430828438,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000182
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000000091
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.007265649881848e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 831,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "350 lead 160",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2471,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 175,
+            "down": 175
+          },
+          "lead": {
+            "requestedMs": 160,
+            "appliedMs": 160
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 150,
+            "accepted": 150,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.12229922543823889,
+          "marginMs": {
+            "count": 152,
+            "p5": 231.00000000000182,
+            "p50": 260,
+            "p95": 260,
+            "max": 260
+          },
+          "checkpointAgeMs": {
+            "count": 762,
+            "p5": 175,
+            "p50": 175,
+            "p95": 175,
+            "max": 175.0000000000009
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 349.99999999999994,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 826,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.12153129430828438,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000182
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20.00000000000091
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.007265649881848e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 831,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "20/180 lead 0",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2472,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 20,
+            "down": 180
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 121,
+            "accepted": 70,
+            "acceptedPct": 57.85123966942148,
+            "late": 51,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 121,
+            "accepted": 70,
+            "acceptedPct": 57.85123966942148,
+            "late": 51,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 34,
+          "releases": {
+            "total": 34,
+            "byReason": {
+              "stale-prediction": 19,
+              "rejected-input": 15
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 27.84345699143905,
+          "marginMs": {
+            "count": 121,
+            "p5": 72,
+            "p50": 81,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 767,
+            "p5": 100,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "clock": {
+            "offsetSamples": [
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -79.99999999999818,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80
+            ],
+            "driftMsPerMin": -7.918433164190251e-14,
+            "estimatedOffsetMs": -79.99999999999818,
+            "bestRttMs": 199.99999999999818,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 576,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.12150668286755771,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.0072656498818453e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "180/20 lead 0",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2455,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 180,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 118,
+            "accepted": 62,
+            "acceptedPct": 52.54237288135594,
+            "late": 56,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 118,
+            "accepted": 62,
+            "acceptedPct": 52.54237288135594,
+            "late": 56,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 36,
+          "releases": {
+            "total": 36,
+            "byReason": {
+              "rejected-input": 15,
+              "stale-prediction": 21
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 29.02120717781403,
+          "marginMs": {
+            "count": 118,
+            "p5": 72,
+            "p50": 81,
+            "p95": 100,
+            "max": 100.00000000000045
+          },
+          "checkpointAgeMs": {
+            "count": 766,
+            "p5": 100,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "clock": {
+            "offsetSamples": [
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 80,
+            "bestRttMs": 199.99999999999818,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 561,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08156606851549755,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.0072656498818453e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 826,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "20/180 lead 84",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2472,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 20,
+            "down": 180
+          },
+          "lead": {
+            "requestedMs": 84,
+            "appliedMs": 84
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.12229922543823889,
+          "marginMs": {
+            "count": 152,
+            "p5": 156,
+            "p50": 184,
+            "p95": 184,
+            "max": 184.0000000000009
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 100,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "clock": {
+            "offsetSamples": [
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -79.99999999999818,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80,
+              -80
+            ],
+            "driftMsPerMin": -7.918433164190251e-14,
+            "estimatedOffsetMs": -79.99999999999818,
+            "bestRttMs": 199.99999999999818,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 825,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.12150668286755771,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.0072656498818453e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "180/20 lead 84",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2455,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 180,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 84,
+            "appliedMs": 84
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 151,
+            "accepted": 151,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 151,
+            "accepted": 151,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08156606851549755,
+          "marginMs": {
+            "count": 153,
+            "p5": 156,
+            "p50": 184,
+            "p95": 184,
+            "max": 184.0000000000009
+          },
+          "checkpointAgeMs": {
+            "count": 763,
+            "p5": 100,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "clock": {
+            "offsetSamples": [
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80,
+              80
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 80,
+            "bestRttMs": 199.99999999999818,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 824,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08156606851549755,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -3.0072656498818453e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 826,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "60 spikes lead 0",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2458,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 30,
+            "down": 30,
+            "spikeChance": 0.05,
+            "spikeMs": 150
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 148,
+            "accepted": 132,
+            "acceptedPct": 89.1891891891892,
+            "late": 16,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 148,
+            "accepted": 132,
+            "acceptedPct": 89.1891891891892,
+            "late": 16,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 7,
+          "releases": {
+            "total": 7,
+            "byReason": {
+              "stale-prediction": 7
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 2.559087204563977,
+          "marginMs": {
+            "count": 148,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 766,
+            "p5": 30,
+            "p50": 30,
+            "p95": 170,
+            "max": 180
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              -57.33333333331484,
+              0,
+              -9.999999999998181,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 30.672872362237893,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 60,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 785,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.1629327902240326,
+          "marginMs": {
+            "count": 152,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -2.6051645110177863e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 823,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "60 spikes lead 120",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2458,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 30,
+            "down": 30,
+            "spikeChance": 0.05,
+            "spikeMs": 150
+          },
+          "lead": {
+            "requestedMs": 120,
+            "appliedMs": 120
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.16400164001640016,
+          "marginMs": {
+            "count": 152,
+            "p5": 192,
+            "p50": 220,
+            "p95": 220,
+            "max": 220
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 30,
+            "p50": 30,
+            "p95": 174,
+            "max": 180
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              -57.33333333331484,
+              0,
+              -9.999999999998181,
+              0,
+              -51.66666666666606,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              75,
+              0
+            ],
+            "driftMsPerMin": 80.5813538584524,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 60,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 823,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 153,
+            "accepted": 153,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.1629327902240326,
+          "marginMs": {
+            "count": 153,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000091
+          },
+          "checkpointAgeMs": {
+            "count": 765,
+            "p5": 20,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              4.547473508864641e-13,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": -2.6051645110177863e-13,
+            "estimatedOffsetMs": 4.547473508864641e-13,
+            "bestRttMs": 39.999999999999545,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 824,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "mixed zero",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 3068,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 10,
+            "down": 10
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 68,
+            "accepted": 68,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 68,
+            "accepted": 68,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.1892147587511826,
+          "marginMs": {
+            "count": 68,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 678,
+            "p5": 10,
+            "p50": 10,
+            "p95": 10,
+            "max": 10.00000000007276
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 2.2737367544323206e-13,
+            "bestRttMs": 19.999999999999773,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 747,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 30,
+            "down": 30
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 68,
+            "accepted": 68,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 68,
+            "accepted": 68,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.1892147587511826,
+          "marginMs": {
+            "count": 68,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 678,
+            "p5": 30,
+            "p50": 30,
+            "p95": 30,
+            "max": 30.00000000093496
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 60,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 747,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "c",
+          "link": {
+            "up": 90,
+            "down": 90
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 161,
+            "accepted": 130,
+            "acceptedPct": 80.74534161490683,
+            "late": 31,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 161,
+            "accepted": 130,
+            "acceptedPct": 80.74534161490683,
+            "late": 31,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 31,
+          "releases": {
+            "total": 31,
+            "byReason": {
+              "rejected-input": 17,
+              "stale-prediction": 14
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 18.312622629169393,
+          "marginMs": {
+            "count": 161,
+            "p5": 71,
+            "p50": 99.99999999999636,
+            "p95": 100,
+            "max": 100.00000000000364
+          },
+          "checkpointAgeMs": {
+            "count": 802,
+            "p5": 90,
+            "p50": 90,
+            "p95": 90,
+            "max": 90
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 180,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 684,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "d",
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 192,
+            "accepted": 0,
+            "acceptedPct": 0,
+            "late": 192,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 192,
+            "accepted": 0,
+            "acceptedPct": 0,
+            "late": 192,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 48,
+          "releases": {
+            "total": 48,
+            "byReason": {
+              "stale-prediction": 48
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 47.24770642201835,
+          "marginMs": {
+            "count": 192,
+            "p5": 72,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000364
+          },
+          "checkpointAgeMs": {
+            "count": 850,
+            "p5": 150,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 341,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "mixed lead",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2468,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 10,
+            "down": 10
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08123476848090982,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 10,
+            "p50": 10,
+            "p95": 10,
+            "max": 10.000000000771252
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 2.2737367544323206e-13,
+            "bestRttMs": 19.999999999999773,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 30,
+            "down": 30
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08130081300813008,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 30,
+            "p50": 30,
+            "p95": 30,
+            "max": 30.0000000008622
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 60,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "c",
+          "link": {
+            "up": 90,
+            "down": 90
+          },
+          "lead": {
+            "requestedMs": 44,
+            "appliedMs": 44
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08136696501220504,
+          "marginMs": {
+            "count": 152,
+            "p5": 115,
+            "p50": 144,
+            "p95": 144,
+            "max": 144.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 90,
+            "p50": 90,
+            "p95": 90,
+            "max": 90
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 180,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 828,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "d",
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "requestedMs": 104,
+            "appliedMs": 104
+          },
+          "calibratedAtStart": true,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 0,
+            "accepted": 0,
+            "acceptedPct": null,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0.08156606851549755,
+          "marginMs": {
+            "count": 152,
+            "p5": 175,
+            "p50": 204,
+            "p95": 204,
+            "max": 204.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 150,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 827,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "300 cold lead 100",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2466,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "requestedMs": 100,
+            "appliedMs": 100
+          },
+          "calibratedAtStart": false,
+          "whole": {
+            "total": 146,
+            "accepted": 134,
+            "acceptedPct": 91.78082191780823,
+            "late": 12,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 12,
+            "accepted": 0,
+            "acceptedPct": 0,
+            "late": 12,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 134,
+            "accepted": 134,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 4,
+          "releases": {
+            "total": 4,
+            "byReason": {
+              "stale-prediction": 4
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 4.8979591836734695,
+          "marginMs": {
+            "count": 148,
+            "p5": 171,
+            "p50": 200,
+            "p95": 200,
+            "max": 200.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 762,
+            "p5": 0,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 781,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": false,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 26,
+            "accepted": 26,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 126,
+            "accepted": 126,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 0,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "300 cold lead 104",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2466,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "requestedMs": 104,
+            "appliedMs": 104
+          },
+          "calibratedAtStart": false,
+          "whole": {
+            "total": 146,
+            "accepted": 134,
+            "acceptedPct": 91.78082191780823,
+            "late": 12,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 12,
+            "accepted": 0,
+            "acceptedPct": 0,
+            "late": 12,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 134,
+            "accepted": 134,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 4,
+          "releases": {
+            "total": 4,
+            "byReason": {
+              "stale-prediction": 4
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 4.8979591836734695,
+          "marginMs": {
+            "count": 148,
+            "p5": 175,
+            "p50": 204,
+            "p95": 204,
+            "max": 204.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 762,
+            "p5": 0,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 781,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": false,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 26,
+            "accepted": 26,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 126,
+            "accepted": 126,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 0,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "300 cold lead 120",
+      "seed": 42,
+      "scriptSeed": 8,
+      "durationMs": 30500,
+      "replayVerified": true,
+      "clockChecks": 2466,
+      "clockViolations": 0,
+      "clients": [
+        {
+          "client": "a",
+          "link": {
+            "up": 150,
+            "down": 150
+          },
+          "lead": {
+            "requestedMs": 120,
+            "appliedMs": 120
+          },
+          "calibratedAtStart": false,
+          "whole": {
+            "total": 147,
+            "accepted": 134,
+            "acceptedPct": 91.15646258503402,
+            "late": 13,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 13,
+            "accepted": 0,
+            "acceptedPct": 0,
+            "late": 13,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 134,
+            "accepted": 134,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 4,
+          "releases": {
+            "total": 4,
+            "byReason": {
+              "stale-prediction": 4
+            }
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 4.8979591836734695,
+          "marginMs": {
+            "count": 149,
+            "p5": 191,
+            "p50": 220,
+            "p95": 220,
+            "max": 220.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 763,
+            "p5": 0,
+            "p50": 150,
+            "p95": 150,
+            "max": 150
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 300,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 781,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        },
+        {
+          "client": "b",
+          "link": {
+            "up": 20,
+            "down": 20
+          },
+          "lead": {
+            "requestedMs": 0,
+            "appliedMs": 0
+          },
+          "calibratedAtStart": false,
+          "whole": {
+            "total": 152,
+            "accepted": 152,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "beforePong": {
+            "total": 26,
+            "accepted": 26,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "afterPong": {
+            "total": 126,
+            "accepted": 126,
+            "acceptedPct": 100,
+            "late": 0,
+            "future": 0,
+            "other": 0
+          },
+          "resets": 0,
+          "releases": {
+            "total": 0,
+            "byReason": {}
+          },
+          "recoveries": {
+            "count": 0,
+            "retracted": 0,
+            "reissued": 0
+          },
+          "blockedPct": 0,
+          "marginMs": {
+            "count": 152,
+            "p5": 71,
+            "p50": 100,
+            "p95": 100,
+            "max": 100.00000000000273
+          },
+          "checkpointAgeMs": {
+            "count": 764,
+            "p5": 0,
+            "p50": 20,
+            "p95": 20,
+            "max": 20
+          },
+          "clock": {
+            "offsetSamples": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "driftMsPerMin": 0,
+            "estimatedOffsetMs": 0,
+            "bestRttMs": 40,
+            "calibrated": true
+          },
+          "corrections": {
+            "compared": 829,
+            "skipped": 0,
+            "total": 0,
+            "piece": 0,
+            "board": 0,
+            "garbage": 0,
+            "controls": 0,
+            "sent": 0
+          }
+        }
+      ]
+    }
+  ]
+}
