@@ -13,6 +13,10 @@ import { ACTIONS, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 import { SkinState } from "./skin-state";
 import { setupSettingsTabs, setupSkins } from "./skin-settings";
+import { SoundPlayer } from "./sound-player";
+import { SoundState } from "./sound-state";
+import { setupSounds } from "./sound-settings";
+import { GameSounds } from "./game-sounds";
 import { drawPiecePreview } from "./tile-renderer";
 import { drawBoard } from "./board-view";
 import { mountOnline } from "./online-view";
@@ -83,7 +87,21 @@ const skins = new SkinState(() => localStorage);
 void skins.select(skins.preferences.active, false);
 const multiplayerSkins = new MultiplayerSkinPreference();
 setupMultiplayerSkinSetting(multiplayerSkins);
-setupSettingsTabs(cancelKeyCapture, setupSkins(skins));
+const soundPlayer = new SoundPlayer();
+const sounds = new SoundState(() => localStorage, (pack, signal) => soundPlayer.load(pack, signal));
+const gameSounds = new GameSounds(() => sounds.preferences.enabled ? sounds.loaded?.pack : undefined,
+  clips => {
+    if (sounds.preferences.enabled && sounds.loaded && !document.hidden && !atHome && !settingsDialog.open && !activePlayback()) soundPlayer.play(clips, sounds.loaded);
+  });
+setupSettingsTabs(cancelKeyCapture, setupSkins(skins), setupSounds(sounds, soundPlayer));
+void sounds.select(sounds.preferences.active, false);
+const unlockSounds = () => {
+  if (sounds.preferences.enabled && sounds.preferences.active !== "silent") {
+    void soundPlayer.unlock().catch((error: Error) => { sounds.message = `Audio unavailable: ${error.message}`; sounds.changed(); });
+  }
+};
+window.addEventListener("pointerdown", unlockSounds);
+window.addEventListener("keydown", unlockSounds);
 let showGhost = setupGhost(enabled => { showGhost = enabled; });
 // Zen is selected per game; old preferences no longer control gameplay.
 try { localStorage.removeItem("42tris.zen"); } catch { /* Storage is optional. */ }
@@ -109,6 +127,8 @@ widthSelect.addEventListener("change", () => {
 let handling = loadHandling();
 let seed: number | undefined;
 let solo: Singleplayer | SprintRecorder | null = null;
+let soundedResult: Singleplayer["result"] = null;
+let soundedGame: Singleplayer["game"] | null = null;
 let pendingMode: SingleplayerMode | null = null;
 let display: GameDisplay | null = null;
 let playback: SprintPlayback | null = null;
@@ -200,7 +220,11 @@ function launchMode(mode: SingleplayerMode, training = mode === "sprint" && spri
     solo = new Singleplayer(mode, seed, now, handling, Number(widthSelect.value));
   }
   display = solo.game;
+  gameSounds.reset();
+  soundedResult = null;
+  soundedGame = solo.game;
   atHome = false;
+  gameSounds.observe(display, solo.game);
   resultPanel.hidden = true;
   showView("solo");
   pauseButton.hidden = mode === "sprint";
@@ -262,6 +286,8 @@ async function enterHome() {
   countdown.cancel();
   countdownOverlay.hidden = true;
   stopPlayback();
+  gameSounds.reset();
+  soundPlayer.stop();
   abandonSprintRecording();
   closeMenus();
   online?.closeDetails();
@@ -296,6 +322,8 @@ async function enterOnline() {
   countdown.cancel();
   countdownOverlay.hidden = true;
   stopPlayback();
+  gameSounds.reset();
+  soundPlayer.stop();
   abandonSprintRecording();
   closeMenus();
   sprintClock.hidden = true;
@@ -355,6 +383,7 @@ for (const dialog of [pauseDialog, settingsDialog]) {
   dialog.addEventListener("cancel", e => e.preventDefault());
 }
 function handleFocusLoss() {
+  soundPlayer.stop();
   if (activePlayback()) {
     activePlayback()!.pause();
     lastFrameAt = null;
@@ -521,12 +550,35 @@ function refreshHud() {
 
 function applyInput(input: InputId) {
   if (activePlayback() || countdown.active) return;
-  if (online) { online.session.input(input); return; }
+  if (online) {
+    online.session.input(input);
+    const state = online.session.prediction?.gameState();
+    if (state) gameSounds.observe(snapshotDisplay(state), onlineSoundIdentity(), input);
+    return;
+  }
   solo?.apply(input, performance.now());
+  observeSoloSounds(input);
   if (restartOnFinesseFault()) return;
   if (solo && display !== solo.game) pressed.clear();
   display = solo?.game ?? null;
   refreshHud();
+}
+
+function onlineSoundIdentity() {
+  const session = online!.session;
+  const prediction = session.prediction!;
+  return `${session.room?.code}:${session.room?.matchId}:${prediction.round}:${prediction.epoch}`;
+}
+
+function observeSoloSounds(input?: InputId) {
+  if (!solo) return;
+  if (soundedGame && soundedGame !== solo.game && soundedGame.topOut) gameSounds.observe(soundedGame, soundedGame, input);
+  gameSounds.observe(solo.game, solo.game, input);
+  soundedGame = solo.game;
+  if (solo.result && solo.result !== soundedResult) {
+    soundedResult = solo.result;
+    if (solo.result.outcome === "complete") gameSounds.event("success");
+  }
 }
 
 const cell = 30;
@@ -574,7 +626,7 @@ const unmountInput = mountGameplayInput(window, {
   undo() {
     if (activePlayback()) return;
     if (online) online.session.practice("practiceUndo");
-    else if (solo?.undo(performance.now())) { pressed.clear(); display = solo.game; refreshHud(); }
+    else if (solo?.undo(performance.now())) { pressed.clear(); display = solo.game; gameSounds.reset(); refreshHud(); }
   },
   restart, input: applyInput, lateRelease: () => online?.session.release(),
 });
@@ -598,7 +650,7 @@ function frame(now: number) {
     online.update();
     const session = online?.session;
     const state = session?.prediction?.gameState();
-    if (state) { display = snapshotDisplay(state); refreshHud(); }
+    if (state) { display = snapshotDisplay(state); gameSounds.observe(display, onlineSoundIdentity()); refreshHud(); }
     else if (session && !session.checkpoint?.state) display = null;
     if (session) {
       const cp = session.checkpoint;
@@ -620,6 +672,7 @@ function frame(now: number) {
     if (label !== null) countdownOverlay.textContent = label;
     else {
       solo.tick(performance.now());
+      observeSoloSounds();
       restartOnFinesseFault();
     }
     if (display !== solo.game) pressed.clear();
@@ -631,6 +684,6 @@ function frame(now: number) {
 }
 
 let frameId = requestAnimationFrame(frame);
-window.addEventListener("pagehide", e => { cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { unmountInput(); replayControls.dispose(); stopPlayback(); } });
+window.addEventListener("pagehide", e => { soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { unmountInput(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
 if (!atHome) enterOnline();

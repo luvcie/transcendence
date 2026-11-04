@@ -83,10 +83,19 @@
       [hidden] { display: none !important; }
       [role=tablist] { display: flex; gap: 8px; }
       [role=tab][aria-selected=true] { border-color: #22d3ee; color: #22d3ee; }
-      .skin-option { border-top: 1px solid #383838; padding: 14px 0; }
-      .skin-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-      .skin-head h3 { flex: 1; min-width: 140px; font-size: 14px; margin: 0; }
-      .skin-head button { padding: 6px 8px; }
+      .skin-option, .sound-option { border-top: 1px solid #383838; padding: 14px 0; }
+      .skin-head, .sound-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+      .skin-head h3, .sound-head h3 { flex: 1; min-width: 140px; font-size: 14px; margin: 0; }
+      .skin-head button, .sound-head button { padding: 6px 8px; }
+      .sound-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+      .sound-preview button { padding: 5px 8px; font-size: 12px; }
+      #sound-form { margin: 20px 0; }
+      #sound-form label { display: block; margin-bottom: 8px; }
+      #custom-sound { display: block; width: 100%; min-height: 84px; resize: vertical; background: #111; color: #eee; border: 1px solid #666; padding: 8px; font: inherit; }
+      #sound-form > button { margin-top: 8px; }
+      #settings-sounds a, .sound-template { color: #22d3ee; }
+      .sound-template { padding: 0; border: 0; background: transparent; font: inherit; text-decoration: underline; }
+      #sound-help code { overflow-wrap: anywhere; }
       .skin-preview { display: flex; flex-wrap: wrap; margin-top: 8px; }
       .skin-preview canvas { display: block; width: 36px; height: 36px; }
       #settings-skins a { color: #22d3ee; }
@@ -350,6 +359,7 @@
       <div role="tablist" aria-label="Settings sections">
         <button id="tab-general" role="tab" aria-selected="true" aria-controls="settings-general">General</button>
         <button id="tab-skins" role="tab" aria-selected="false" aria-controls="settings-skins" tabindex="-1">Skins</button>
+        <button id="tab-sounds" role="tab" aria-selected="false" aria-controls="settings-sounds" tabindex="-1">Sounds</button>
       </div>
       <section id="settings-general" role="tabpanel" aria-labelledby="tab-general" tabindex="0">
       <h2>Display</h2>
@@ -389,6 +399,29 @@
         </form>
         <p id="skin-note" class="hint" role="status"></p>
         <div id="skin-list"></div>
+      </section>
+      <section id="settings-sounds" role="tabpanel" aria-labelledby="tab-sounds" tabindex="0" hidden>
+        <h2>Sounds</h2>
+        <label><input id="sounds-enabled" type="checkbox" checked> Enable sound effects</label>
+        <div class="setting">
+          <label for="sound-volume">Volume</label>
+          <div class="inputs"><input id="sound-volume" type="range" min="0" max="100" step="1" value="50"><output id="sound-volume-value" for="sound-volume">50%</output></div>
+        </div>
+        <p id="sound-credit" class="hint"></p>
+        <form id="sound-form" novalidate>
+          <label for="custom-sound">Custom sound pack link or JSON</label>
+          <textarea id="custom-sound" rows="4" maxlength="65536" placeholder='https://…/sounds.json or {"name": "My sound pack", …}' autocomplete="off" spellcheck="false" aria-describedby="sound-help"></textarea>
+          <button type="submit">Add and use</button>
+        </form>
+        <details id="sound-help" class="hint">
+          <summary>Create your own pack</summary>
+          <p>Paste a Jstris+ JSON pack or an HTTPS link to one. Use “Use JSON as template” on any pack below to start editing.</p>
+          <p>Give it a <code>name</code> and audio links for events such as <code>move</code>, <code>rotate</code>, <code>hold</code>, <code>harddrop</code>, and <code>lock</code>. Missing sounds stay silent.</p>
+          <p>Use <code>scoring</code> for clears and T-spins, <code>spawns</code> for piece voices, and <code>comboTones</code> for combo clips or a timed audio sprite. <code>specialScoring</code> supports B2B and combo conditions, including <code>TSPINORTETRIS</code> and <code>ALLSPIN</code>.</p>
+          <p>JSON needs quoted keys and no comments. Audio and JSON hosts must allow cross-origin loading (CORS). Packs are saved on this device; no upload is needed.</p>
+        </details>
+        <p id="sound-note" class="hint" role="status"></p>
+        <div id="sound-list"></div>
       </section>
       <h2>Custom</h2>
       <label>Zen board width <select id="solo-width" aria-describedby="solo-width-help">

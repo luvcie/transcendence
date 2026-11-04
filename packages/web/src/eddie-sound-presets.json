@@ -1,0 +1,860 @@
+[
+  {
+    "id": "eddie-8bit",
+    "pack": {
+      "name": "8-bit",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bithold.mp3",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bitlock.mp3",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_rotate.mp3",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bitmove.mp3",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bitdied.mp3",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bitgo.mp3",
+      "scoring": {
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_clear2.mp3",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_clear3.mp3",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_clear4.mp3",
+        "TSPIN_MINI": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_tspinmini.mp3",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_MINI_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_DOUBLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_TRIPLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/8bit_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-akira",
+    "pack": {
+      "name": "Akira",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_died.wav",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_ready.wav",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_go.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_clear4.wav",
+        "TSPIN_MINI": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_tspinmini.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_tspinsingle.wav",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_tspindouble.wav",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_tspintriple.wav"
+      },
+      "spawns": {
+        "I": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_i.wav",
+        "O": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_o.wav",
+        "T": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_t.wav",
+        "L": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_l.wav",
+        "J": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_j.wav",
+        "S": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_s.wav",
+        "Z": "https://ecdldaiiere.github.io/Eddiez-Soundz/Akira_z.wav"
+      }
+    }
+  },
+  {
+    "id": "eddie-castle",
+    "pack": {
+      "name": "Castle",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Castle_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Castle_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Castle_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Castle_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Castle_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Castle_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Castle_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Castle_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-cola",
+    "pack": {
+      "name": "Cola",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Cola_hold.mp3",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Cola_lock.mp3",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Cola_rotate.mp3",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/Cola_ready.mp3",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/Cola_go.mp3",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Cola_clear1.mp3",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Cola_clear2.mp3",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Cola_clear3.mp3",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Cola_clear4.mp3"
+      }
+    }
+  },
+  {
+    "id": "eddie-donkey",
+    "pack": {
+      "name": "Donkey Kong",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_died.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Donkey_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-eb",
+    "pack": {
+      "name": "EarthBound",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_lock.wav",
+      "b2b": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_b2b.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_died.wav",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_ready.wav",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_go.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_clear4.wav",
+        "TSPIN_MINI": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_tspinmini.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_tspinsingle.wav",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_tspindouble.wav",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/EB_tspintriple.wav"
+      }
+    }
+  },
+  {
+    "id": "eddie-elegant",
+    "pack": {
+      "name": "Elegant",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_move.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Elegant_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-fancy",
+    "pack": {
+      "name": "Fancy",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_move.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fancy_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-fire",
+    "pack": {
+      "name": "Fire Emblem",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_rotate.wav",
+      "b2b": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_b2b.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_died.wav",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_ready.wav",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_go.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Fire_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-gb",
+    "pack": {
+      "name": "Game Boy",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_died.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/GB_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-galaxy",
+    "pack": {
+      "name": "Galaxy",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Galaxy_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Galaxy_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Galaxy_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Galaxy_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Galaxy_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Galaxy_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Galaxy_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Galaxy_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-han",
+    "pack": {
+      "name": "Han",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_hold.mp3",
+      "linefall": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_linefall.mp3",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_lock.mp3",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_rotate.mp3",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_died.wav",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_ready.mp3",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_go.mp3",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_clear1.mp3",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_clear2.mp3",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_clear3.mp3",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_clear4.mp3",
+        "TSPIN_MINI": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_tspinmini.mp3",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_tspintriple.mp3",
+        "PERFECT_CLEAR": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_perfectclear.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_MINI_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_DOUBLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_TRIPLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Han_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-kirby",
+    "pack": {
+      "name": "Kirby",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_died.wav",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_go.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_MINI_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_DOUBLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_TRIPLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Kirby_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-luigi",
+    "pack": {
+      "name": "Luigi",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_died.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Luigi_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-mario",
+    "pack": {
+      "name": "Mario",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_died.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Mario_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-nullpoleague",
+    "pack": {
+      "name": "NullpoMino League",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_hold.wav",
+      "linefall": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_linefall.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_lock.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_died.wav",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_ready.wav",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_go.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_clear4.wav",
+        "TSPIN_MINI": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_tspinmini.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_tspinsingle.wav",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_tspindouble.wav",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/NullpoLeague_tspintriple.wav"
+      }
+    }
+  },
+  {
+    "id": "eddie-nullpo",
+    "pack": {
+      "name": "NullpoMino",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_hold.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_rotate.wav",
+      "b2b": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_b2b.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_died.wav",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_ready.wav",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_go.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_clear4.wav",
+        "TSPIN_MINI": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_tspinmini.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_tspinsingle.wav",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_tspindouble.wav",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_tspintriple.wav",
+        "PERFECT_CLEAR": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_perfectclear.wav"
+      },
+      "spawns": {
+        "I": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_i.wav",
+        "O": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_o.wav",
+        "T": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_t.wav",
+        "L": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_l.wav",
+        "J": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_j.wav",
+        "S": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_s.wav",
+        "Z": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_z.wav"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_MINI_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_DOUBLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_TRIPLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Nullpo_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-pokemon",
+    "pack": {
+      "name": "Pokémon",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_died.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Pokemon_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-school",
+    "pack": {
+      "name": "School",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_move.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/School_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-splat",
+    "pack": {
+      "name": "Splat",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_hold.mp3",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_lock.mp3",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_rotate.mp3",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_move.mp3",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_died.mp3",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_ready.mp3",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_go.mp3",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_clear1.mp3",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_clear2.mp3",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_clear3.mp3",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splat_clear4.mp3"
+      }
+    }
+  },
+  {
+    "id": "eddie-splatoon",
+    "pack": {
+      "name": "Splatoon",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_died.wav",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_go.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_clear4.wav"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_MINI_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_SINGLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_DOUBLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ],
+        "TSPIN_TRIPLE": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Splatoon_b2btspin.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-toy",
+    "pack": {
+      "name": "Toy",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Toy_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Toy_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Toy_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Toy_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Toy_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Toy_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Toy_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Toy_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-treasure",
+    "pack": {
+      "name": "Treasure",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Treasure_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Treasure_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Treasure_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Treasure_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Treasure_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Treasure_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Treasure_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Treasure_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-zelda",
+    "pack": {
+      "name": "Zelda",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_hold.wav",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_died.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/Zelda_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-animal",
+    "pack": {
+      "name": "Animal Crossing",
+      "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_hold.mp3",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_died.wav",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_ready.wav",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_go.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/animal_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "eddie-ring",
+    "pack": {
+      "name": "Ring",
+      "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_lock.wav",
+      "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_rotate.wav",
+      "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_move.wav",
+      "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_died.wav",
+      "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_ready.wav",
+      "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_go.wav",
+      "scoring": {
+        "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_clear1.wav",
+        "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_clear2.wav",
+        "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_clear3.wav",
+        "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_clear4.wav",
+        "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_tspinsingle.mp3",
+        "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_tspindouble.mp3",
+        "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_tspintriple.mp3"
+      },
+      "specialScoring": {
+        "CLEAR4": [
+          {
+            "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/ring_b2btetris.mp3",
+            "b2b": true,
+            "override": true
+          }
+        ]
+      }
+    }
+  }
+]

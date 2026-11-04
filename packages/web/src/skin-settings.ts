@@ -35,7 +35,8 @@ export function setupSkins(state: SkinState) {
     return anchor;
   }
   document.querySelector("#skin-credit")!.append("Artwork and skin links from the ",
-    link(SKIN_DATABASE, "jstris customization database"), ".");
+    link(SKIN_DATABASE, "jstris customization database"), ".", document.createElement("br"),
+    "42tris ships no skin assets other than its own originals, community skins are loaded live from external links.");
 
   function option(def: SkinDef, index?: number) {
     const item = document.createElement("article");
@@ -133,7 +134,7 @@ export function setupSkins(state: SkinState) {
   };
 }
 
-export function setupSettingsTabs(cancelCapture: () => void, showSkins: (open: boolean) => void) {
+export function setupSettingsTabs(cancelCapture: () => void, showSkins: (open: boolean) => void, showSounds: (open: boolean) => void) {
   const dialog = document.querySelector<HTMLDialogElement>("#settings-dialog")!;
   const tabs = [...dialog.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
   const general = document.querySelector<HTMLElement>("#settings-general")!;
@@ -142,14 +143,16 @@ export function setupSettingsTabs(cancelCapture: () => void, showSkins: (open: b
     tabs.forEach((tab, i) => { tab.setAttribute("aria-selected", String(i === index)); tab.tabIndex = i === index ? 0 : -1; });
     general.hidden = index !== 0;
     showSkins(index === 1);
+    showSounds(index === 2);
   }
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => activate(index));
     tab.addEventListener("keydown", event => {
       let next: number;
-      if (event.key === "ArrowRight" || event.key === "ArrowLeft") next = 1 - index;
+      if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") next = (index + tabs.length - 1) % tabs.length;
       else if (event.key === "Home") next = 0;
-      else if (event.key === "End") next = 1;
+      else if (event.key === "End") next = tabs.length - 1;
       else return;
       event.preventDefault(); activate(next); tabs[next].focus();
     });

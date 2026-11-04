@@ -1,0 +1,492 @@
+[
+  {
+    "name": "Tetra Online Sound Pack",
+    "rotate": "https://thewaxmango.github.io/Tetra-Online-Sounds/rotate.ogg",
+    "land": "https://thewaxmango.github.io/Tetra-Online-Sounds/land.ogg",
+    "harddrop": "https://thewaxmango.github.io/Tetra-Online-Sounds/harddroplock.ogg",
+    "lock": "https://thewaxmango.github.io/Tetra-Online-Sounds/lock.ogg",
+    "ready": "https://thewaxmango.github.io/Tetra-Online-Sounds/ready.ogg",
+    "go": "https://thewaxmango.github.io/Tetra-Online-Sounds/go.ogg",
+    "died": "https://thewaxmango.github.io/Tetra-Online-Sounds/boardfall.ogg",
+    "hold": "https://thewaxmango.github.io/Tetra-Online-Sounds/hold.ogg",
+    "move": "https://thewaxmango.github.io/Tetra-Online-Sounds/move.ogg",
+    "golive": "https://thewaxmango.github.io/Tetra-Online-Sounds/go.ogg",
+    "b2b": "https://thewaxmango.github.io/Tetra-Online-Sounds/b2b.ogg",
+    "comboTones": [
+      null,
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren1.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren2.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren3.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren4.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren5.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren6.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren7.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren8.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren9.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren10.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren11.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren12.ogg",
+      "https://thewaxmango.github.io/Tetra-Online-Sounds/ren13.ogg"
+    ],
+    "scoring": {
+      "CLEAR1": "https://thewaxmango.github.io/Tetra-Online-Sounds/erase1.ogg",
+      "CLEAR2": "https://thewaxmango.github.io/Tetra-Online-Sounds/erase2.ogg",
+      "CLEAR3": "https://thewaxmango.github.io/Tetra-Online-Sounds/erase3.ogg",
+      "CLEAR4": "https://thewaxmango.github.io/Tetra-Online-Sounds/erase4.ogg",
+      "TSPIN": "https://thewaxmango.github.io/Tetra-Online-Sounds/prespin.ogg",
+      "TSPIN_MINI": "https://thewaxmango.github.io/Tetra-Online-Sounds/prespinmini.ogg",
+      "TSPIN_MINI_SINGLE": "https://thewaxmango.github.io/Tetra-Online-Sounds/tspin1mini.ogg",
+      "TSPIN_SINGLE": "https://thewaxmango.github.io/Tetra-Online-Sounds/tspin1.ogg",
+      "TSPIN_DOUBLE": "https://thewaxmango.github.io/Tetra-Online-Sounds/tspin2.ogg",
+      "TSPIN_TRIPLE": "https://thewaxmango.github.io/Tetra-Online-Sounds/tspin3.ogg",
+      "PERFECT_CLEAR": "https://thewaxmango.github.io/Tetra-Online-Sounds/bravo.ogg"
+    },
+    "specialScoring": {
+      "ALLSPIN": [
+        {
+          "url": "https://thewaxmango.github.io/Tetra-Online-Sounds/b2b.ogg",
+          "b2b": true,
+          "override": false
+        },
+        {
+          "url": "https://thewaxmango.github.io/Tetra-Online-Sounds/tspin1.ogg",
+          "b2b": false
+        }
+      ],
+      "CLEAR4": [
+        {
+          "url": "https://thewaxmango.github.io/Tetra-Online-Sounds/b2b.ogg",
+          "b2b": true,
+          "override": false
+        }
+      ],
+      "TSPINORTETRIS": [
+        {
+          "url": "https://thewaxmango.github.io/Tetra-Online-Sounds/b2b.ogg",
+          "b2b": true,
+          "override": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "Tetrio Sound Pack",
+    "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/Tetrio_rotate.mp3",
+    "land": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/floor.ogg",
+    "harddrop": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/harddrop.ogg",
+    "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/Tetrio_lock.mp3",
+    "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/goodluckyready.mp3",
+    "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/goodluckygo.mp3",
+    "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/Tetrio_died.mp3",
+    "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/Tetrio_hold.mp3",
+    "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/Tetrio_move.mp3",
+    "golive": "https://ecdldaiiere.github.io/Eddiez-Soundz/goodluckygo.mp3",
+    "comboTones": [
+      null,
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_1.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_2.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_3.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_4.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_5.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_6.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_7.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_8.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_9.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_10.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_11.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_12.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_13.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_14.ogg",
+      "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_15.ogg"
+    ],
+    "scoring": {
+      "CLEAR1": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearline.ogg",
+      "CLEAR2": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearline.ogg",
+      "CLEAR3": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearline.ogg",
+      "CLEAR4": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearquad.ogg",
+      "TSPIN": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/spin.ogg",
+      "TSPIN_MINI": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/spin.ogg",
+      "TSPIN_MINI_SINGLE": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearspin.ogg",
+      "TSPIN_SINGLE": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearspin.ogg",
+      "TSPIN_DOUBLE": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearspin.ogg",
+      "TSPIN_TRIPLE": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearspin.ogg",
+      "PERFECT_CLEAR": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/allclear.ogg"
+    },
+    "spawns": {
+      "I": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/i.ogg",
+      "O": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/o.ogg",
+      "T": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/t.ogg",
+      "L": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/l.ogg",
+      "J": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/j.ogg",
+      "S": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/s.ogg",
+      "Z": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/z.ogg"
+    },
+    "specialScoring": {
+      "ALLSPIN": [
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearbtb.ogg",
+          "b2b": true
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearspin.ogg",
+          "b2b": false
+        }
+      ],
+      "CLEAR4": [
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/clearbtb.ogg",
+          "b2b": true,
+          "override": true
+        }
+      ],
+      "TSPINORTETRIS": [
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_1_power.ogg",
+          "combo": 1,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_2_power.ogg",
+          "combo": 2,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_3_power.ogg",
+          "combo": 3,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_4_power.ogg",
+          "combo": 4,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_5_power.ogg",
+          "combo": 5,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_6_power.ogg",
+          "combo": 6,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_7_power.ogg",
+          "combo": 7,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_8_power.ogg",
+          "combo": 8,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_9_power.ogg",
+          "combo": 9,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_10_power.ogg",
+          "combo": 10,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_11_power.ogg",
+          "combo": 11,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_12_power.ogg",
+          "combo": 12,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_13_power.ogg",
+          "combo": 13,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_14_power.ogg",
+          "combo": 14,
+          "override": false
+        },
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfxPacks/tetrio/combo_15_power.ogg",
+          "combo": 15,
+          "override": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "Tetris Online Japan Sound Pack",
+    "harddrop": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_lock.wav",
+    "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_rotate.wav",
+    "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_lock.wav",
+    "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_ready.wav",
+    "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_go.wav",
+    "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_died.wav",
+    "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_hold.wav",
+    "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_move.wav",
+    "golive": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_go.wav",
+    "comboTones": {
+      "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_combo.mp3",
+      "abs": 1,
+      "set": 2,
+      "duration": 1000,
+      "spacing": 500,
+      "cnt": 20
+    },
+    "scoring": {
+      "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_clear1.wav",
+      "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_clear2.mp3",
+      "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_clear3.mp3",
+      "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_clear4.mp3",
+      "TSPIN_MINI_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_tspinminisingle.mp3",
+      "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_tspinsingle.mp3",
+      "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_tspindouble.mp3",
+      "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_tspintriple.mp3",
+      "PERFECT_CLEAR": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_perfectclear.mp3"
+    },
+    "specialScoring": {
+      "ALLSPIN": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_clear3.mp3",
+          "b2b": true
+        },
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_clear3.mp3",
+          "b2b": false
+        }
+      ],
+      "CLEAR4": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TOP_b2btspin.wav",
+          "b2b": true,
+          "override": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "Tetris Friends Sound Pack",
+    "harddrop": "https://ecdldaiiere.github.io/Eddiez-Soundz/TFlock.mp3",
+    "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_rotate.mp3",
+    "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/TFlock.mp3",
+    "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/TFready.mp3",
+    "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/TFgo.mp3",
+    "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/TFdied.mp3",
+    "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/TFhold.mp3",
+    "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/TFmove.mp3",
+    "golive": "https://ecdldaiiere.github.io/Eddiez-Soundz/TFgo.mp3",
+    "comboTones": {
+      "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/tfcombo.mp3",
+      "abs": 1,
+      "set": 2,
+      "duration": 2500,
+      "spacing": 500,
+      "cnt": 8
+    },
+    "scoring": {
+      "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_clear2.mp3",
+      "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_clear3.mp3",
+      "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_clear4.mp3",
+      "TSPIN_MINI_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_tspinmini.mp3",
+      "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_tspinsingle.mp3",
+      "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_tspindouble.mp3",
+      "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_tspintriple.mp3"
+    },
+    "specialScoring": {
+      "ALLSPIN": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_clear3.mp3",
+          "b2b": true
+        },
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_clear3.mp3",
+          "b2b": false
+        }
+      ],
+      "TSPIN_MINI_SINGLE": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_b2btspin.mp3",
+          "b2b": true,
+          "override": true
+        }
+      ],
+      "TSPIN_SINGLE": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_b2btspin.mp3",
+          "b2b": true,
+          "override": true
+        }
+      ],
+      "TSPIN_DOUBLE": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_b2btspin.mp3",
+          "b2b": true,
+          "override": true
+        }
+      ],
+      "TSPIN_TRIPLE": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_b2btspin.mp3",
+          "b2b": true,
+          "override": true
+        }
+      ],
+      "CLEAR4": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TF_b2btetris.mp3",
+          "b2b": true,
+          "override": true
+        }
+      ]
+    }
+  },
+  {
+    "name": "Tetris 99 Sound Pack",
+    "harddrop": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99lock.wav",
+    "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_rotate.wav",
+    "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99lock.wav",
+    "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99ready.wav",
+    "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99go.wav",
+    "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99died.wav",
+    "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99hold.wav",
+    "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99move.wav",
+    "golive": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99go.wav",
+    "scoring": {
+      "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_clear1.wav",
+      "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_clear2.wav",
+      "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_clear3.wav",
+      "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_clear4.mp3",
+      "TSPIN_MINI_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_tspinsingle.mp3",
+      "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_tspinsingle.mp3",
+      "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_tspindouble.mp3",
+      "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_tspintriple.mp3",
+      "PERFECT_CLEAR": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_perfectclear.wav"
+    },
+    "specialScoring": {
+      "ALLSPIN": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_clear3.wav",
+          "b2b": true
+        },
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/t99_clear3.wav",
+          "b2b": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "Puyo Puyo Tetris Sound Pack",
+    "harddrop": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_lock.wav",
+    "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_rotate.wav",
+    "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_lock.wav",
+    "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_ready.wav",
+    "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_go.wav",
+    "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_died.wav",
+    "hold": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_hold.wav",
+    "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_move.wav",
+    "golive": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_go.wav",
+    "scoring": {
+      "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_clear1.wav",
+      "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_clear2.wav",
+      "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_clear3.wav",
+      "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_clear4.wav",
+      "TSPIN_MINI_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_tspinmini.wav",
+      "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_tspinsingle.wav",
+      "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_tspindouble.wav",
+      "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_tspintriple.wav"
+    },
+    "specialScoring": {
+      "ALLSPIN": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_clear3.wav",
+          "b2b": true
+        },
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/PPT_clear3.wav",
+          "b2b": false
+        }
+      ]
+    }
+  },
+  {
+    "name": "Tetris Battle Sound Pack",
+    "harddrop": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_lock.wav",
+    "rotate": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_rotate.mp3",
+    "lock": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_lock.wav",
+    "ready": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_ready.wav",
+    "go": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_go.wav",
+    "died": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_died.wav",
+    "move": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_move.wav",
+    "golive": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_go.wav",
+    "comboTones": {
+      "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TBcombo.mp3",
+      "abs": 1,
+      "set": 2,
+      "duration": 1000,
+      "spacing": 500,
+      "cnt": 20
+    },
+    "scoring": {
+      "CLEAR1": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_clear1.wav",
+      "CLEAR2": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_clear2.wav",
+      "CLEAR3": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_clear3.wav",
+      "CLEAR4": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_clear4.wav",
+      "TSPIN_MINI_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_tspinmini.wav",
+      "TSPIN_SINGLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_tspinsingle.wav",
+      "TSPIN_DOUBLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_tspindouble.wav",
+      "TSPIN_TRIPLE": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_tspintriple.wav"
+    },
+    "specialScoring": {
+      "ALLSPIN": [
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_clear3.wav",
+          "b2b": true
+        },
+        {
+          "url": "https://ecdldaiiere.github.io/Eddiez-Soundz/TB_clear3.wav",
+          "b2b": false
+        }
+      ],
+      "TSPIN_MINI_SINGLE": [
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfx/TB_clearbtb.mp3",
+          "b2b": true,
+          "override": false
+        }
+      ],
+      "TSPIN_SINGLE": [
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfx/TB_clearbtb.mp3",
+          "b2b": true,
+          "override": false
+        }
+      ],
+      "TSPIN_DOUBLE": [
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfx/TB_clearbtb.mp3",
+          "b2b": true,
+          "override": false
+        }
+      ],
+      "TSPIN_TRIPLE": [
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfx/TB_clearbtb.mp3",
+          "b2b": true,
+          "override": false
+        }
+      ],
+      "CLEAR4": [
+        {
+          "url": "https://jstrisplus.github.io/jstris-plus-assets/sfx/TB_clearbtb.mp3",
+          "b2b": true,
+          "override": false
+        }
+      ]
+    }
+  }
+]
