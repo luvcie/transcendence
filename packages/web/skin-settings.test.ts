@@ -32,11 +32,16 @@ test("skin previews stop when hidden and ignore late loads after scrolling or cl
   const state = new SkinState(() => ({ getItem: () => null, setItem() {} }), def => new Promise(resolve => {
     pending.push({ resolve, skin: { def, tile: 32, image: {} as HTMLCanvasElement, connected: true, animation: { frames: 2, delay: 30 } } });
   }));
+  state.preferences.active = "tp580fd6ace3343135";
   const settle = async (index: number) => { pending[index].resolve(pending[index].skin); await Promise.resolve(); };
   try {
     const show = setupSkins(state);
     show(true);
-    const row = list.children[2].children[1].children[0];
+    const database = list.children[2], categories = database.children[1].children;
+    expect(database.open).toBe(true);
+    expect(categories.map(group => group.children[0].textContent)).toEqual(["Standard", "Connected", "Animated"]);
+    expect(categories.map(group => group.open)).toEqual([false, false, true]);
+    const row = categories[2].children[1].children[0];
     const visible = (isIntersecting: boolean) => intersect([{ target: row, isIntersecting }]);
     expect(pending).toHaveLength(0);
     visible(true); visible(false); visible(true);
@@ -56,7 +61,7 @@ test("skin previews stop when hidden and ignore late loads after scrolling or cl
     await settle(2);
     expect(frames.size).toBe(0);
     show(true);
-    intersect([{ target: list.children[2].children[1].children[0], isIntersecting: true }]);
+    intersect([{ target: list.children[2].children[1].children[2].children[1].children[0], isIntersecting: true }]);
     await settle(3);
     expect(frames.size).toBe(1);
     show(true);

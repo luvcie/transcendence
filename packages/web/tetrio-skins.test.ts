@@ -132,7 +132,13 @@ describe("TETR.IO+ skins", () => {
       expect(def.url).toEndWith(".tpse");
       expect(def.credit).toEndWith("(TETR.IO+)");
       expect(def.source).toMatch(/#(?:skin|unknown)-/);
+      expect(["Standard", "Connected", "Animated"]).toContain(def.category);
     }
+    expect(skinDefForId("tp459e828d920d4b93")!.category).toBe("Standard");
+    expect(skinDefForId("tpd837cae3109a466c")!.category).toBe("Connected");
+    expect(skinDefForId("tp580fd6ace3343135")!.category).toBe("Animated");
+    expect(skinDefForId("tpa8d67ffdc9bb1323")!.category).toBe("Connected");
+    expect(skinDefForId("tp511e98cdcc535d63")!.category).toBe("Standard");
     expect(new Set(BUILTIN_SKINS.map(def => def.id)).size).toBe(BUILTIN_SKINS.length);
   });
   test("deduplicates export downloads and caches the converted sheet used by the renderer", async () => {

@@ -136,7 +136,15 @@ export function setupSkins(state: SkinState) {
     for (const [label, defs] of groups) {
       if (!defs.length) continue;
       const options = createSettingsGroup(list, label, defs.some(def => def.id === state.preferences.active));
-      defs.forEach((def, index) => options.append(option(def, def.id.startsWith("custom:") ? index : undefined)));
+      if (defs[0].category) {
+        for (const category of ["Standard", "Connected", "Animated"]) {
+          const skins = defs.filter(def => def.category === category);
+          const group = createSettingsGroup(options, category, skins.some(def => def.id === state.preferences.active));
+          skins.forEach(def => group.append(option(def)));
+        }
+      } else {
+        defs.forEach((def, index) => options.append(option(def, def.id.startsWith("custom:") ? index : undefined)));
+      }
     }
     filter();
     refreshSelection();

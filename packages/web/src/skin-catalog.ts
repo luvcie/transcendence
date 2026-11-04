@@ -7,6 +7,7 @@ export interface SkinDef {
   tile: number;
   source?: string;
   credit?: string;
+  category?: "Standard" | "Connected" | "Animated";
   join?: { open: number; joined: number };
 }
 
@@ -87,8 +88,9 @@ export const BUILTIN_SKINS: readonly SkinDef[] = [CLASSIC, ...catalog.map(([id, 
   const url = `https://i.imgur.com/${image}.png`;
   return { id, label, url, tile, source: id === "four" ? "https://imgur.com/zIFJEZ9" : url,
     ...(id === "four" ? { join: { open: 0, joined: 1 } } : {}) };
-}), ...tetrioSkins.map(([id, label, author, path, gallery]) => ({
+}), ...tetrioSkins.map(([id, label, author, path, gallery, category = "Standard"]) => ({
   id, label, tile: 0, url: `${TETRIO_SKIN_DATABASE}data/${path}`,
+  category: category as SkinDef["category"],
   source: `${TETRIO_SKIN_DATABASE}#${gallery}`, credit: `${author} (TETR.IO+)`,
 }))];
 

@@ -57,3 +57,38 @@ test("settings search reveals matching groups and restores their open state when
   search("");
   expect(list.children[0].open).toBe(true);
 });
+
+test("nested categories count skins, reveal matching branches, and restore each open state", () => {
+  const document = new FakeDocument();
+  const input = document.createElement(), list = document.createElement(), empty = document.createElement();
+  const group = (parent: Element, label: string, open: boolean) =>
+    createSettingsGroup(parent as unknown as HTMLElement, label, open) as unknown as Element;
+  const database = group(list, "TETR.IO+ database", false);
+  const standard = group(database, "Standard", false), connected = group(database, "Connected", true), animated = group(database, "Animated", false);
+  const rows = ["Carbon Fiber", "Nightjar, Transmit", "Axiom Verge", "Cloud"]
+    .map(search => Object.assign(document.createElement(), { dataset: { search } }));
+  standard.append(rows[0]); connected.append(rows[1]); animated.append(rows[2], rows[3]);
+  const groups = [list.children[0], ...database.children];
+  const counts = () => groups.map(group => group.children[0].children[0].textContent);
+  const filter = setupSettingsSearch(input as unknown as HTMLInputElement, list as unknown as HTMLElement, empty as unknown as HTMLElement);
+  const search = (value: string) => { input.value = value; input.dispatchEvent(new Event("input")); };
+
+  filter();
+  expect(counts()).toEqual(["4", "1", "1", "2"]);
+  search("axiom");
+  expect(groups.map(group => group.hidden)).toEqual([false, true, true, false]);
+  expect(groups.map(group => group.open)).toEqual([true, false, false, true]);
+  expect(rows.map(row => row.hidden)).toEqual([true, true, false, true]);
+  expect(counts()).toEqual(["1/4", "0/1", "0/1", "1/2"]);
+  search("nightjar");
+  expect(groups.map(group => group.hidden)).toEqual([false, true, false, true]);
+  search("nothing matches");
+  expect(groups.every(group => group.hidden)).toBe(true);
+  expect(empty.hidden).toBe(false);
+  search("");
+  expect(groups.map(group => group.open)).toEqual([false, false, true, false]);
+  expect(groups.every(group => !group.hidden)).toBe(true);
+  expect(rows.every(row => !row.hidden)).toBe(true);
+  expect(counts()).toEqual(["4", "1", "1", "2"]);
+  expect(empty.hidden).toBe(true);
+});

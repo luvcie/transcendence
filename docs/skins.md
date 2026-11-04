@@ -1,6 +1,8 @@
 # Skins
 
-Settings → Skins includes Classic, 65 Jstris image skins, and 484 TETR.IO+ skins, with connected styles and 23 animated skins. Search by name, creator, or link. Community images stay on their original hosts. 42tris ships catalog links and credits, with no bundled community artwork.
+Settings → Skins includes Classic, 65 Jstris image skins, and 483 TETR.IO+ skins, with connected styles and 23 animated skins. Search by name, creator, or link. Community images stay on their original hosts. 42tris ships catalog links and credits, with no bundled community artwork.
+
+The TETR.IO+ category contains Standard, Connected, and Animated subcategories, each with a skin count. Animated skins appear only under Animated, including those with connected artwork. The selected skin's categories open automatically. Search opens matching categories and restores their previous open or closed state when cleared. Categories are recorded in the catalog from the gallery's format labels and exported skins, so browsing does not need to download artwork to sort it.
 
 For a custom skin, paste an HTTPS nine-column image link or a TETR.IO+ `.tpse` export link into **Custom skin link**. Select **Add and use**. Static, connected, and animated exports work. Custom links and the selected skin are saved on this device. The image or export host must allow CORS. Use the gallery's TPSE download link rather than a gallery page, ZIP, or raw TETR.IO image.
 
