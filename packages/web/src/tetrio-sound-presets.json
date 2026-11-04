@@ -1,0 +1,218 @@
+{
+  "sounds": [
+    "allclear",
+    "clearbtb",
+    "clearline",
+    "clearquad",
+    "clearspin",
+    "combo_1",
+    "combo_10",
+    "combo_11",
+    "combo_12",
+    "combo_13",
+    "combo_14",
+    "combo_15",
+    "combo_16",
+    "combo_2",
+    "combo_3",
+    "combo_4",
+    "combo_5",
+    "combo_6",
+    "combo_7",
+    "combo_8",
+    "combo_9",
+    "finessefault",
+    "finish",
+    "floor",
+    "gameover",
+    "garbage_in_small",
+    "garbagerise",
+    "go",
+    "harddrop",
+    "hold",
+    "move",
+    "rotate",
+    "rsg",
+    "rsg_go",
+    "softdrop",
+    "spin",
+    "topout",
+    "victory"
+  ],
+  "packs": [
+    {
+      "id": "sfx-Ayx-GameCube_Controller_SFX",
+      "name": "GameCube Controller SFX",
+      "author": "Ayx",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Ayx/GameCube_Controller_SFX.zip.tpse"
+    },
+    {
+      "id": "sfx-Ayx-Wii_Sports_Resort_SFX",
+      "name": "Wii Sports Resort SFX",
+      "author": "Ayx",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Ayx/Wii_Sports_Resort_SFX.zip.tpse"
+    },
+    {
+      "id": "sfx-Azura-terriblememesfx",
+      "name": "Terrible Meme Sounds",
+      "author": "Azura",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Azura/terriblememesfxver1.zip.tpse"
+    },
+    {
+      "id": "sfx-Ferln4-Bejeweled_ish_SFX_pack",
+      "name": "Bejeweled-ish SFX",
+      "author": "Ferln4",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Ferln4/Bejeweled_ish_SFX_pack.zip.tpse"
+    },
+    {
+      "id": "sfx-Ferln4-Minecraft_SFX",
+      "name": "Minecraft-y Soundpack",
+      "author": "Ferln4",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Ferln4/Minecraft_SFX.zip.tpse"
+    },
+    {
+      "id": "sfx-Ferln4-Misamino_Soundpack",
+      "name": "Misamino / Tetris Online Poland SFX",
+      "author": "Ferln4",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Ferln4/Misamino_Soundpack.zip.tpse"
+    },
+    {
+      "id": "sfx-Ferln4-Touhou_SFX",
+      "name": "Touhou SFX",
+      "author": "Ferln4",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Ferln4/Touhou_SFX.zip.tpse"
+    },
+    {
+      "id": "sfx-FiFiZ-tetrazz_pulse_x_sfxpack",
+      "name": "Tetrazz SFX PACK - Pulse X",
+      "author": "FiFiZ",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/FiFiZ/tetrazz_pulse_x_sfxpack.zip.tpse"
+    },
+    {
+      "id": "sfx-Fulter-Another_SFX_Randoms",
+      "name": "Another SFX Randoms",
+      "author": "Fulter",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Fulter/Another_SFX_Randoms.zip.tpse"
+    },
+    {
+      "id": "sfx-Fulter-Apotris_Sound_Tetrio",
+      "name": "Apotris (some SFX)",
+      "author": "Fulter",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Fulter/Apotris_Sound_Tetrio.zip.tpse"
+    },
+    {
+      "id": "sfx-Fulter-The_SNESTRIS_sound_pack",
+      "name": "The SNESTRIS Sound Pack",
+      "author": "Fulter",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Fulter/The_SNESTRIS_sound_pack.zip.tpse"
+    },
+    {
+      "id": "sfx-Huetoast-21st_century_humor",
+      "name": "21st century humor",
+      "author": "Huetoast",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Huetoast/21st_century_humor.zip.tpse"
+    },
+    {
+      "id": "sfx-Itsmega-BejeweledSR",
+      "name": "Bejeweled Soundpack Rearranged",
+      "author": "Itsmega",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Itsmega/BejeweledSR.zip.tpse"
+    },
+    {
+      "id": "sfx-Manana-DOOM",
+      "name": "DOOM",
+      "author": "Manana",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Manana/DOOM.zip.tpse"
+    },
+    {
+      "id": "sfx-Manana-ST3",
+      "name": "SUPER Tetris 3",
+      "author": "Manana",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Manana/ST3.zip.tpse"
+    },
+    {
+      "id": "sfx-NikoAnimation-Super_Stardust_HD_SFX_WIP_v1_0",
+      "name": "Super Stardust HD Soundpack (WIP v1.0)",
+      "author": "NikoAnimation",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/NikoAnimation/Super_Stardust_HD_SFX_WIP_v1_0.zip.tpse"
+    },
+    {
+      "id": "sfx-NikoAnimation-Undertale_Soundpack_v1_0_3",
+      "name": "Undertale soundpack (WIP v1.0.3)",
+      "author": "NikoAnimation",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/NikoAnimation/Undertale_Soundpack_v1_0_3.zip.tpse"
+    },
+    {
+      "id": "sfx-Octoling-pizzatower_soundexport",
+      "name": "Pizza Tower Soundpack V1",
+      "author": "Octoling",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Octoling/pizzatower_soundexport.zip.tpse"
+    },
+    {
+      "id": "sfx-penguin_colonel-RainWorldSFX",
+      "name": "Rain World SFX Pack",
+      "author": "penguin_colonel",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/penguin_colonel/RainWorldSFX.zip.tpse"
+    },
+    {
+      "id": "sfx-risograph-botwtetriose",
+      "name": "Breath of the Wild SFX Pack",
+      "author": "risograph",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/risograph/botwtetriose.zip.tpse"
+    },
+    {
+      "id": "sfx-sayketsu-bookworm_sfx_beefstew",
+      "name": "Bookworm Adventures Soundpack",
+      "author": "sayketsu",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/sayketsu/bookworm_sfx_beefstew.zip.tpse"
+    },
+    {
+      "id": "sfx-sourTaste000-se",
+      "name": "Yotipo's SE",
+      "author": "sourTaste000",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/sourTaste000/se.zip.tpse"
+    },
+    {
+      "id": "sfx-Spectremint-tetris_ps3sfx",
+      "name": "Tetris PS3 SFX",
+      "author": "Spectremint",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Spectremint/tetris_ps3sfx.zip.tpse"
+    },
+    {
+      "id": "sfx-spep_hsrih-tgm3_ti_se_pack_v_idk_this_was_done_in_two_da",
+      "name": "Tetris The Grandmaster 3 se pack",
+      "author": "spep_hsrih",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/spep_hsrih/tgm3_ti_se_pack_v_idk_this_was_done_in_two_da.zip.tpse"
+    },
+    {
+      "id": "sfx-Starcat_JP-8Bit_Puzzler",
+      "name": "8Bit Puzzler",
+      "author": "Starcat_JP",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Starcat_JP/8Bit_Puzzler.zip.tpse"
+    },
+    {
+      "id": "sfx-Starcat_JP-Future_Wave_Sound_effect_dark_edit",
+      "name": "Future Wave \"dark edit\"",
+      "author": "Starcat_JP",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Starcat_JP/Future_Wave_Sound_effect_dark_edit.zip.tpse"
+    },
+    {
+      "id": "sfx-Starcat_JP-Future_Wave_Sound_effect",
+      "name": "Future Wave",
+      "author": "Starcat_JP",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Starcat_JP/Future_Wave_Sound_effect.zip.tpse"
+    },
+    {
+      "id": "sfx-Tetrzite-PAC_MAN_Soundpack",
+      "name": "PAC-MAN Soundpack",
+      "author": "Tetrzite",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Tetrzite/PAC_MAN_Soundpack.zip.tpse"
+    },
+    {
+      "id": "sfx-Walpang-Dubstep_SFX_Pack",
+      "name": "Dubstep SFX Pack",
+      "author": "Walpang",
+      "url": "https://you.have.fail/tetrioplus/data/tpsefiles/sfx/Walpang/Dubstep_SFX_Pack.zip.tpse"
+    }
+  ]
+}

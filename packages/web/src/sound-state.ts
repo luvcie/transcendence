@@ -1,6 +1,7 @@
 import { BUILTIN_SOUNDS, SILENT, type SoundDef } from "./sound-catalog";
 import { MAX_PACK_LENGTH, parseSoundPack, soundUrl, type SoundPack } from "./sound-pack";
 import { fetchSoundFile, type LoadedSounds } from "./sound-player";
+import { isTetrioExportUrl } from "./tetrio-sounds";
 
 export const SOUND_STORAGE_KEY = "42tris.sounds.v1";
 export const MAX_CUSTOM_SOUNDS = 12;
@@ -78,19 +79,25 @@ export class SoundState {
       let json = text, url: string | undefined;
       if (!text.startsWith("{")) {
         url = soundUrl(text);
-        const bytes = await fetchSoundFile(url, MAX_PACK_LENGTH, request.signal);
-        json = new TextDecoder().decode(bytes);
+        if (isTetrioExportUrl(url)) {
+          const name = decodeURIComponent(new URL(url).pathname.split("/").pop()!).replace(/(?:\.zip)?\.tpse$|\.zip$/i, "").replaceAll("_", " ");
+          json = JSON.stringify({ name, tetrioPlus: url });
+        } else {
+          const bytes = await fetchSoundFile(url, MAX_PACK_LENGTH, request.signal);
+          json = new TextDecoder().decode(bytes);
+        }
       }
       if (json.length > MAX_PACK_LENGTH) throw new Error("Use a JSON pack smaller than 64 KB.");
       let data: unknown;
       try { data = JSON.parse(json); } catch { throw new Error("Invalid JSON. Paste a JSON object with quoted keys and no comments."); }
       const pack = parseSoundPack(data);
-      if (this.preferences.customs.some(custom => url ? custom.url === url : JSON.stringify(custom.pack) === JSON.stringify(pack))) throw new Error("That pack is already saved.");
+      if (url && this.preferences.customs.some(custom => custom.url === url)) throw new Error("That pack is already saved.");
       const loaded = await this.load(pack, request.signal);
       if (request.signal.aborted) return false;
+      if (!url && this.preferences.customs.some(custom => JSON.stringify(custom.pack) === JSON.stringify(loaded.pack))) throw new Error("That pack is already saved.");
       this.selection?.abort();
       const index = this.preferences.customs.length;
-      this.preferences.customs.push({ pack, ...(url ? { url } : {}) });
+      this.preferences.customs.push({ pack: loaded.pack, ...(url ? { url } : {}) });
       this.preferences.active = `custom:${index}`;
       this.preferences.enabled = true;
       this.loaded = loaded;

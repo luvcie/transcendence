@@ -1,4 +1,4 @@
-import { BUILTIN_SOUNDS, JSTRIS_SOUND_PRESETS, SOUND_DATABASE, type SoundDef } from "./sound-catalog";
+import { BUILTIN_SOUNDS, JSTRIS_SOUND_PRESETS, SOUND_DATABASE, TETRIO_SOUND_DATABASE, type SoundDef } from "./sound-catalog";
 import { comboClip, type SoundClip } from "./sound-pack";
 import { SoundPlayer } from "./sound-player";
 import { customSound, SoundState } from "./sound-state";
@@ -39,7 +39,7 @@ export function setupSounds(state: SoundState, player: SoundPlayer) {
     return anchor;
   }
   document.querySelector("#sound-credit")!.append("Sound effect assets from the community Jstris customization database ",
-    link(JSTRIS_SOUND_PRESETS, "[1]"), " ", link(SOUND_DATABASE, "[2]"),
+    link(JSTRIS_SOUND_PRESETS, "[1]"), " ", link(SOUND_DATABASE, "[2]"), " and the TETR.IO+ database ", link(TETRIO_SOUND_DATABASE, "[3]"),
     ".", document.createElement("br"),
     "42tris ships no sound effect assets other than its own originals, community sounds are loaded from external links.");
   function option(def: SoundDef, index?: number) {

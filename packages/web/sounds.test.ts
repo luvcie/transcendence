@@ -26,13 +26,14 @@ function result(overrides: Partial<LockResult> = {}): LockResult {
 }
 
 describe("sound pack compatibility", () => {
-  test("catalog has all seven Jstris+ packs and 26 additional community packs", () => {
-    expect(BUILTIN_SOUNDS).toHaveLength(34);
-    expect(new Set(BUILTIN_SOUNDS.map(def => def.id)).size).toBe(34);
+  test("catalog retains the Jstris+ and Eddie packs alongside TETR.IO+ exports", () => {
+    expect(BUILTIN_SOUNDS.filter(def => !def.pack.tetrioPlus)).toHaveLength(34);
+    expect(BUILTIN_SOUNDS.filter(def => def.pack.tetrioPlus)).toHaveLength(29);
+    expect(new Set(BUILTIN_SOUNDS.map(def => def.id)).size).toBe(BUILTIN_SOUNDS.length);
     for (const def of BUILTIN_SOUNDS.slice(1)) {
       expect(parseSoundPack(def.pack)).toEqual(def.pack);
       expect(soundUrls(def.pack).length).toBeGreaterThan(0);
-      expect(def.source).toStartWith("https://github.com/");
+      expect(def.source).toStartWith(def.pack.tetrioPlus ? "https://you.have.fail/tetrioplus/" : "https://github.com/");
     }
   });
   test("accepts all piece voices, null combo slots, and zero sprite spacing", () => {

@@ -1,11 +1,13 @@
 import { soundUrls, type SoundClip, type SoundPack } from "./sound-pack";
+import { MAX_TETRIO_EXPORT_BYTES, parseTetrioExport, tetrioClipSource, tetrioClipUrl, tetrioSoundPack, type SoundAtlas } from "./tetrio-sounds";
 
 export interface LoadedSounds { pack: SoundPack; buffers: Map<string, AudioBuffer>; failed: number }
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const MAX_DECODED_BYTES = 64 * 1024 * 1024;
+const MAX_TETRIO_DECODED_BYTES = 256 * 1024 * 1024;
 
-export async function fetchSoundFile(url: string, limit: number, signal: AbortSignal): Promise<ArrayBuffer> {
-  const response = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(12000)]), credentials: "omit", referrerPolicy: "no-referrer" });
+export async function fetchSoundFile(url: string, limit: number, signal: AbortSignal, timeoutMs = 12000): Promise<ArrayBuffer> {
+  const response = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]), credentials: "omit", referrerPolicy: "no-referrer" });
   if (!response.ok) throw new Error(`Could not load file (HTTP ${response.status}).`);
   const reader = response.body?.getReader();
   if (!reader) throw new Error("The file was empty.");
@@ -31,6 +33,8 @@ export class SoundPlayer {
   private gain?: GainNode;
   private cache = new Map<string, AudioBuffer>();
   private cacheBytes = 0;
+  private atlases = new Map<string, SoundAtlas>();
+  private tetrioQueue: Promise<void> = Promise.resolve();
   private sources = new Set<AudioBufferSourceNode>();
   private previewRequest?: AbortController;
   volume = 0.5;
@@ -61,9 +65,81 @@ export class SoundPlayer {
     this.sources.clear();
   }
   private size(buffer: AudioBuffer) { return buffer.length * buffer.numberOfChannels * 4; }
+  private remember(url: string, buffer: AudioBuffer) {
+    const existing = this.cache.get(url);
+    if (existing) this.cacheBytes -= this.size(existing);
+    this.cache.delete(url);
+    while (this.cache.size && (this.cacheBytes + this.size(buffer) > MAX_DECODED_BYTES || this.cache.size >= 128)) {
+      const first = this.cache.keys().next().value!;
+      this.cacheBytes -= this.size(this.cache.get(first)!);
+      this.cache.delete(first);
+    }
+    this.cache.set(url, buffer); this.cacheBytes += this.size(buffer);
+  }
+  private async tetrioPack(pack: SoundPack, signal: AbortSignal, extra: string[] = []): Promise<SoundPack> {
+    // Full exports include menu audio. Decode one at a time, then retain only gameplay clips.
+    const previous = this.tetrioQueue;
+    let release!: () => void;
+    this.tetrioQueue = new Promise(resolve => { release = resolve; });
+    await previous;
+    try {
+      signal.throwIfAborted();
+      const url = pack.tetrioPlus!;
+      const urls = soundUrls(pack);
+      let atlas = this.atlases.get(url);
+      const resolve = () => urls.length ? pack : tetrioSoundPack(pack.name, url, Object.keys(atlas!));
+      const names = (resolved: SoundPack) => [...new Set([...soundUrls(resolved).flatMap(value => {
+        const clip = tetrioClipSource(value);
+        return clip?.url === url ? [clip.name] : [];
+      }), ...extra])];
+      if (urls.length && !names(pack).length) return pack;
+      if (atlas && names(resolve()).every(name => this.cache.has(tetrioClipUrl(url, name)))) return resolve();
+      const bytes = await this.fetchFile(url, MAX_TETRIO_EXPORT_BYTES, signal, 45000);
+      signal.throwIfAborted();
+      let data: unknown;
+      try { data = JSON.parse(new TextDecoder().decode(bytes)); }
+      catch { throw new Error("Use a TETR.IO+ .tpse export link, not a ZIP download."); }
+      const exported = parseTetrioExport(data);
+      atlas = exported.atlas;
+      const resolved = resolve();
+      const wanted = names(resolved).filter(name => atlas![name]);
+      if (!wanted.length) throw new Error("This export has no sounds for 42tris gameplay.");
+      const context = this.audio();
+      const seconds = Math.max(...Object.values(atlas).map(([offset, duration]) => offset + duration));
+      if (seconds * context.sampleRate * 2 * 4 > MAX_TETRIO_DECODED_BYTES) throw new Error("This TETR.IO+ recording is too long.");
+      const audio = await context.decodeAudioData(exported.audio);
+      signal.throwIfAborted();
+      if (audio.numberOfChannels > 2 || this.size(audio) > MAX_TETRIO_DECODED_BYTES) throw new Error("This TETR.IO+ recording exceeds the decoding limit.");
+      let total = 0;
+      const clips: [string, AudioBuffer][] = [];
+      for (const name of wanted) {
+        const [offset, duration] = atlas[name];
+        if (duration > 30 || offset + duration > audio.duration + 1 / audio.sampleRate) throw new Error("TETR.IO+ sound timing exceeds the audio clip.");
+        const start = Math.round(offset * audio.sampleRate), end = Math.min(audio.length, Math.round((offset + duration) * audio.sampleRate));
+        if (end <= start) throw new Error("A TETR.IO+ sound is empty.");
+        total += (end - start) * audio.numberOfChannels * 4;
+        if (total > MAX_DECODED_BYTES) throw new Error("This pack exceeds the audio memory limit.");
+        const clip = context.createBuffer(audio.numberOfChannels, end - start, audio.sampleRate);
+        for (let channel = 0; channel < audio.numberOfChannels; channel++) clip.copyToChannel(audio.getChannelData(channel).subarray(start, end), channel);
+        clips.push([tetrioClipUrl(url, name), clip]);
+      }
+      signal.throwIfAborted();
+      for (const [url, clip] of clips) this.remember(url, clip);
+      if (this.atlases.size >= 32) this.atlases.delete(this.atlases.keys().next().value!);
+      this.atlases.set(url, atlas);
+      return resolved;
+    } finally { release(); }
+  }
   private async buffer(url: string, signal: AbortSignal): Promise<AudioBuffer> {
     const cached = this.cache.get(url);
     if (cached) { this.cache.delete(url); this.cache.set(url, cached); return cached; }
+    const clip = tetrioClipSource(url);
+    if (clip) {
+      await this.tetrioPack({ name: "TETR.IO+ sound pack", tetrioPlus: clip.url }, signal, [clip.name]);
+      const buffer = this.cache.get(url);
+      if (!buffer) throw new Error(`This TETR.IO+ export has no ${clip.name} sound.`);
+      return buffer;
+    }
     const context = this.audio();
     const bytes = await this.fetchFile(url, MAX_AUDIO_BYTES, signal);
     const buffer = await context.decodeAudioData(bytes);
@@ -73,15 +149,11 @@ export class SoundPlayer {
     // A preview and a pack load can finish the same URL concurrently.
     const existing = this.cache.get(url);
     if (existing) return existing;
-    while (this.cache.size && (this.cacheBytes + size > MAX_DECODED_BYTES || this.cache.size >= 128)) {
-      const first = this.cache.keys().next().value!;
-      this.cacheBytes -= this.size(this.cache.get(first)!);
-      this.cache.delete(first);
-    }
-    this.cache.set(url, buffer); this.cacheBytes += size;
+    this.remember(url, buffer);
     return buffer;
   }
   async load(pack: SoundPack, signal: AbortSignal): Promise<LoadedSounds> {
+    if (pack.tetrioPlus) pack = await this.tetrioPack(pack, signal);
     const urls = soundUrls(pack);
     const loaded: LoadedSounds = { pack, buffers: new Map(), failed: 0 };
     let next = 0, bytes = 0;
@@ -121,6 +193,7 @@ export class SoundPlayer {
     const request = new AbortController();
     this.previewRequest = request;
     await this.unlock();
+    request.signal.throwIfAborted();
     const buffers = new Map<string, AudioBuffer>();
     for (const clip of clips) buffers.set(clip.url, await this.buffer(clip.url, request.signal));
     request.signal.throwIfAborted();

@@ -9,6 +9,7 @@ export interface SpecialSound { url: string; b2b?: boolean; combo?: number; over
 export interface ComboSprite { url: string; duration: number; spacing: number; cnt: number }
 export interface SoundPack extends Partial<Record<SoundEvent, string>> {
   name: string;
+  tetrioPlus?: string;
   scoring?: Partial<Record<ScoreEvent, string>>;
   spawns?: Partial<Record<string, string>>;
   comboTones?: (string | null)[] | ComboSprite;
@@ -36,6 +37,11 @@ function number(value: unknown, min: number, max: number): number {
 export function parseSoundPack(value: unknown): SoundPack {
   const data = record(value);
   const pack: SoundPack = { name: typeof data.name === "string" && data.name.trim() ? data.name.trim().slice(0, 100) : "Custom sound pack" };
+  if (data.tetrioPlus !== undefined) {
+    const url = new URL(soundUrl(data.tetrioPlus));
+    url.hash = "";
+    pack.tetrioPlus = url.href;
+  }
   for (const key of SOUND_EVENTS) if (data[key] != null && data[key] !== "") pack[key] = soundUrl(data[key]);
   for (const key of ["scoring", "spawns"] as const) if (data[key] != null) {
     const entries = record(data[key]);
@@ -75,7 +81,7 @@ export function parseSoundPack(value: unknown): SoundPack {
     }
   }
   const count = soundUrls(pack).length;
-  if (count === 0) throw new Error("Add at least one audio link to this pack.");
+  if (count === 0 && !pack.tetrioPlus) throw new Error("Add at least one audio link to this pack.");
   if (count > 256) throw new Error("Use at most 256 different audio clips per pack.");
   return pack;
 }
