@@ -37,7 +37,6 @@ test.each(["sprintReplay", "matchReplay"] as const)("%s enters and leaves shared
     expect(node("#view-title").textContent).toBe(singleplayer ? "Sprint replay" : "Competitive replay");
     expect(node("#game-view").hidden).toBe(!singleplayer);
     expect(node("#online").hidden).toBe(true);
-    expect(node("#pause-button").hidden).toBe(true);
     expect(node("#solo-button").getAttribute("aria-current")).toBe(singleplayer ? "page" : "false");
     expect(document.focused).toBe(node("#view-title"));
     showView(result);

@@ -10,7 +10,7 @@ export const ACTIONS = {
   rotate180: { label: "180° rotation", down: Input.Rotate180 },
   hold: { label: "Hold", down: Input.Hold },
   restart: { label: "Restart" },
-  pause: { label: "Pause" },
+  pause: { label: "Close menu" },
 } satisfies Record<string, { label: string; down?: InputId; up?: InputId }>;
 export type Action = keyof typeof ACTIONS;
 export type Keybinds = Record<Action, [string, string]>;

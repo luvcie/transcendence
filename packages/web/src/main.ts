@@ -28,6 +28,7 @@ import { mountGuestName } from "./guest-name";
 import { dismissSettingsOnBackdrop } from "./settings-dialog";
 import { MultiplayerSkinPreference, setupMultiplayerSkinSetting, shareableSkinId } from "./multiplayer-skins";
 import { mountGameplayInput } from "./gameplay-input";
+import { mountHoldExit } from "./hold-exit";
 import { renderOnlineWaiting } from "./waiting-view";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
 import { initialView, mountAppView, onlineView } from "./app-view";
@@ -166,7 +167,6 @@ setupHandling(handling, value => {
 const pauseDialog = document.querySelector<HTMLDialogElement>("#pause-dialog")!;
 const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dialog")!;
 const abandonDialog = document.querySelector<HTMLDialogElement>("#abandon-dialog")!;
-const pauseButton = document.querySelector<HTMLElement>("#pause-button")!;
 const navSettingsButton = document.querySelector<HTMLButtonElement>("#nav-settings-button")!;
 
 function gameplayActive() {
@@ -175,6 +175,11 @@ function gameplayActive() {
 }
 const volumeOverlay = mountVolumeOverlay(document, window, {
   active: gameplayActive, sfx: sounds, music, feedback: () => soundPlayer.volumeFeedback(), changed: syncZenMusic,
+});
+const holdExit = mountHoldExit(window, document, {
+  active: () => !atHome && !online && !activePlayback() && !!solo && !solo.paused && !solo.result
+    && !document.hidden && !settingsDialog.open && !pauseDialog.open && !abandonDialog.open,
+  exit: showHome,
 });
 
 function syncZenMusic() {
@@ -198,6 +203,7 @@ function focusView() {
 }
 
 function pause() {
+  holdExit.cancel();
   if (playback || online || !solo || solo.mode === "sprint" || solo.paused || solo.result) return;
   solo.setPaused(true, performance.now());
   syncZenMusic();
@@ -224,6 +230,7 @@ async function resume() {
 
 let settingsFromMenu = false;
 function openSettings(fromMenu: boolean) {
+  holdExit.cancel();
   if (!online && solo?.mode === "sprint" && !solo.result) return;
   if (activePlayback()) { activePlayback()!.pause(); lastFrameAt = null; syncPlaybackControls(); }
   settingsFromMenu = fromMenu;
@@ -248,6 +255,7 @@ function closeSettings() {
 }
 
 async function launchMode(mode: SingleplayerMode, training = mode === "sprint" && sprintOption.checked) {
+  holdExit.cancel();
   volumeOverlay.hide();
   const request = ++modeRequest;
   if (mode === "zen") {
@@ -279,7 +287,6 @@ async function launchMode(mode: SingleplayerMode, training = mode === "sprint" &
   gameSounds.observe(display, solo.game);
   resultPanel.hidden = true;
   showView("solo");
-  pauseButton.hidden = mode === "sprint";
   navSettingsButton.disabled = mode === "sprint";
   refreshHud();
   status.textContent = `${SINGLEPLAYER_MODES[mode].name} · ${solo.game.width} wide`;
@@ -307,6 +314,7 @@ function restartOnFinesseFault(): boolean {
 }
 
 async function abandonSolo(): Promise<boolean> {
+  holdExit.cancel();
   if (!solo?.active) return true;
   const wasPaused = solo.paused;
   if (solo.mode === "zen") solo.setPaused(true, performance.now());
@@ -343,6 +351,11 @@ function closeMenus() {
 
 async function enterHome() {
   if (!await abandonSolo()) return;
+  showHome();
+}
+
+function showHome() {
+  holdExit.cancel();
   volumeOverlay.hide();
   modeRequest++;
   music.release();
@@ -427,7 +440,6 @@ async function enterOnline() {
   invite = null;
 }
 
-document.querySelector("#pause-button")!.addEventListener("click", pause);
 document.querySelector("#online-button")!.addEventListener("click", enterOnline);
 for (const id of ["#home-button", "#solo-button", "#result-home-button", "#pause-home-button"]) document.querySelector(id)!.addEventListener("click", enterHome);
 for (const button of document.querySelectorAll<HTMLButtonElement>("[data-mode]")) {
@@ -596,6 +608,7 @@ function refreshHud() {
     : sprint ? "Sprint 40L · Make your first move to start the clock."
     : `Zen · Ctrl+Z to undo (${solo?.undoCount ?? 0} available)`;
   if (solo?.result && !online && !playback && resultPanel.hidden) {
+    holdExit.cancel();
     volumeOverlay.hide();
     const result = solo.result;
     document.querySelector("#sprint-result-title")!.textContent = result.outcome === "complete" ? "Sprint complete" : "Topped out";
@@ -682,20 +695,21 @@ function render() {
   drawBoard(ctx, display, skins.loaded, showGhost);
 }
 
+function toggleMenu() {
+  if (activePlayback()) { backToResults(); return; }
+  if (abandonDialog.open) abandonDialog.close("cancel");
+  else if (online?.detailsOpen) online.closeDetails();
+  else if (settingsDialog.open) closeSettings();
+  else if (pauseDialog.open || (!online && solo?.paused)) resume();
+}
+
 const unmountInput = mountGameplayInput(window, {
   bindings, pressed,
   editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, summary, a, [contenteditable=true], [role=slider]"),
   blocked: () => countdown.active || abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || activePlayback() !== null || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
   settingsOpen: () => settingsDialog.open,
   starting: () => display?.starting ?? true,
-  menu() {
-    if (activePlayback()) { backToResults(); return; }
-    if (abandonDialog.open) abandonDialog.close("cancel");
-    else if (online?.detailsOpen) online.closeDetails();
-    else if (settingsDialog.open) closeSettings();
-    else if (pauseDialog.open || (!online && solo?.paused)) resume();
-    else if (!online && solo) pause();
-  },
+  menu: toggleMenu,
   undo() {
     if (activePlayback()) return;
     if (online) online.session.practice("practiceUndo");
@@ -757,6 +771,6 @@ function frame(now: number) {
 }
 
 let frameId = requestAnimationFrame(frame);
-window.addEventListener("pagehide", e => { modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { volumeOverlay.dispose(); unmountInput(); replayControls.dispose(); stopPlayback(); } });
+window.addEventListener("pagehide", e => { holdExit.cancel(); modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { holdExit.dispose(); volumeOverlay.dispose(); unmountInput(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
 if (!atHome) enterOnline();

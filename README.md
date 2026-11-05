@@ -64,11 +64,16 @@ gravity, seeded bags and shared clear rules. Sprint results use the shared
 engine's exact winning placement timestamp on a pause-free attempt timeline;
 render frequency cannot extend a finished run. Results are local and temporary.
 
-Leaving active local play asks before discarding progress. Opening the homepage
-from multiplayer keeps the online session connected and playing. Return through
-Multiplayer, or choose a local mode to leave through the existing acknowledged
-leave/forfeit flow. Opening settings in an online match releases local controls
-without pausing the room.
+Hold Escape for 0.9 seconds during Zen or Sprint to return directly to mode
+selection. A soft red band grows along the top edge and pops as you leave.
+Releasing early cancels the exit and keeps the game running.
+Holding Escape does not pause Sprint or apply to multiplayer and replays.
+
+Leaving active local play through navigation asks before discarding progress.
+Opening the homepage from multiplayer keeps the online session connected and
+playing. Return through Multiplayer, or choose a local mode to leave through
+the existing acknowledged leave/forfeit flow. Opening settings in an online
+match releases local controls without pausing the room.
 
 ## Multiplayer diagnostics
 

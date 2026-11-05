@@ -85,6 +85,12 @@
       main:not([data-view=solo]):not([data-view=playing]) #volume-overlay { display: none; }
       @media (max-width: 480px) { #volume-overlay { font-size: 1.2em; } }
       @media (prefers-reduced-motion: reduce) { #volume-overlay.fading { opacity: 1; transition: none; } }
+      #exit-hold { position: fixed; top: 0; left: 0; right: 0; z-index: 4; display: grid; place-items: center; padding: 0 16px; text-align: center; color: #fff; font-size: clamp(13px, 2vw, 18px); font-weight: bold; pointer-events: none; }
+      #exit-hold::before { content: ""; position: absolute; inset: 0; background: #b15860f2; border-bottom: 2px solid #df9299; transform-origin: top; animation: exit-hold-grow var(--exit-hold-duration) linear forwards; }
+      #exit-hold span { position: relative; animation: exit-hold-label var(--exit-hold-duration) linear both; }
+      @keyframes exit-hold-grow { 0% { transform: scaleY(1); opacity: 1; } 86% { transform: scaleY(1.24); opacity: 1; } 94% { transform: scaleY(1.4); opacity: .95; } 100% { transform: scaleY(1.55); opacity: 0; } }
+      @keyframes exit-hold-label { 0% { transform: scale(1); opacity: 1; } 86% { transform: scale(1.025); opacity: 1; } 94% { transform: scale(1.08); opacity: .9; } 100% { transform: scale(1.12); opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) { #exit-hold::before, #exit-hold span { animation: none; } }
       input[type=number] { width: 70px; background: #111; border: 1px solid #666; color: #eee; padding: 6px; }
       output { display: block; color: #22d3ee; margin-top: 6px; }
       .setting p { margin: 6px 0 0; }
@@ -294,7 +300,6 @@
           <button id="solo-button" aria-current="page">Singleplayer</button>
           <button id="online-button" aria-current="false">Multiplayer</button>
         </nav>
-        <button id="pause-button" hidden>Pause / Esc</button>
         <button id="nav-settings-button"><span aria-hidden="true">⚙</span> Settings</button>
       </header>
       <div class="view-heading"><h1 id="view-title" tabindex="-1">Choose your game</h1><p id="status"></p><span id="guest-name-editor" hidden><button type="button" data-edit-name aria-label="Edit guest name"><span data-current-name></span> <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button><form data-edit-form hidden><input name="name" aria-label="Guest name" maxlength="24" required autocomplete="nickname"><button type="submit">Save</button></form> <span>(you)</span></span></div>
@@ -373,6 +378,7 @@
         </div>
       </footer>
     </main>
+    <div id="exit-hold" role="status" hidden><span>HOLD TO EXIT</span></div>
     <dialog id="abandon-dialog" aria-labelledby="abandon-title" aria-describedby="abandon-description">
       <h1 id="abandon-title">Leave this game?</h1><p id="abandon-description"></p>
       <form method="dialog" class="actions"><button value="cancel" autofocus>Keep playing</button><button value="abandon">Abandon game</button></form>

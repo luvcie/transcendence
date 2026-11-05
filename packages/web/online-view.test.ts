@@ -214,11 +214,9 @@ test("solo, lobby and waiting show one workspace and preserve the room form node
   const h = harness();
   const node = (selector: string) => h.document.querySelector(selector);
   expect(node("#online").hidden).toBe(true);
-  expect(node("#pause-button").hidden).toBe(false);
   expect(node("#game-view").hidden).toBe(false);
   h.view.update();
   expect(node("main").getAttribute("data-view")).toBe("lobby");
-  expect(node("#pause-button").hidden).toBe(true);
   expect(node("#game-view").hidden).toBe(true);
   expect(node("#online-button").getAttribute("aria-current")).toBe("page");
   const form = node("[data-options]");
@@ -471,7 +469,6 @@ test("home and mode selection hide gameplay without leaving the connected online
   expect(h.document.querySelector("#home-view").hidden).toBe(false);
   expect(h.document.querySelector("#game-view").hidden).toBe(true);
   expect(h.document.querySelector("#online").hidden).toBe(true);
-  expect(h.document.querySelector("#pause-button").hidden).toBe(true);
   expect(h.session.room?.code).toBe(h.cp.room.code);
   expect(h.session.connected).toBe(true);
   expect(h.sent.some(command => command.type === "leave")).toBe(false);

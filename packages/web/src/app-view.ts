@@ -45,7 +45,6 @@ export function mountAppView(document: Document) {
     document.querySelector<HTMLElement>("#home-view")!.hidden = view !== "home";
     document.querySelector("#solo-button")!.setAttribute("aria-current", singleplayer ? "page" : "false");
     document.querySelector("#online-button")!.setAttribute("aria-current", singleplayer ? "false" : "page");
-    document.querySelector<HTMLElement>("#pause-button")!.hidden = view !== "solo";
     if (!document.querySelector("dialog[open]")) (view === "home" ? document.querySelector<HTMLElement>("#home-title")! : title).focus({ preventScroll: true });
   };
 }
