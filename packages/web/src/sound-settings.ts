@@ -3,6 +3,7 @@ import { comboClip, type SoundClip } from "./sound-pack";
 import { SoundPlayer } from "./sound-player";
 import { customSound, resolveSound, SoundState } from "./sound-state";
 import { createSettingsGroup, setupSettingsSearch } from "./settings-search";
+import { levelToVolume, volumeToLevel } from "./audio-volume";
 
 export function setupSounds(state: SoundState, player: SoundPlayer) {
   const panel = document.querySelector<HTMLElement>("#settings-sounds")!;
@@ -20,10 +21,11 @@ export function setupSounds(state: SoundState, player: SoundPlayer) {
   function refresh() {
     document.querySelector("#sound-selected")!.textContent = `Selected: ${resolveSound(state.preferences).label}`;
     enabled.checked = state.preferences.enabled;
-    volume.value = String(Math.round(state.preferences.volume * 100));
-    output.value = `${volume.value}%`;
+    volume.value = String(Math.round(volumeToLevel(state.preferences.volume) * 100));
+    output.value = `${Math.round(state.preferences.volume * 100)}%`;
+    volume.setAttribute("aria-valuetext", output.value);
     player.setVolume(state.preferences.enabled ? state.preferences.volume : 0);
-    for (const button of list.querySelectorAll<HTMLButtonElement>("button[data-sound]")) {
+    if (!panel.hidden) for (const button of list.querySelectorAll<HTMLButtonElement>("button[data-sound]")) {
       const selected = button.dataset.sound === state.preferences.active;
       button.setAttribute("aria-pressed", String(selected));
       button.textContent = selected ? "Selected (retry)" : "Use";
@@ -36,7 +38,7 @@ export function setupSounds(state: SoundState, player: SoundPlayer) {
     state.configure({ enabled: enabled.checked });
     if (enabled.checked) void player.unlock().catch((error: Error) => { note.textContent = error.message; });
   });
-  volume.addEventListener("input", () => state.configure({ volume: volume.valueAsNumber / 100 }));
+  volume.addEventListener("input", () => state.configure({ volume: levelToVolume(volume.valueAsNumber / 100) }));
   function link(url: string, text: string) {
     const anchor = document.createElement("a");
     anchor.href = url; anchor.textContent = text; anchor.target = "_blank"; anchor.rel = "noreferrer";
@@ -141,8 +143,8 @@ export function setupSounds(state: SoundState, player: SoundPlayer) {
   });
   refresh();
   return (open: boolean) => {
+    panel.hidden = !open;
     if (open) render();
     else { generation++; player.stop(); state.cancelPendingAdd(); }
-    panel.hidden = !open;
   };
 }

@@ -21,7 +21,7 @@ export function parseSoundPreferences(raw: string | null): SoundPreferences {
     if (!raw || raw.length > MAX_PACK_LENGTH * MAX_CUSTOM_SOUNDS + 4096) return defaults;
     const data = JSON.parse(raw);
     if (!data || typeof data.active !== "string" || typeof data.enabled !== "boolean" || typeof data.volume !== "number"
-      || !Number.isFinite(data.volume) || data.volume < 0 || data.volume > 1 || !Array.isArray(data.customs) || data.customs.length > MAX_CUSTOM_SOUNDS) return defaults;
+      || !Number.isFinite(data.volume) || data.volume < 0 || data.volume > 2 || !Array.isArray(data.customs) || data.customs.length > MAX_CUSTOM_SOUNDS) return defaults;
     const customs = data.customs.map((custom: CustomSound) => ({ pack: parseSoundPack(custom.pack), ...(custom.url ? { url: soundUrl(custom.url) } : {}) }));
     const preferences = { active: data.active, enabled: data.enabled, volume: data.volume, customs };
     preferences.active = resolveSound(preferences).id;
@@ -46,8 +46,8 @@ export class SoundState {
     try { this.storage().setItem(SOUND_STORAGE_KEY, JSON.stringify(this.preferences)); this.message = "Sounds saved on this device."; }
     catch { this.message = "Sounds apply for this session; browser storage is unavailable."; }
   }
-  configure(value: Partial<Pick<SoundPreferences, "volume" | "enabled">>) {
-    Object.assign(this.preferences, value); this.save(); this.changed();
+  configure(value: Partial<Pick<SoundPreferences, "volume" | "enabled">>, persist = true) {
+    Object.assign(this.preferences, value); if (persist) this.save(); this.changed();
   }
   async select(active: string, persist = true) {
     this.selection?.abort(); this.cancelPendingAdd();

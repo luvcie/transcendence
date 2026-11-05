@@ -76,6 +76,15 @@
       .setting .inputs { display: flex; align-items: center; gap: 12px; }
       input[type=range] { flex: 1; min-width: 60px; accent-color: #22d3ee; }
       input[type=checkbox] { accent-color: #22d3ee; }
+      #volume-overlay { position: fixed; right: 1em; bottom: 1em; display: flex; gap: .4em; z-index: 3; color: #fff; font-size: 2em; line-height: 1.2; opacity: 1; transition: none; user-select: none; }
+      #volume-overlay.fading { opacity: 0; transition: opacity 4s linear; }
+      .volume-channel { width: 2em; }
+      .volume-title { display: block; margin-bottom: .25em; text-align: center; }
+      .volume-bar { width: 1em; height: 10em; max-height: 45dvh; margin: 0 .5em; border-radius: 3px; background: #fff2; }
+      body:has(dialog[open]) #volume-overlay, main[data-replay] #volume-overlay,
+      main:not([data-view=solo]):not([data-view=playing]) #volume-overlay { display: none; }
+      @media (max-width: 480px) { #volume-overlay { font-size: 1.2em; } }
+      @media (prefers-reduced-motion: reduce) { #volume-overlay.fading { opacity: 1; transition: none; } }
       input[type=number] { width: 70px; background: #111; border: 1px solid #666; color: #eee; padding: 6px; }
       output { display: block; color: #22d3ee; margin-top: 6px; }
       .setting p { margin: 6px 0 0; }
@@ -341,7 +350,16 @@
       <p id="clear-result" role="status"></p>
       <p id="zen-status" class="hint" hidden></p>
       </div><details><summary>Key controls</summary><p id="controls" class="controls"></p></details>
-      </footer></section>
+      </footer>
+      <div id="volume-overlay" role="group" aria-label="Gameplay volume" hidden>
+        <div id="volume-overlay-sfx" class="volume-channel" data-volume-channel="sfx" role="slider" tabindex="0" aria-label="Sound effects volume" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="200" aria-valuenow="50">
+          <span class="volume-title" aria-hidden="true">SFX</span><div class="volume-bar" aria-hidden="true"></div>
+        </div>
+        <div id="volume-overlay-music" class="volume-channel" data-volume-channel="music" role="slider" tabindex="0" aria-label="Music volume" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="200" aria-valuenow="50">
+          <span class="volume-title" aria-hidden="true">BGM</span><div class="volume-bar" aria-hidden="true"></div>
+        </div>
+      </div>
+      </section>
       <footer id="replay-bar" hidden aria-label="Replay playback">
         <div class="replay-status"><span id="replay-state" role="status" aria-live="polite"></span><span id="replay-time">0:00.000 / 0:00.000</span></div>
         <div class="replay-timeline">
@@ -452,19 +470,20 @@
         <div id="sound-list"></div>
       </section>
       <section id="settings-audio" role="tabpanel" aria-labelledby="tab-audio" tabindex="0" hidden>
+        <p class="hint">Scroll during gameplay to adjust volume. Hover a volume bar to change only that channel. Volume above 100% boosts the audio.</p>
         <h2>Music</h2>
         <label><input id="music-enabled" type="checkbox" checked aria-describedby="music-help"> Enable Zen music</label>
         <p id="music-help" class="hint">Plays during Zen only. Music pauses with your game.</p>
         <div class="setting">
           <label for="music-volume">Music volume</label>
-          <div class="inputs"><input id="music-volume" type="range" min="0" max="100" step="1" value="50"><output id="music-volume-value" for="music-volume">50%</output></div>
+          <div class="inputs"><input id="music-volume" type="range" min="0" max="150" step="1" value="50"><output id="music-volume-value" for="music-volume">50%</output></div>
         </div>
         <p id="music-note" class="hint" role="status"></p>
         <h2>Sound effects</h2>
         <label><input id="sounds-enabled" type="checkbox" checked> Enable sound effects</label>
         <div class="setting">
           <label for="sound-volume">Sound effects volume</label>
-          <div class="inputs"><input id="sound-volume" type="range" min="0" max="100" step="1" value="50"><output id="sound-volume-value" for="sound-volume">50%</output></div>
+          <div class="inputs"><input id="sound-volume" type="range" min="0" max="150" step="1" value="50"><output id="sound-volume-value" for="sound-volume">50%</output></div>
         </div>
       </section>
       <div class="actions">

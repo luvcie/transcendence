@@ -99,6 +99,7 @@ describe("sound selection and storage", () => {
   test("validates persisted data, restores pasted JSON, and falls back on unknown ids", () => {
     const preferences = { active: "custom:0", enabled: false, volume: 0.3, customs: [{ pack }] };
     expect(parseSoundPreferences(JSON.stringify(preferences))).toEqual(preferences);
+    expect(parseSoundPreferences(JSON.stringify({ ...preferences, volume: 2 })).volume).toBe(2);
     expect(parseSoundPreferences(JSON.stringify({ ...preferences, active: "missing" })).active).toBe("silent");
     for (const value of ["{", "null", JSON.stringify({ ...preferences, volume: 4 }), JSON.stringify({ ...preferences, customs: [{ pack: { move: "http://example.com" } }] })]) expect(parseSoundPreferences(value).active).toBe("silent");
   });

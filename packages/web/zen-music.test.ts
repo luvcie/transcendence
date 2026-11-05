@@ -35,16 +35,33 @@ function audio() {
   return { music, context, sources, gain, fetch, getContext, saved };
 }
 
-test("music stays lazy, and disabled or zero-volume music allocates no audio resources", async () => {
-  for (const preference of [{ enabled: false }, { volume: 0 }]) {
-    const { music, getContext, fetch } = audio();
-    expect(getContext).not.toHaveBeenCalled();
-    music.configure(preference);
-    await music.prepare();
-    await music.setPlaying(true);
-    expect(getContext).not.toHaveBeenCalled();
-    expect(fetch).not.toHaveBeenCalled();
-  }
+test("music stays lazy, and disabled music allocates no audio resources", async () => {
+  const { music, getContext, fetch } = audio();
+  expect(getContext).not.toHaveBeenCalled();
+  music.configure({ enabled: false });
+  await music.prepare();
+  await music.setPlaying(true);
+  expect(getContext).not.toHaveBeenCalled();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+test("enabled zero-volume music prepares before play so wheel unmuting needs no fetch or decode", async () => {
+  const { music, context, sources, fetch } = audio();
+  music.configure({ volume: 0 });
+  await start(music);
+  expect(sources).toHaveLength(0);
+  expect(context.decodeAudioData).toHaveBeenCalledTimes(1);
+  music.configure({ volume: 0.05 });
+  await music.setPlaying(true);
+  expect(sources).toHaveLength(1);
+  context.currentTime = 30;
+  music.configure({ volume: 0 });
+  context.currentTime = 40;
+  music.configure({ volume: 0.05 });
+  await music.setPlaying(true);
+  expect(sources[1].start.mock.calls).toEqual([[0, 30]]);
+  expect(context.decodeAudioData).toHaveBeenCalledTimes(1);
+  expect(fetch).toHaveBeenCalledTimes(1);
 });
 
 test("playback never starts a fetch or decode without explicit preparation", async () => {
@@ -174,7 +191,8 @@ test("failed music loads report the error and can be retried", async () => {
 });
 
 test("invalid saved music preferences use defaults and storage failures allow session changes", () => {
-  for (const raw of [null, "{", "null", '{"enabled":true,"volume":2}', '{"enabled":false,"volume":"0.5"}']) {
+  expect(parseMusicPreferences('{"enabled":true,"volume":2}')).toEqual({ enabled: true, volume: 2 });
+  for (const raw of [null, "{", "null", '{"enabled":true,"volume":2.01}', '{"enabled":false,"volume":"0.5"}']) {
     expect(parseMusicPreferences(raw)).toEqual({ enabled: true, volume: 0.5 });
   }
   const music = new ZenMusic(() => { throw new Error("Should stay lazy"); }, () => { throw new Error("Storage disabled"); });
@@ -196,15 +214,21 @@ test("Audio controls apply and display saved music volume and mute", () => {
     expect(document.querySelector("#music-volume").value).toBe("30");
     expect(document.querySelector("#music-volume-value").value).toBe("30%");
     const volume = document.querySelector("#music-volume");
-    Object.defineProperty(volume, "valueAsNumber", { value: 75 });
+    Object.defineProperty(volume, "valueAsNumber", { value: 75, configurable: true });
     volume.dispatchEvent(new Event("input"));
     expect(music.preferences.volume).toBe(0.75);
     expect(volume.getAttribute("aria-valuetext")).toBe("75%");
+    Object.defineProperty(volume, "valueAsNumber", { value: 125 });
+    volume.dispatchEvent(new Event("input"));
+    expect(music.preferences.volume).toBe(1.5);
+    expect(volume.value).toBe("125");
+    expect(document.querySelector("#music-volume-value").value).toBe("150%");
+    expect(volume.getAttribute("aria-valuetext")).toBe("150%");
     const enabled = document.querySelector("#music-enabled");
     enabled.checked = true;
     enabled.dispatchEvent(new Event("change"));
     expect(music.preferences.enabled).toBe(true);
-    expect(sync).toHaveBeenCalledTimes(2);
+    expect(sync).toHaveBeenCalledTimes(3);
   } finally {
     if (original) Object.assign(globalThis, { document: original });
     else Reflect.deleteProperty(globalThis, "document");

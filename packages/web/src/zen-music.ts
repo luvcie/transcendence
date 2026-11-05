@@ -10,10 +10,10 @@ export function parseMusicPreferences(raw: string | null): MusicPreferences {
   try {
     const data = raw && JSON.parse(raw);
     if (data && typeof data.enabled === "boolean" && typeof data.volume === "number"
-      && Number.isFinite(data.volume) && data.volume >= 0 && data.volume <= 1) {
+      && Number.isFinite(data.volume) && data.volume >= 0 && data.volume <= 2) {
       return { enabled: data.enabled, volume: data.volume };
     }
-  } catch { /* Invalid saved settings use the defaults. */ }
+  } catch {}
   return { enabled: true, volume: 0.5 };
 }
 
@@ -38,11 +38,11 @@ export class ZenMusic {
     catch { this.message = "Saved music settings could not be loaded. Using defaults."; }
   }
 
-  configure(value: Partial<MusicPreferences>) {
+  configure(value: Partial<MusicPreferences>, persist = true) {
     Object.assign(this.preferences, value);
     if (!this.preferences.enabled || !this.preferences.volume) this.pause();
     if (this.gain) this.gain.gain.setTargetAtTime(this.preferences.volume, this.audio().currentTime, 0.015);
-    try {
+    if (persist) try {
       this.storage().setItem(MUSIC_STORAGE_KEY, JSON.stringify(this.preferences));
       this.message = "Music settings saved on this device.";
     } catch { this.message = "Music applies for this session; browser storage is unavailable."; }
@@ -50,7 +50,7 @@ export class ZenMusic {
   }
 
   prepare(): Promise<void> {
-    if (!this.preferences.enabled || !this.preferences.volume) return Promise.resolve();
+    if (!this.preferences.enabled) return Promise.resolve();
     if (this.loading) return this.loading;
     const request = this.request = new AbortController();
     this.loading = (async () => {

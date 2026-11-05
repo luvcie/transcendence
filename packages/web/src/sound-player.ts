@@ -14,7 +14,8 @@ export class SoundPlayer {
   private cacheBytes = 0;
   private atlases = new Map<string, SoundAtlas>();
   private tetrioQueue: Promise<void> = Promise.resolve();
-  private sources = new Set<AudioBufferSourceNode>();
+  private sources = new Set<AudioScheduledSourceNode>();
+  private nextFeedbackAt = 0;
   private previewRequest?: AbortController;
   volume = 0.5;
 
@@ -36,6 +37,20 @@ export class SoundPlayer {
   setVolume(volume: number) {
     this.volume = volume;
     if (this.gain) this.gain.gain.value = volume;
+  }
+  volumeFeedback() {
+    if (!this.volume) return;
+    const context = this.audio(), now = context.currentTime;
+    if (context.state !== "running" || now < this.nextFeedbackAt) return;
+    this.nextFeedbackAt = now + 0.05;
+    const tone = context.createOscillator(), envelope = context.createGain();
+    tone.frequency.value = 880;
+    envelope.gain.setValueAtTime(0.1, now);
+    envelope.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    tone.connect(envelope); envelope.connect(this.gain!);
+    tone.onended = () => { this.sources.delete(tone); tone.disconnect(); envelope.disconnect(); };
+    this.sources.add(tone);
+    tone.start(now); tone.stop(now + 0.05);
   }
   stop() {
     this.previewRequest?.abort();
