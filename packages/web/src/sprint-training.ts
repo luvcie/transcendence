@@ -1,15 +1,18 @@
-const preferenceKey = "42tris.sprint.resetOnFinesseFault";
+import type { SingleplayerMode } from "./singleplayer";
 
-export function mountSprintCard(root: ParentNode, storage: () => Storage): HTMLInputElement {
-  const card = root.querySelector<HTMLElement>("#sprint-card")!;
-  const front = root.querySelector<HTMLButtonElement>("#sprint-card-front")!;
-  const back = root.querySelector<HTMLElement>("#sprint-card-back")!;
-  const checkbox = root.querySelector<HTMLInputElement>("#sprint-reset-finesse")!;
-  const backButton = root.querySelector<HTMLButtonElement>("#sprint-back")!;
-  try { checkbox.checked = storage().getItem(preferenceKey) === "true"; } catch { checkbox.checked = false; }
-  checkbox.addEventListener("change", () => {
-    try { storage().setItem(preferenceKey, String(checkbox.checked)); } catch { return; }
-  });
+export function mountModeCard(root: ParentNode, mode: SingleplayerMode, storage: () => Storage) {
+  const card = root.querySelector<HTMLElement>(`#${mode}-card`)!;
+  const front = root.querySelector<HTMLButtonElement>(`#${mode}-card-front`)!;
+  const back = root.querySelector<HTMLElement>(`#${mode}-card-back`)!;
+  const checkboxes = [...back.querySelectorAll<HTMLInputElement>("input[data-preference]")];
+  const backButton = root.querySelector<HTMLButtonElement>(`#${mode}-back`)!;
+  for (const checkbox of checkboxes) {
+    const key = `42tris.${mode}.${checkbox.dataset.preference}`;
+    try { checkbox.checked = storage().getItem(key) === "true"; } catch { checkbox.checked = false; }
+    checkbox.addEventListener("change", () => {
+      try { storage().setItem(key, String(checkbox.checked)); } catch { return; }
+    });
+  }
   function flip(open: boolean) {
     card.classList.toggle("flipped", open);
     front.inert = open;
@@ -17,11 +20,10 @@ export function mountSprintCard(root: ParentNode, storage: () => Storage): HTMLI
     front.setAttribute("aria-expanded", String(open));
     front.setAttribute("aria-hidden", String(open));
     back.setAttribute("aria-hidden", String(!open));
-    (open ? checkbox : front).focus({ preventScroll: true });
+    (open ? checkboxes[0] : front).focus({ preventScroll: true });
   }
   front.addEventListener("click", () => flip(true));
   backButton.addEventListener("click", () => flip(false));
-  return checkbox;
 }
 
 export class SprintCountdown {

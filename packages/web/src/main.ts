@@ -36,7 +36,7 @@ import { abandonSprintRecording, sprintRecordingFor, startSprintRecording } from
 import { SprintPlayback } from "./sprint-playback";
 import { SessionDiagnostics } from "./session-diagnostics";
 import { configuredInputLead } from "./netplay-options";
-import { mountSprintCard, SprintCountdown } from "./sprint-training";
+import { mountModeCard, SprintCountdown } from "./sprint-training";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
@@ -80,10 +80,16 @@ const clearResult = document.querySelector("#clear-result")!;
 const zenStatus = document.querySelector<HTMLParagraphElement>("#zen-status")!;
 const LETTERS = "_ZLOSIJT";
 const pressed = new Map<string, Action>();
-const sprintOption = mountSprintCard(document, () => localStorage);
+for (const mode of ["sprint", "zen"] as const) mountModeCard(document, mode, () => localStorage);
+const sprintOption = document.querySelector<HTMLInputElement>("#sprint-reset-finesse")!;
+const finesseSoundOptions = {
+  sprint: document.querySelector<HTMLInputElement>("#sprint-sound-finesse")!,
+  zen: document.querySelector<HTMLInputElement>("#zen-sound-finesse")!,
+};
 const countdown = new SprintCountdown();
 const countdownOverlay = document.querySelector<HTMLElement>("#sprint-countdown")!;
 let resetOnFinesseFault = false;
+let soundOnFinesseFault = false;
 const bindings = loadKeybinds();
 const cancelKeyCapture = setupKeybinds(bindings, updateControls);
 const skins = new SkinState(() => localStorage);
@@ -97,7 +103,7 @@ const sounds = new SoundState(() => localStorage, (pack, signal) => soundPlayer.
 const gameSounds = new GameSounds(() => sounds.preferences.enabled ? sounds.loaded?.pack : undefined,
   clips => {
     if (sounds.preferences.enabled && sounds.loaded && !document.hidden && !atHome && !settingsDialog.open && !activePlayback()) soundPlayer.play(clips, sounds.loaded);
-  });
+  }, () => !!online || soundOnFinesseFault);
 const replaySoundOutput: ReplaySoundOutput = {
   pack: () => sounds.preferences.enabled && sounds.preferences.active !== "silent" ? sounds.loaded?.pack : undefined,
   play: clips => {
@@ -242,6 +248,7 @@ async function launchMode(mode: SingleplayerMode, training = mode === "sprint" &
   countdown.cancel();
   countdownOverlay.hidden = true;
   resetOnFinesseFault = mode === "sprint" && training;
+  soundOnFinesseFault = finesseSoundOptions[mode].checked;
   stopPlayback();
   const random = new Uint32Array(1);
   do { crypto.getRandomValues(random); } while (random[0] === seed);

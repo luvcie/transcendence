@@ -3,55 +3,89 @@ import { readFileSync } from "node:fs";
 import { DEFAULT_HANDLING, Input } from "@42tris/core";
 import { mountGameplayInput } from "./src/gameplay-input";
 import { DEFAULT_KEYBINDS } from "./src/keybinds";
-import { SprintCountdown, mountSprintCard } from "./src/sprint-training";
+import { SprintCountdown, mountModeCard } from "./src/sprint-training";
 import { startSprintRecording } from "./src/sprint-recording";
 import { FakeDocument } from "./test-dom";
 
-test("Sprint card changes faces, restores focus and persists only an explicit true", () => {
+function modeCard(mode: "sprint" | "zen") {
   const doc = new FakeDocument();
-  const card = doc.querySelector("#sprint-card");
+  const card = doc.querySelector(`#${mode}-card`);
   card.classList = { ...card.classList, toggle: (name: string, enabled: boolean) => {
     if (enabled) card.classes.add(name); else card.classes.delete(name);
   } } as typeof card.classList;
-  const values = new Map([["42tris.sprint.resetOnFinesseFault", "1"]]);
+  const sound = doc.querySelector(`#${mode}-sound-finesse`);
+  sound.dataset.preference = "soundOnFinesseFault";
+  const reset = doc.querySelector("#sprint-reset-finesse");
+  reset.dataset.preference = "resetOnFinesseFault";
+  const checkboxes = mode === "sprint" ? [reset, sound] : [sound];
+  Object.assign(doc.querySelector(`#${mode}-card-back`), { querySelectorAll: () => checkboxes });
+  return { doc, card, sound, reset, checkboxes };
+}
+
+test.each(["sprint", "zen"] as const)("%s card changes faces, restores focus and persists only an explicit true", mode => {
+  const { doc, card, sound, checkboxes } = modeCard(mode);
+  const key = `42tris.${mode}.soundOnFinesseFault`;
+  const values = new Map([[key, "1"]]);
   const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) } as Storage;
-  const checkbox = mountSprintCard(doc as unknown as Document, () => storage);
-  const front = doc.querySelector("#sprint-card-front");
-  const back = doc.querySelector("#sprint-card-back");
-  expect(checkbox.checked).toBe(false);
+  mountModeCard(doc as unknown as Document, mode, () => storage);
+  const front = doc.querySelector(`#${mode}-card-front`);
+  const back = doc.querySelector(`#${mode}-card-back`);
+  expect(sound.checked).toBe(false);
   front.dispatchEvent(new Event("click"));
   expect(card.classes.has("flipped")).toBe(true);
   expect((front as unknown as HTMLElement).inert).toBe(true);
   expect((back as unknown as HTMLElement).inert).toBe(false);
   expect(front.getAttribute("aria-expanded")).toBe("true");
-  expect(doc.focused).toBe(checkbox as unknown as typeof front);
-  checkbox.checked = true;
-  checkbox.dispatchEvent(new Event("change"));
-  doc.querySelector("#sprint-back").dispatchEvent(new Event("click"));
+  expect(doc.focused).toBe(checkboxes[0]);
+  sound.checked = true;
+  sound.dispatchEvent(new Event("change"));
+  doc.querySelector(`#${mode}-back`).dispatchEvent(new Event("click"));
   expect(card.classes.has("flipped")).toBe(false);
   expect((back as unknown as HTMLElement).inert).toBe(true);
   expect(doc.focused).toBe(front);
   front.dispatchEvent(new Event("click"));
-  expect(checkbox.checked).toBe(true);
-  expect(mountSprintCard(new FakeDocument() as unknown as Document, () => storage).checked).toBe(true);
-  checkbox.checked = false;
-  checkbox.dispatchEvent(new Event("change"));
-  expect(mountSprintCard(new FakeDocument() as unknown as Document, () => storage).checked).toBe(false);
+  expect(sound.checked).toBe(true);
+  const restored = modeCard(mode);
+  mountModeCard(restored.doc as unknown as Document, mode, () => storage);
+  expect(restored.sound.checked).toBe(true);
+  sound.checked = false;
+  sound.dispatchEvent(new Event("change"));
+  expect(values.get(key)).toBe("false");
 });
 
-test("Sprint markup starts with an inert back and switches faces without animation", () => {
+test("mode cards start with inert backs; only Sprint offers reset on fault", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   expect(html).toMatch(/id="sprint-card-back" inert aria-hidden="true"/);
   expect(html).toMatch(/data-mode="sprint" type="button">Play<\/button>/);
-  expect(html).not.toMatch(/\.sprint-card[^{}]*\{[^}]*(?:transition|animation|transform):/);
+  expect(html).toMatch(/id="zen-card-back" inert aria-hidden="true"/);
+  expect(html).toMatch(/data-mode="zen" type="button">Play<\/button>/);
+  expect(html).not.toContain('id="zen-reset-finesse"');
+  expect(html).not.toMatch(/\.mode-card[^{}]*\{[^}]*(?:transition|animation|transform):/);
 });
 
-test("blocked storage defaults off and does not prevent changing the option", () => {
-  const doc = new FakeDocument();
-  const checkbox = mountSprintCard(doc as unknown as Document, () => { throw new Error("blocked"); });
-  expect(checkbox.checked).toBe(false);
-  checkbox.checked = true;
-  expect(() => checkbox.dispatchEvent(new Event("change"))).not.toThrow();
+test("sound preferences are independent of mode and Sprint reset", () => {
+  const values = new Map([["42tris.sprint.resetOnFinesseFault", "true"], ["42tris.zen.soundOnFinesseFault", "true"]]);
+  const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) } as Storage;
+  const sprint = modeCard("sprint"), zen = modeCard("zen");
+  mountModeCard(sprint.doc as unknown as Document, "sprint", () => storage);
+  mountModeCard(zen.doc as unknown as Document, "zen", () => storage);
+  expect(sprint.reset.checked).toBe(true);
+  expect(sprint.sound.checked).toBe(false);
+  expect(zen.sound.checked).toBe(true);
+  sprint.sound.checked = true;
+  sprint.sound.dispatchEvent(new Event("change"));
+  expect(values.get("42tris.sprint.soundOnFinesseFault")).toBe("true");
+  expect(values.get("42tris.sprint.resetOnFinesseFault")).toBe("true");
+});
+
+test.each(["sprint", "zen"] as const)("blocked storage defaults %s options off and still allows changes", mode => {
+  const { doc, checkboxes } = modeCard(mode);
+  mountModeCard(doc as unknown as Document, mode, () => { throw new Error("blocked"); });
+  for (const checkbox of checkboxes) {
+    expect(checkbox.checked).toBe(false);
+    checkbox.checked = true;
+    expect(() => checkbox.dispatchEvent(new Event("change"))).not.toThrow();
+  }
 });
 
 test("countdown follows the frame clock and cancellation is final", () => {

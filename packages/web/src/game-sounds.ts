@@ -13,9 +13,11 @@ export class GameSounds {
   private lastLock = 0;
   private lastFaults = 0;
   private died = false;
-  constructor(private pack: () => SoundPack | undefined, private play: (clips: SoundClip[]) => void) {}
+  constructor(private pack: () => SoundPack | undefined, private play: (clips: SoundClip[]) => void,
+    private faultEnabled = () => true) {}
   reset() { this.previous = undefined; this.identity = undefined; this.lastLock = 0; this.lastFaults = 0; this.died = false; }
   event(event: SoundEvent) {
+    if (event === "fault" && !this.faultEnabled()) return;
     const url = this.pack()?.[event];
     if (url) this.play([{ url }]);
   }

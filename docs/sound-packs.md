@@ -4,6 +4,8 @@ Open Settings → Audio to adjust music and sound effect volume or mute them. Op
 
 The catalog stores event mappings. Audio stays on the community hosts, just as skin images do. Selecting a pack loads its audio; browsing the list does not. Preview buttons leave the selection alone. Jstris+ previews load only the requested file. A TETR.IO+ preview downloads the pack's export, which holds its sounds in one recording. A failed file leaves that event silent, with a message showing how many files failed. Selecting the pack again retries failed files.
 
+The Sprint and Zen cards each offer **Sound on finesse fault**, off by default and saved separately for each mode. It enables the selected pack's `fault` sound for that mode without changing the pack or finesse tracking. Sprint's **Reset on finesse fault** option works independently. Multiplayer and replay audio keep their existing behavior.
+
 ## Zen music
 
 Zen plays the bundled `src/assets/zen.mp3`, prepared from the supplied `tetris_zenmode.wav`. Playback begins at 0:00, then loops from 22.857143 to 91.428571 seconds. These boundaries use the original 44.1 kHz frame positions 1,008,000 and 4,032,000. The last 15 ms blend into the audio immediately preceding the loop start to soften the join. The MP3 uses 160 kb/s stereo encoding and is about 1.8 MB. The source WAV is unchanged.

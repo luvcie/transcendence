@@ -8,6 +8,7 @@ import { MAX_CUSTOM_SOUNDS, parseSoundPreferences, resolveSound, SoundState } fr
 import { GameSounds } from "./src/game-sounds";
 import { snapshotDisplay } from "./src/game-display";
 import { setupSettingsTabs } from "./src/skin-settings";
+import { Singleplayer } from "./src/singleplayer";
 
 const a = "https://example.com/a.ogg", b = "https://example.com/b.ogg", c = "https://example.com/c.ogg";
 const pack: SoundPack = { name: "Test", move: a, rotate: b, harddrop: c, lock: a, hold: b };
@@ -153,6 +154,32 @@ describe("sound selection and storage", () => {
 });
 
 describe("game sound integration", () => {
+  test.each(["sprint", "zen"] as const)("%s finesse fault sound is opt-in while other sounds still play", mode => {
+    const played: SoundClip[] = [];
+    const trainingPack: SoundPack = { name: "Training", fault: a, harddrop: b };
+    let enabled = false;
+    const sounds = new GameSounds(() => trainingPack, clips => played.push(...clips), () => enabled);
+    const solo = new Singleplayer(mode, 108, 0);
+    let now = 250;
+    solo.tick(now);
+    sounds.observe(solo.game, solo.game);
+    function fault() {
+      for (const input of [Input.LeftDown, Input.LeftUp, Input.RightDown, Input.RightUp, Input.HardDrop]) {
+        solo.apply(input, ++now);
+        sounds.observe(solo.game, solo.game, input);
+      }
+    }
+    fault();
+    expect(solo.game.finesse.faults).toBe(1);
+    expect(played).toEqual([{ url: b }]);
+    enabled = true;
+    sounds.observe(solo.game, solo.game);
+    expect(played).toEqual([{ url: b }]);
+    fault();
+    expect(solo.game.finesse.faults).toBe(2);
+    expect(played).toEqual([{ url: b }, { url: b }, { url: a }]);
+    expect(trainingPack.fault).toBe(a);
+  });
   test("only successful actions sound; held keys repeat and hard drops sound once", () => {
     const played: SoundClip[] = [];
     const sounds = new GameSounds(() => pack, clips => played.push(...clips));

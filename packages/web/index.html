@@ -225,14 +225,14 @@
       .mode-name { display: flex; justify-content: space-between; gap: 16px; font-size: 20px; font-weight: bold; }
       .mode-name > span { color: #22d3ee; }
       .mode-description { line-height: 1.5; }
-      .sprint-card { display: grid; }
-      .sprint-card > * { grid-area: 1 / 1; }
-      .sprint-card-back { display: grid; gap: 12px; align-content: center; padding: 16px 24px; background: #181818; border: 1px solid #444; visibility: hidden; }
-      .sprint-card-back label { display: flex; align-items: center; gap: 8px; }
-      .sprint-card-back input { accent-color: #22d3ee; }
-      .sprint-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-      .sprint-card.flipped .sprint-card-front { visibility: hidden; }
-      .sprint-card.flipped .sprint-card-back { visibility: visible; }
+      .mode-card { display: grid; }
+      .mode-card > * { grid-area: 1 / 1; }
+      .mode-card-back { display: grid; gap: 12px; align-content: center; padding: 16px 24px; background: #181818; border: 1px solid #444; visibility: hidden; }
+      .mode-card-back label { display: flex; align-items: center; gap: 8px; }
+      .mode-card-back input { accent-color: #22d3ee; }
+      .mode-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .mode-card.flipped .mode-card-front { visibility: hidden; }
+      .mode-card.flipped .mode-card-back { visibility: visible; }
       #sprint-countdown:not([hidden]) { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; background: #0009; color: #22d3ee; font-size: clamp(32px, 8vw, 72px); font-weight: bold; }
       #game-view { position: relative; }
       #elapsed-time, #result-time, #replay-time { font-variant-numeric: tabular-nums; }
@@ -292,16 +292,23 @@
       <section id="home-view" hidden aria-labelledby="home-title">
         <h2 id="home-title" class="menu-label" tabindex="-1">Singleplayer</h2>
         <div class="mode-list" aria-label="Singleplayer modes">
-          <div class="sprint-card" id="sprint-card">
-            <button class="mode-choice sprint-card-front" id="sprint-card-front" aria-expanded="false" aria-controls="sprint-card-back"><span class="mode-name">Sprint 40L <span aria-hidden="true">→</span></span><span class="mode-description">Clear 40 lines.</span></button>
-            <div class="sprint-card-back" id="sprint-card-back" inert aria-hidden="true">
-              <label><input id="sprint-reset-finesse" type="checkbox"> Reset on finesse fault</label>
-              <div class="sprint-card-actions"><button id="sprint-back" type="button">Back</button><button class="primary" data-mode="sprint" type="button">Play</button></div>
+          <div class="mode-card" id="sprint-card">
+            <button class="mode-choice mode-card-front" id="sprint-card-front" aria-expanded="false" aria-controls="sprint-card-back"><span class="mode-name">Sprint 40L <span aria-hidden="true">→</span></span><span class="mode-description">Clear 40 lines.</span></button>
+            <div class="mode-card-back" id="sprint-card-back" inert aria-hidden="true">
+              <label><input id="sprint-reset-finesse" type="checkbox" data-preference="resetOnFinesseFault"> Reset on finesse fault</label>
+              <label><input id="sprint-sound-finesse" type="checkbox" data-preference="soundOnFinesseFault"> Sound on finesse fault</label>
+              <div class="mode-card-actions"><button id="sprint-back" type="button">Back</button><button class="primary" data-mode="sprint" type="button">Play</button></div>
             </div>
           </div>
           <button class="mode-choice" disabled><span class="mode-name">Blitz</span><span class="mode-description">Coming soon</span></button>
           <button class="mode-choice" disabled><span class="mode-name">Marathon</span><span class="mode-description">Coming soon</span></button>
-          <button class="mode-choice" data-mode="zen"><span class="mode-name">Zen <span aria-hidden="true">→</span></span><span class="mode-description">Endless practice.</span></button>
+          <div class="mode-card" id="zen-card">
+            <button class="mode-choice mode-card-front" id="zen-card-front" aria-expanded="false" aria-controls="zen-card-back"><span class="mode-name">Zen <span aria-hidden="true">→</span></span><span class="mode-description">Endless practice.</span></button>
+            <div class="mode-card-back" id="zen-card-back" inert aria-hidden="true">
+              <label><input id="zen-sound-finesse" type="checkbox" data-preference="soundOnFinesseFault"> Sound on finesse fault</label>
+              <div class="mode-card-actions"><button id="zen-back" type="button">Back</button><button class="primary" data-mode="zen" type="button">Play</button></div>
+            </div>
+          </div>
         </div>
       </section>
       <section id="online" hidden aria-label="Online play"></section>
