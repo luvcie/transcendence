@@ -81,7 +81,7 @@
       .setting p { margin: 6px 0 0; }
       #storage-note { color: #eab308; }
       [hidden] { display: none !important; }
-      [role=tablist] { display: flex; gap: 8px; }
+      [role=tablist] { display: flex; flex-wrap: wrap; gap: 8px; }
       [role=tab][aria-selected=true] { border-color: #22d3ee; color: #22d3ee; }
       .skin-option, .sound-option { border-top: 1px solid #383838; padding: 14px 0; }
       .skin-head, .sound-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -366,7 +366,8 @@
       <div role="tablist" aria-label="Settings sections">
         <button id="tab-general" role="tab" aria-selected="true" aria-controls="settings-general">General</button>
         <button id="tab-skins" role="tab" aria-selected="false" aria-controls="settings-skins" tabindex="-1">Skins</button>
-        <button id="tab-sounds" role="tab" aria-selected="false" aria-controls="settings-sounds" tabindex="-1">Sounds</button>
+        <button id="tab-sounds" role="tab" aria-selected="false" aria-controls="settings-sounds" tabindex="-1">SFX</button>
+        <button id="tab-audio" role="tab" aria-selected="false" aria-controls="settings-audio" tabindex="-1">Audio</button>
       </div>
       <section id="settings-general" role="tabpanel" aria-labelledby="tab-general" tabindex="0">
       <h2>Display</h2>
@@ -420,13 +421,8 @@
         <div id="skin-list"></div>
       </section>
       <section id="settings-sounds" role="tabpanel" aria-labelledby="tab-sounds" tabindex="0" hidden>
-        <h2>Sounds</h2>
+        <h2>Sound effects</h2>
         <p id="sound-selected" class="hint"></p>
-        <label><input id="sounds-enabled" type="checkbox" checked> Enable sound effects</label>
-        <div class="setting">
-          <label for="sound-volume">Volume</label>
-          <div class="inputs"><input id="sound-volume" type="range" min="0" max="100" step="1" value="50"><output id="sound-volume-value" for="sound-volume">50%</output></div>
-        </div>
         <p id="sound-credit" class="hint"></p>
         <form id="sound-form" novalidate>
           <label for="custom-sound">Custom sound pack link or JSON</label>
@@ -447,6 +443,22 @@
         </div>
         <p id="sound-empty" class="hint" role="status" hidden>No sound packs match your search.</p>
         <div id="sound-list"></div>
+      </section>
+      <section id="settings-audio" role="tabpanel" aria-labelledby="tab-audio" tabindex="0" hidden>
+        <h2>Music</h2>
+        <label><input id="music-enabled" type="checkbox" checked aria-describedby="music-help"> Enable Zen music</label>
+        <p id="music-help" class="hint">Plays during Zen only. Music pauses with your game.</p>
+        <div class="setting">
+          <label for="music-volume">Music volume</label>
+          <div class="inputs"><input id="music-volume" type="range" min="0" max="100" step="1" value="50"><output id="music-volume-value" for="music-volume">50%</output></div>
+        </div>
+        <p id="music-note" class="hint" role="status"></p>
+        <h2>Sound effects</h2>
+        <label><input id="sounds-enabled" type="checkbox" checked> Enable sound effects</label>
+        <div class="setting">
+          <label for="sound-volume">Sound effects volume</label>
+          <div class="inputs"><input id="sound-volume" type="range" min="0" max="100" step="1" value="50"><output id="sound-volume-value" for="sound-volume">50%</output></div>
+        </div>
       </section>
       <div class="actions">
         <button id="settings-back">Back</button>

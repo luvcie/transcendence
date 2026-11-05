@@ -252,31 +252,41 @@ describe("audio loading and playback", () => {
   });
 });
 
-test("settings tabs wrap across all three tabs and close resets the active panel", () => {
+test("settings tabs wrap across General, Skins, SFX and Audio and close resets the active panel", () => {
   class Tab extends EventTarget {
     tabIndex = -1; attributes = new Map<string, string>(); focused = false;
     setAttribute(key: string, value: string) { this.attributes.set(key, value); }
     focus() { this.focused = true; }
   }
-  const tabs = [new Tab(), new Tab(), new Tab()];
+  const tabs = [new Tab(), new Tab(), new Tab(), new Tab()];
   const dialog = new EventTarget() as HTMLDialogElement;
   dialog.querySelectorAll = (() => tabs) as unknown as HTMLDialogElement["querySelectorAll"];
   const general = { hidden: false };
+  const audio = { hidden: true };
   const original = globalThis.document;
   const panels = [false, false];
-  Object.assign(globalThis, { document: { querySelector: (selector: string) => selector === "#settings-dialog" ? dialog : general } });
+  Object.assign(globalThis, { document: { querySelector: (selector: string) => selector === "#settings-dialog" ? dialog
+    : selector === "#settings-audio" ? audio : general } });
   try {
     setupSettingsTabs(() => {}, open => { panels[0] = open; }, open => { panels[1] = open; });
     const left = new Event("keydown"); Object.defineProperty(left, "key", { value: "ArrowLeft" });
     tabs[0].dispatchEvent(left);
-    expect(panels).toEqual([false, true]);
+    expect(panels).toEqual([false, false]);
     expect(general.hidden).toBe(true);
+    expect(audio.hidden).toBe(false);
+    expect(tabs[3].tabIndex).toBe(0);
+    const previous = new Event("keydown"); Object.defineProperty(previous, "key", { value: "ArrowLeft" });
+    tabs[3].dispatchEvent(previous);
+    expect(panels).toEqual([false, true]);
+    expect(audio.hidden).toBe(true);
     expect(tabs[2].tabIndex).toBe(0);
     const end = new Event("keydown"); Object.defineProperty(end, "key", { value: "End" });
     tabs[1].dispatchEvent(end);
-    expect(tabs[2].attributes.get("aria-selected")).toBe("true");
+    expect(tabs[3].attributes.get("aria-selected")).toBe("true");
+    expect(audio.hidden).toBe(false);
     dialog.dispatchEvent(new Event("close"));
     expect(general.hidden).toBe(false);
+    expect(audio.hidden).toBe(true);
     expect(panels).toEqual([false, false]);
   } finally {
     if (original) Object.assign(globalThis, { document: original });

@@ -222,10 +222,12 @@ export function setupSettingsTabs(cancelCapture: () => void, showSkins: (open: b
   const dialog = document.querySelector<HTMLDialogElement>("#settings-dialog")!;
   const tabs = [...dialog.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
   const general = document.querySelector<HTMLElement>("#settings-general")!;
+  const audio = document.querySelector<HTMLElement>("#settings-audio")!;
   function activate(index: number) {
     cancelCapture();
     tabs.forEach((tab, i) => { tab.setAttribute("aria-selected", String(i === index)); tab.tabIndex = i === index ? 0 : -1; });
     general.hidden = index !== 0;
+    audio.hidden = index !== 3;
     showSkins(index === 1);
     showSounds(index === 2);
   }

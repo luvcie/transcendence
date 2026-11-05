@@ -20,7 +20,7 @@ export class SoundPlayer {
 
   constructor(private makeContext = () => new AudioContext({ latencyHint: "interactive" }), private fetchFile = fetchExternalFile) {}
 
-  private audio() {
+  audio() {
     if (!this.context) {
       this.context = this.makeContext();
       this.gain = this.context.createGain();

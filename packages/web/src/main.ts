@@ -16,6 +16,8 @@ import { setupSettingsTabs, setupSkins } from "./skin-settings";
 import { SoundPlayer } from "./sound-player";
 import { SoundState } from "./sound-state";
 import { setupSounds } from "./sound-settings";
+import { ZenMusic } from "./zen-music";
+import { setupMusic } from "./music-settings";
 import { GameSounds } from "./game-sounds";
 import { withMatchReplaySounds, withSprintReplaySounds, type ReplaySoundOutput } from "./replay-sounds";
 import { drawPiecePreview } from "./tile-renderer";
@@ -89,6 +91,8 @@ void skins.select(skins.preferences.active, false);
 const multiplayerSkins = new MultiplayerSkinPreference();
 setupMultiplayerSkinSetting(multiplayerSkins);
 const soundPlayer = new SoundPlayer();
+const music = new ZenMusic(() => soundPlayer.audio(), () => localStorage);
+setupMusic(music, syncZenMusic);
 const sounds = new SoundState(() => localStorage, (pack, signal) => soundPlayer.load(pack, signal));
 const gameSounds = new GameSounds(() => sounds.preferences.enabled ? sounds.loaded?.pack : undefined,
   clips => {
@@ -138,6 +142,7 @@ let solo: Singleplayer | SprintRecorder | null = null;
 let soundedResult: Singleplayer["result"] = null;
 let soundedGame: Singleplayer["game"] | null = null;
 let pendingMode: SingleplayerMode | null = null;
+let modeRequest = 0;
 let display: GameDisplay | null = null;
 let playback: SprintPlayback | null = null;
 let competitivePlayback: ReturnType<typeof mountCompetitivePlayback> | null = null;
@@ -157,6 +162,11 @@ const abandonDialog = document.querySelector<HTMLDialogElement>("#abandon-dialog
 const pauseButton = document.querySelector<HTMLElement>("#pause-button")!;
 const navSettingsButton = document.querySelector<HTMLButtonElement>("#nav-settings-button")!;
 
+function syncZenMusic() {
+  void music.setPlaying(!atHome && !online && solo?.mode === "zen" && !solo.paused
+    && !activePlayback() && !document.hidden && !settingsDialog.open && !pauseDialog.open && !abandonDialog.open);
+}
+
 function releaseSoloControls() {
   for (const action of new Set(pressed.values())) {
     const binding = ACTIONS[action];
@@ -174,17 +184,25 @@ function focusView() {
 function pause() {
   if (playback || online || !solo || solo.mode === "sprint" || solo.paused || solo.result) return;
   solo.setPaused(true, performance.now());
+  syncZenMusic();
   refreshHud();
   if (solo.result) return;
   pressed.clear();
   pauseDialog.showModal();
 }
 
-function resume() {
+async function resume() {
+  const game = solo;
+  const request = modeRequest;
+  if (!online && !playback && game?.mode === "zen") {
+    await music.prepare();
+    if (solo !== game || request !== modeRequest || document.hidden || !document.hasFocus()) return;
+  }
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.close();
   if (!online && !playback) solo?.setPaused(false, performance.now());
+  syncZenMusic();
   focusView();
 }
 
@@ -203,6 +221,7 @@ function openSettings(fromMenu: boolean) {
     pressed.clear();
   }
   settingsDialog.showModal();
+  syncZenMusic();
 }
 
 function closeSettings() {
@@ -212,7 +231,14 @@ function closeSettings() {
   pauseDialog.showModal();
 }
 
-function launchMode(mode: SingleplayerMode, training = mode === "sprint" && sprintOption.checked) {
+async function launchMode(mode: SingleplayerMode, training = mode === "sprint" && sprintOption.checked) {
+  const request = ++modeRequest;
+  if (mode === "zen") {
+    status.textContent = "Loading Zen…";
+    status.hidden = false;
+    await music.prepare();
+    if (request !== modeRequest) return;
+  } else music.release();
   countdown.cancel();
   countdownOverlay.hidden = true;
   resetOnFinesseFault = mode === "sprint" && training;
@@ -240,18 +266,23 @@ function launchMode(mode: SingleplayerMode, training = mode === "sprint" && spri
   refreshHud();
   status.textContent = `${SINGLEPLAYER_MODES[mode].name} · ${solo.game.width} wide`;
   pressed.clear();
+  if (mode === "zen" && (document.hidden || !document.hasFocus() || settingsDialog.open)) {
+    solo.setPaused(true, performance.now());
+    if (!settingsDialog.open) pauseDialog.showModal();
+  }
+  syncZenMusic();
   focusView();
 }
 
 function restart() {
   if (activePlayback()) return;
   if (online) { online.session.practice("practiceReset"); return; }
-  if (solo) launchMode(solo.mode, resetOnFinesseFault);
+  if (solo) void launchMode(solo.mode, resetOnFinesseFault);
 }
 
 function restartOnFinesseFault(): boolean {
   if (!resetOnFinesseFault || !(solo instanceof SprintRecorder)
-    || !countdown.restartOnFault(solo.game.finesse.faults, () => launchMode("sprint", true), () => performance.now())) return false;
+    || !countdown.restartOnFault(solo.game.finesse.faults, () => { void launchMode("sprint", true); }, () => performance.now())) return false;
   countdownOverlay.textContent = "3";
   countdownOverlay.hidden = false;
   return true;
@@ -262,6 +293,7 @@ async function abandonSolo(): Promise<boolean> {
   const wasPaused = solo.paused;
   if (solo.mode === "zen") solo.setPaused(true, performance.now());
   else releaseSoloControls();
+  syncZenMusic();
   pressed.clear();
   refreshHud();
   if (!solo.active) return true;
@@ -273,6 +305,7 @@ async function abandonSolo(): Promise<boolean> {
   abandonDialog.showModal();
   if (!await choice) {
     if (!wasPaused && solo.mode === "zen") solo.setPaused(false, performance.now());
+    syncZenMusic();
     if (!document.querySelector("dialog[open]")) {
       if (solo.result) document.querySelector<HTMLElement>("#sprint-result-title")!.focus({ preventScroll: true });
       else focusView();
@@ -291,6 +324,8 @@ function closeMenus() {
 
 async function enterHome() {
   if (!await abandonSolo()) return;
+  modeRequest++;
+  music.release();
   countdown.cancel();
   countdownOverlay.hidden = true;
   stopPlayback();
@@ -322,11 +357,13 @@ async function chooseMode(mode: SingleplayerMode) {
   }
   if (!await abandonSolo()) return;
   closeMenus();
-  launchMode(mode);
+  void launchMode(mode);
 }
 
 async function enterOnline() {
   if (!await abandonSolo()) return;
+  modeRequest++;
+  music.release();
   countdown.cancel();
   countdownOverlay.hidden = true;
   stopPlayback();
@@ -359,7 +396,7 @@ async function enterOnline() {
       closeMenus();
       const mode = pendingMode;
       pendingMode = null;
-      if (mode) launchMode(mode);
+      if (mode) void launchMode(mode);
       else enterHome();
     },
   });
@@ -391,6 +428,7 @@ for (const dialog of [pauseDialog, settingsDialog]) {
   dialog.addEventListener("cancel", e => e.preventDefault());
 }
 function handleFocusLoss() {
+  void music.setPlaying(false);
   soundPlayer.stop();
   if (activePlayback()) {
     activePlayback()!.pause();
@@ -693,6 +731,6 @@ function frame(now: number) {
 }
 
 let frameId = requestAnimationFrame(frame);
-window.addEventListener("pagehide", e => { soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { unmountInput(); replayControls.dispose(); stopPlayback(); } });
+window.addEventListener("pagehide", e => { modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { unmountInput(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
 if (!atHome) enterOnline();
