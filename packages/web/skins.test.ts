@@ -102,6 +102,27 @@ describe("sheet layout and rendering", () => {
 });
 
 describe("image loader", () => {
+  test("waits for image decoding and permits retry after a decode failure", async () => {
+    const decoding = deferred<void>(), images: HTMLImageElement[] = [];
+    const load = createSkinLoader(() => {
+      const img = fakeImage();
+      img.decode = () => images[0] === img ? decoding.promise : Promise.resolve();
+      images.push(img);
+      return img;
+    });
+    const first = load(four);
+    let finished = false;
+    void first.then(() => { finished = true; }, () => { finished = true; });
+    images[0].onload!(new Event("load"));
+    await Promise.resolve();
+    expect(finished).toBe(false);
+    decoding.reject(new Error("Image decoding failed"));
+    await expect(first).rejects.toThrow("Image decoding failed");
+    const retry = load(four);
+    expect(images).toHaveLength(2);
+    images[1].onload!(new Event("load"));
+    expect((await retry)!.image).toBe(images[1]);
+  });
   test("invalid dimensions are evicted so a corrected same-URL image can retry", async () => {
     const images: HTMLImageElement[] = [];
     const load = createSkinLoader(() => {

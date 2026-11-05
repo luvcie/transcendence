@@ -1,11 +1,13 @@
 import type { PieceId } from "@42tris/core";
 import { BUILTIN_SKINS, customSkin, SKIN_DATABASE, TETRIO_SKIN_DATABASE, type SkinDef } from "./skin-catalog";
 import { SkinState } from "./skin-state";
-import { drawPiecePreview } from "./tile-renderer";
+import { drawPiecePreview, skinFrame } from "./tile-renderer";
 import { resolveSkin } from "./skin-preferences";
 import { createSettingsGroup, setupSettingsSearch } from "./settings-search";
+import { SKIN_CACHE_LIMIT, type LoadedSkin } from "./skin-loader";
+import { createSkinPreviewLoader } from "./skin-preview-loader";
 
-export function setupSkins(state: SkinState) {
+export function setupSkins(state: SkinState, loadPreview = createSkinPreviewLoader(state.load)) {
   const panel = document.querySelector<HTMLElement>("#settings-skins")!;
   const list = document.querySelector<HTMLElement>("#skin-list")!;
   const filter = setupSettingsSearch(document.querySelector<HTMLInputElement>("#skin-search")!, list,
@@ -17,6 +19,20 @@ export function setupSkins(state: SkinState) {
   let visible = false;
   let generation = 0;
   const previews = new Map<Element, (visible: boolean) => void>();
+  const retained = new Map<Element, () => boolean>();
+  const pending = new Set<() => Promise<void>>();
+  let loading = 0;
+  function loadPreviews() {
+    for (const load of pending) {
+      if (loading === 2) break;
+      pending.delete(load);
+      loading++;
+      void load().finally(() => { loading--; loadPreviews(); });
+    }
+  }
+  function releasePreview(skin?: LoadedSkin) {
+    if (skin?.preview && "src" in skin.image) skin.image.src = "";
+  }
   const observer = typeof IntersectionObserver === "undefined" ? undefined : new IntersectionObserver(entries => {
     for (const entry of entries) previews.get(entry.target)?.(entry.isIntersecting);
   }, { root: document.querySelector("#settings-dialog"), rootMargin: "100px" });
@@ -81,31 +97,51 @@ export function setupSkins(state: SkinState) {
     status.className = "hint";
     const paint = (skin?: Awaited<ReturnType<typeof state.load>>) => {
       canvases.forEach((canvas, i) => {
+        if (!canvas.width) canvas.width = 136;
         const ctx = canvas.getContext("2d")!;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawPiecePreview(ctx, (i + 1) as PieceId, 32, canvas.width, canvas.height, 0, skin);
       });
     };
     const current = generation;
-    let onScreen = false, started = false, frame = 0, revision = 0;
+    let onScreen = false, started = false, ready = false, animated = false, frame = 0, revision = 0, paintedFrame = -1;
     let previewSkin: Awaited<ReturnType<typeof state.load>>;
-    const animate = () => {
-      if (current !== generation || !onScreen) return;
-      paint(previewSkin);
-      if (previewSkin?.animation) frame = requestAnimationFrame(animate);
-    };
-    const load = () => {
-      const request = ++revision;
-      paint();
-      status.textContent = def.url ? "Loading preview…" : "Made with code.";
-      void state.load(def).then(skin => {
-        if (current !== generation || request !== revision) return;
-        if (skin?.animation) { previewSkin = skin; animate(); }
-        else paint(skin);
-        status.textContent = def.url ? "" : "Made with code.";
-      }).catch((error: Error) => {
-        if (current === generation && request === revision) status.textContent = `${error.message} Preview uses Classic colors.`;
+    const remember = () => {
+      retained.delete(item);
+      retained.set(item, () => {
+        if (onScreen) return false;
+        canvases.forEach(canvas => { canvas.width = 0; });
+        ready = started = false;
+        return true;
       });
+      for (const [item, release] of retained) {
+        if (retained.size <= SKIN_CACHE_LIMIT) break;
+        if (release()) retained.delete(item);
+      }
+    };
+    const animate = () => {
+      if (current !== generation || !onScreen || !previewSkin) return;
+      const next = skinFrame(previewSkin);
+      if (next !== paintedFrame) { paintedFrame = next; paint(previewSkin); }
+      frame = requestAnimationFrame(animate);
+    };
+    const load = async () => {
+      const request = ++revision;
+      if (!ready) {
+        paint();
+        status.textContent = def.url ? "Loading preview…" : "Made with code.";
+      }
+      try {
+        const skin = await loadPreview(def);
+        if (current !== generation || request !== revision) { releasePreview(skin); return; }
+        ready = true; animated = !!skin?.animation;
+        remember();
+        if (skin?.animation) { previewSkin = skin; animate(); }
+        else { paint(skin); releasePreview(skin); }
+        status.textContent = def.url ? "" : "Made with code.";
+      } catch (error) {
+        if (current === generation && request === revision) status.textContent = `${(error as Error).message} Preview uses Classic colors.`;
+      }
     };
     item.append(head, row, status);
     if (def.source) {
@@ -116,17 +152,28 @@ export function setupSkins(state: SkinState) {
     const show = (show: boolean) => {
       onScreen = show;
       cancelAnimationFrame(frame);
-      if (!show) { revision++; previewSkin = undefined; started = false; return; }
-      if (!started) { started = true; load(); }
+      if (!show) {
+        pending.delete(load);
+        revision++; releasePreview(previewSkin); previewSkin = undefined; paintedFrame = -1;
+        if (!ready || current !== generation) {
+          canvases.forEach(canvas => { canvas.width = 0; });
+          ready = false; retained.delete(item);
+        }
+        started = ready && !animated;
+        return;
+      }
+      if (ready) remember();
+      if (!started) { started = true; pending.add(load); loadPreviews(); }
       else if (previewSkin) animate();
     };
-    if (observer) { previews.set(item, show); observer.observe(item); }
+    previews.set(item, show);
+    if (observer) observer.observe(item);
     else show(true);
     return item;
   }
   function render() {
     generation++;
-    observer?.disconnect(); previews.forEach(show => show(false)); previews.clear(); list.replaceChildren();
+    observer?.disconnect(); previews.forEach(show => show(false)); previews.clear(); retained.clear(); list.replaceChildren();
     const groups: [string, readonly SkinDef[]][] = [
       ["42tris", BUILTIN_SKINS.filter(def => !def.url)],
       ["Jstris community", BUILTIN_SKINS.filter(def => def.url && !def.url.startsWith(TETRIO_SKIN_DATABASE))],
@@ -164,7 +211,7 @@ export function setupSkins(state: SkinState) {
     visible = open;
     if (open) render();
     else {
-      generation++; observer?.disconnect(); previews.forEach(show => show(false)); previews.clear();
+      generation++; observer?.disconnect(); previews.forEach(show => show(false)); previews.clear(); retained.clear();
       state.cancelPendingAdd();
     }
     panel.hidden = !open;

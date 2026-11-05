@@ -4,7 +4,7 @@ import { isTetrioExportUrl } from "./tetrio-sounds";
 import { convertTetrioSkin, MAX_SKIN_EXPORT_BYTES, parseTetrioSkin } from "./tetrio-skins";
 
 type SkinImage = HTMLImageElement | HTMLCanvasElement;
-interface SkinSheet { image: SkinImage; connected?: boolean; animation?: { frames: number; delay: number } }
+interface SkinSheet { image: SkinImage; connected?: boolean; preview?: boolean; animation?: { frames: number; delay: number } }
 export interface LoadedSkin extends SkinSheet { def: SkinDef; tile: number }
 export const SKIN_CACHE_LIMIT = 96;
 export const SKIN_CACHE_BYTES = 64 * 1024 * 1024;
@@ -48,7 +48,7 @@ export function createSkinLoader(makeImage = () => new Image(), timeoutMs = 10_0
       img.onload = () => finish();
       img.onerror = () => finish(new Error("Skin image could not load. Check the link or try again."));
       img.src = url;
-    });
+    }).then(async img => { await img.decode?.(); return img; });
   }
   function image(url: string): Promise<SkinSheet> {
     const cached = images.get(url);
@@ -60,7 +60,7 @@ export function createSkinLoader(makeImage = () => new Image(), timeoutMs = 10_0
     const request = isTetrioExportUrl(url)
       ? fetchExternalFile(url, MAX_SKIN_EXPORT_BYTES, new AbortController().signal, timeoutMs)
         .then(bytes => parseTetrioSkin(JSON.parse(new TextDecoder().decode(bytes))))
-        .then(async data => ({ image: convertTetrioSkin(await loadImage(data.image), makeCanvas, data.frames), connected: true,
+        .then(async data => ({ image: await convertTetrioSkin(await loadImage(data.image), makeCanvas, data.frames), connected: true,
           ...(data.frames > 1 ? { animation: { frames: data.frames, delay: data.delay } } : {}) }))
       : loadImage(url).then(image => ({ image }));
     const entry = { request, pending: true, bytes: 0 };

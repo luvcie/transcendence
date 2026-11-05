@@ -1,5 +1,6 @@
 export const MAX_SKIN_EXPORT_BYTES = 16 * 1024 * 1024;
 export const TETRIO_SKIN_ROWS = 24;
+export const TETRIO_PIECE_OFFSETS = [[0, 0], [4, 0], [8, 0], [12, 0], [0, 6], [4, 6], [8, 6]];
 // TETR.IO+ atlas rows for top/right/bottom/left bits 8/4/2/1, plus bit 16 for an inner corner.
 export const TETRIO_CONNECTION_ROWS = [12, 15, 0, 3, 13, 14, 1, 2, 8, 11, 4, 7, 9, 10, 5, 6,
   12, 15, 0, 17, 13, 14, 16, 22, 8, 21, 4, 23, 20, 18, 19, 6];
@@ -29,7 +30,7 @@ export function parseTetrioSkin(value: unknown): { image: string; frames: number
   return { image: data.skinAnim as string, frames, delay };
 }
 
-export function convertTetrioSkin(image: HTMLImageElement, makeCanvas = () => document.createElement("canvas"), frames = 1): HTMLCanvasElement {
+export async function convertTetrioSkin(image: HTMLImageElement, makeCanvas = () => document.createElement("canvas"), frames = 1): Promise<HTMLCanvasElement> {
   const columns = Math.min(frames, 16), rows = Math.ceil(frames / 16);
   const width = image.naturalWidth / columns;
   if (!Number.isInteger(frames) || frames < 1 || frames > 64 || width !== image.naturalHeight / rows
@@ -41,11 +42,12 @@ export function convertTetrioSkin(image: HTMLImageElement, makeCanvas = () => do
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Skin conversion needs a 2D canvas.");
   ctx.imageSmoothingEnabled = false;
-  const pieces = [[0, 0], [4, 0], [8, 0], [12, 0], [0, 6], [4, 6], [8, 6]];
   for (let frame = 0; frame < frames; frame++) {
+    // Let input and scrolling run between animation frames.
+    if (frame > 0) await new Promise(resolve => setTimeout(resolve, 0));
     const fx = frame % columns, fy = Math.floor(frame / columns);
     for (let row = 0; row < TETRIO_SKIN_ROWS; row++) {
-      pieces.forEach(([x, y], i) => ctx.drawImage(image,
+      TETRIO_PIECE_OFFSETS.forEach(([x, y], i) => ctx.drawImage(image,
         fx * width + (x + row % 4) * cell + padding, fy * width + (y + Math.floor(row / 4)) * cell + padding,
         sourceTile, sourceTile, (fx * 9 + i + 2) * tile, (fy * TETRIO_SKIN_ROWS + row) * tile, tile, tile));
     }
