@@ -85,12 +85,11 @@
       main:not([data-view=solo]):not([data-view=playing]) #volume-overlay { display: none; }
       @media (max-width: 480px) { #volume-overlay { font-size: 1.2em; } }
       @media (prefers-reduced-motion: reduce) { #volume-overlay.fading { opacity: 1; transition: none; } }
-      #exit-hold { position: fixed; top: 0; left: 0; right: 0; z-index: 4; display: grid; place-items: center; padding: 0 16px; text-align: center; color: #fff; font-size: clamp(13px, 2vw, 18px); font-weight: bold; pointer-events: none; }
-      #exit-hold::before { content: ""; position: absolute; inset: 0; background: #b15860f2; border-bottom: 2px solid #df9299; transform-origin: top; animation: exit-hold-grow var(--exit-hold-duration) linear forwards; }
-      #exit-hold span { position: relative; animation: exit-hold-label var(--exit-hold-duration) linear both; }
-      @keyframes exit-hold-grow { 0% { transform: scaleY(1); opacity: 1; } 86% { transform: scaleY(1.24); opacity: 1; } 94% { transform: scaleY(1.4); opacity: .95; } 100% { transform: scaleY(1.55); opacity: 0; } }
-      @keyframes exit-hold-label { 0% { transform: scale(1); opacity: 1; } 86% { transform: scale(1.025); opacity: 1; } 94% { transform: scale(1.08); opacity: .9; } 100% { transform: scale(1.12); opacity: 0; } }
-      @media (prefers-reduced-motion: reduce) { #exit-hold::before, #exit-hold span { animation: none; } }
+      #exit-hold { position: fixed; top: 0; left: 0; right: 0; z-index: 4; display: grid; place-items: center; padding: 0 16px; text-align: center; color: #fff; font-size: clamp(13px, 2vw, 18px); font-weight: bold; pointer-events: none; transform-origin: top; animation: exit-hold-grow var(--exit-hold-duration) linear forwards; }
+      #exit-hold::before { content: ""; position: absolute; inset: 0; background: #b15860f2; border-bottom: 2px solid #df9299; }
+      #exit-hold span { position: relative; }
+      @keyframes exit-hold-grow { 0% { transform: scale(1); opacity: 1; } 86% { transform: scale(1.24); opacity: 1; } 94% { transform: scale(1.4); opacity: .95; } 100% { transform: scale(1.55); opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) { #exit-hold { animation: none; } }
       input[type=number] { width: 70px; background: #111; border: 1px solid #666; color: #eee; padding: 6px; }
       output { display: block; color: #22d3ee; margin-top: 6px; }
       .setting p { margin: 6px 0 0; }
