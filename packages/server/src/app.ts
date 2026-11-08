@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { ClientCommandSchema, ServerMessageSchema, type ServerMessage } from "@42tris/protocol";
 import { NetplayMetrics } from "./netplay-metrics";
 import { Rooms, type Peer } from "./rooms";
+import { createSkinSource } from "./skin-source";
 
 export interface ServerOptions {
   rooms?: Rooms;
@@ -25,6 +26,7 @@ export function createApp(options: ServerOptions = {}) {
   const rooms = options.rooms ?? new Rooms();
   if (process.env.NETPLAY_METRICS === "1") rooms.metrics ??= new NetplayMetrics(rooms.now());
   const metrics = rooms.metrics;
+  const skinSource = createSkinSource();
   const sockets = new Map<string, SocketLease>();
   const rawLeases = new WeakMap<object, SocketLease>();
   const attempts = new Map<string, { count: number; since: number }>();
@@ -49,6 +51,7 @@ export function createApp(options: ServerOptions = {}) {
       attempts.set(ip, attempt);
     })
     .get("/api/health", () => ({ ok: true as const, protocol: 1 as const, serverNow: rooms.now() }))
+    .get("/api/skin-source", ({ query }) => skinSource(query.path))
     .get("/api/rooms/:code/replay", ({ params, request }) => {
       const authorization = request.headers.get("authorization");
       const access = rooms.replayAccess(params.code, authorization?.startsWith("Bearer ") ? authorization.slice(7) : undefined);

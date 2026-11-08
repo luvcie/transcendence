@@ -1,20 +1,31 @@
 import { MINOS, pieceEdges, type PieceId } from "@42tris/core";
 import type { LoadedSkin } from "./skin-loader";
-import { TETRIO_CONNECTION_ROWS, TETRIO_PIECE_OFFSETS, TETRIO_SKIN_ROWS } from "./tetrio-skins";
+import { TETRIO_CONNECTION_ROWS, TETRIO_SKIN_ROWS } from "./tetrio-skins";
 
 export const COLORS = ["", "#ef4444", "#f97316", "#eab308", "#22c55e", "#22d3ee", "#3b82f6", "#a855f7", "#6b7280"];
 
 export function skinFrame(skin: LoadedSkin): number {
+  const ends = skin.animation?.frameEnds;
+  if (ends) {
+    const time = performance.now() % ends[ends.length - 1];
+    for (let frame = 0; frame < ends.length; frame++) if (time < ends[frame]) return frame;
+  }
   return skin.animation ? Math.floor(performance.now() * 60 / (1000 * skin.animation.delay)) % skin.animation.frames : 0;
 }
 
 export function drawTile(ctx: CanvasRenderingContext2D, id: number, x: number, y: number,
-  size: number, skin?: LoadedSkin, connections = 0, ghost = false) {
+  size: number, skin?: LoadedSkin, connections = 0, ghost = false, frame = skin ? skinFrame(skin) : 0) {
   // Ghosts and garbage never read sprite columns, including with a custom sheet.
   if (skin && !ghost && id >= 1 && id <= 7) {
     const row = skin.connected ? TETRIO_CONNECTION_ROWS[connections]
       : skin.def.join ? (connections & 8 ? skin.def.join.joined : skin.def.join.open) : 0;
-    const frame = skinFrame(skin);
+    if (skin.tiles) {
+      const tile = skin.tiles[(frame * TETRIO_SKIN_ROWS + row) * 7 + id - 1];
+      const columns = skin.image.width / skin.tile;
+      ctx.drawImage(skin.image, tile % columns * skin.tile, Math.floor(tile / columns) * skin.tile,
+        skin.tile, skin.tile, x, y, size, size);
+      return;
+    }
     const columns = Math.min(skin.animation?.frames ?? 1, 16);
     ctx.drawImage(skin.image, (frame % columns * 9 + id + 1) * skin.tile,
       (Math.floor(frame / columns) * TETRIO_SKIN_ROWS + row) * skin.tile, skin.tile, skin.tile, x, y, size, size);
@@ -49,43 +60,15 @@ export function previewLayout(piece: PieceId, width: number, height: number, cel
 
 export function drawPiecePreview(ctx: CanvasRenderingContext2D, piece: PieceId, cell: number,
   width: number, height: number, offsetY = 0, skin?: LoadedSkin) {
-  if (skin?.preview) {
-    const frame = skinFrame(skin), columns = Math.min(skin.animation?.frames ?? 1, 16);
-    ctx.drawImage(skin.image, (frame % columns * 7 + piece - 1) * 128, Math.floor(frame / columns) * 64,
-      128, 64, (width - cell * 4) / 2, offsetY + (height - cell * 2) / 2, cell * 4, cell * 2);
-    return;
-  }
+  const frame = skin ? skinFrame(skin) : 0;
   const minos = MINOS[piece][0];
   const offset = previewLayout(piece, width, height, cell);
   for (let i = 0; i < 8; i += 2) {
     const x = offset.x + minos[i] * cell, y = offsetY + offset.y + minos[i + 1] * cell;
-    drawTile(ctx, piece, x, y, cell, skin, pieceConnections(minos, i));
+    drawTile(ctx, piece, x, y, cell, skin, pieceConnections(minos, i), false, frame);
     if (!skin) {
       ctx.strokeStyle = "#333";
       ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
     }
   }
-}
-
-export function renderSkinPreview(image: ImageBitmap, frames: number,
-  makeCanvas = (width: number, height: number) => new OffscreenCanvas(width, height)): OffscreenCanvas {
-  const columns = Math.min(frames, 16), rows = Math.ceil(frames / 16);
-  const width = image.width / columns, cell = width * 3 / 64, padding = width >= 2048 ? 2 : 1;
-  const canvas = makeCanvas(128 * 7 * columns, 64 * rows);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Skin preview needs a 2D canvas.");
-  ctx.imageSmoothingEnabled = false;
-  for (let frame = 0; frame < frames; frame++) {
-    const fx = frame % columns, fy = Math.floor(frame / columns);
-    TETRIO_PIECE_OFFSETS.forEach(([ox, oy], i) => {
-      const minos = MINOS[i + 1][0], offset = previewLayout((i + 1) as PieceId, 128, 64, 32);
-      for (let j = 0; j < 8; j += 2) {
-        const row = TETRIO_CONNECTION_ROWS[pieceConnections(minos, j)];
-        ctx.drawImage(image, fx * width + (ox + row % 4) * cell + padding,
-          fy * width + (oy + Math.floor(row / 4)) * cell + padding, cell - padding * 2, cell - padding * 2,
-          (fx * 7 + i) * 128 + offset.x + minos[j] * 32, fy * 64 + offset.y + minos[j + 1] * 32, 32, 32);
-      }
-    });
-  }
-  return canvas;
 }
