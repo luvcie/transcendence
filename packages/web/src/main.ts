@@ -1,3 +1,4 @@
+import { setText, setHidden, setDisabled, setAttributeIfChanged } from "./dom-update";
 import { mountReplayControls } from "./replay-controls";
 import { mountCompetitivePlayback } from "./competitive-playback";
 import type { requestCompetitiveReplay } from "./replay-request";
@@ -576,17 +577,17 @@ async function watchSprintReplay(): Promise<void> {
 function refreshHud() {
   if (!display) return;
   const sprint = playback !== null || (!online && solo?.mode === "sprint");
-  sprintClock.hidden = !sprint;
-  elapsedTime.textContent = formatTime(playback ? playback.elapsedMs : solo?.elapsedMs ?? 0);
+  setHidden(sprintClock, !sprint);
+  setText(elapsedTime, formatTime(playback ? playback.elapsedMs : solo?.elapsedMs ?? 0));
   const { lines, combo, chainLength, b2b, surge } = display.stats;
-  lineCount.textContent = sprint ? `${lines} / 40` : String(lines);
-  comboCount.textContent = String(Math.max(0, combo));
-  b2bCount.textContent = chainLength === 0 ? "—" : b2b === 0 ? "Ready" : String(b2b);
-  b2bCount.setAttribute("title", chainLength === 0
+  setText(lineCount, sprint ? `${lines} / 40` : String(lines));
+  setText(comboCount, String(Math.max(0, combo)));
+  setText(b2bCount, chainLength === 0 ? "—" : b2b === 0 ? "Ready" : String(b2b));
+  setAttributeIfChanged(b2bCount, "title", chainLength === 0
     ? "Clear a Quad, spin or all clear to start B2B."
     : b2b === 0 ? "Chain started. The next qualifying clear earns the B2B bonus." : `${b2b} back-to-back clears.`);
-  surgeCount.textContent = String(surge);
-  finesseCount.textContent = finesseSummary(display.finesse);
+  setText(surgeCount, String(surge));
+  setText(finesseCount, finesseSummary(display.finesse));
   const result = display.lastClear;
   const labels: string[] = [];
   if (result) {
@@ -602,35 +603,35 @@ function refreshHud() {
     const attack = result.attacks.reduce((sum, packet) => sum + packet.lines, 0);
     if (attack) labels.push(`Attack ${attack}`);
   }
-  clearResult.textContent = labels.join(" · ");
-  zenStatus.hidden = playback !== null || (!display.zen && (!sprint || !!solo?.started));
-  zenStatus.textContent = online ? "Online practice · Ctrl+Z to undo; restart resets your board."
+  setText(clearResult, labels.join(" · "));
+  setHidden(zenStatus, playback !== null || (!display.zen && (!sprint || !!solo?.started)));
+  setText(zenStatus, online ? "Online practice · Ctrl+Z to undo; restart resets your board."
     : sprint ? "Sprint 40L · Make your first move to start the clock."
-    : `Zen · Ctrl+Z to undo (${solo?.undoCount ?? 0} available)`;
+    : `Zen · Ctrl+Z to undo (${solo?.undoCount ?? 0} available)`);
   if (solo?.result && !online && !playback && resultPanel.hidden) {
     holdExit.cancel();
     volumeOverlay.hide();
     const result = solo.result;
-    document.querySelector("#sprint-result-title")!.textContent = result.outcome === "complete" ? "Sprint complete" : "Topped out";
-    navSettingsButton.disabled = false;
-    document.querySelector("#result-time")!.textContent = formatTime(result.elapsedMs);
-    document.querySelector("#result-lines")!.textContent = `${result.stats.lines} / 40 lines cleared${result.outcome === "failed" ? " · Attempt failed" : ""}`;
-    document.querySelector("#result-pieces")!.textContent = `${result.stats.pieces} pieces placed`;
-    document.querySelector("#result-finesse")!.textContent = `Finesse ${finesseSummary(result.finesse)}`;
-    resultPanel.hidden = false;
+    setText(document.querySelector("#sprint-result-title")!, result.outcome === "complete" ? "Sprint complete" : "Topped out");
+    setDisabled(navSettingsButton, false);
+    setText(document.querySelector("#result-time")!, formatTime(result.elapsedMs));
+    setText(document.querySelector("#result-lines")!, `${result.stats.lines} / 40 lines cleared${result.outcome === "failed" ? " · Attempt failed" : ""}`);
+    setText(document.querySelector("#result-pieces")!, `${result.stats.pieces} pieces placed`);
+    setText(document.querySelector("#result-finesse")!, `Finesse ${finesseSummary(result.finesse)}`);
+    setHidden(resultPanel, false);
     pressed.clear();
     if (!document.querySelector("dialog[open]")) document.querySelector<HTMLElement>("#sprint-result-title")!.focus({ preventScroll: true });
   }
   if (!online && solo instanceof SprintRecorder && solo.result) {
     const recording = sprintRecordingFor(solo);
     const failed = !recording && solo.status === "failed";
-    watchReplayButton.disabled = !recording || openingPlayback;
+    setDisabled(watchReplayButton, !recording || openingPlayback);
     const label = openingPlayback ? "Opening replay…"
       : recording ? "Watch replay" : failed ? "Replay unavailable" : "Preparing replay…";
-    if (watchReplayButton.textContent !== label) watchReplayButton.textContent = label;
-    watchReplayButton.title = recording ? "Watch this attempt from the beginning"
+    setText(watchReplayButton, label);
+    setAttributeIfChanged(watchReplayButton, "title", recording ? "Watch this attempt from the beginning"
       : failed ? solo.error?.message ?? "This attempt could not be recorded."
-      : "Verifying the recording…";
+      : "Verifying the recording…");
   }
 }
 
@@ -678,11 +679,13 @@ function render() {
   if (online && renderOnlineWaiting(document, online.session)) return;
   if (!display) return;
   const width = display.board.length / ROWS;
-  document.querySelector<HTMLElement>("#game-view")!.style.setProperty("--board-ratio", String(width / 10));
-  if (canvas.getAttribute("aria-label") !== "42tris playfield") canvas.setAttribute("aria-label", "42tris playfield");
+  const style = document.querySelector<HTMLElement>("#game-view")!.style;
+  const ratio = String(width / 10);
+  if (style.getPropertyValue("--board-ratio") !== ratio) style.setProperty("--board-ratio", ratio);
+  setAttributeIfChanged(canvas, "aria-label", "42tris playfield");
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-  holdButton.disabled = countdown.active || playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay);
-  holdCanvas.setAttribute("aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
+  setDisabled(holdButton, countdown.active || playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay));
+  setAttributeIfChanged(holdCanvas, "aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
   if (display.held !== null) drawPreview(holdCtx, display.held, 0);
 
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
@@ -691,7 +694,7 @@ function render() {
     drawPreview(nextCtx, display.previews[i] as PieceId, i);
     nextLabel += ` ${LETTERS[display.previews[i]]}`;
   }
-  nextCanvas.setAttribute("aria-label", nextLabel);
+  setAttributeIfChanged(nextCanvas, "aria-label", nextLabel);
   drawBoard(ctx, display, skins.loaded, showGhost);
 }
 
@@ -750,13 +753,13 @@ function frame(now: number) {
       }
       const label = details.join(" · ");
       if (status.textContent !== label) status.textContent = label;
-      status.hidden = session.room?.phase === "waiting";
+      setHidden(status, session.room?.phase === "waiting");
     }
   } else if (solo) {
-    status.hidden = false;
+    setHidden(status, false);
     const label = countdown.label(now);
-    countdownOverlay.hidden = label === null;
-    if (label !== null) countdownOverlay.textContent = label;
+    setHidden(countdownOverlay, label === null);
+    if (label !== null) setText(countdownOverlay, label);
     else {
       solo.tick(performance.now());
       observeSoloSounds();
