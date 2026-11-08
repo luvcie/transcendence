@@ -3,6 +3,7 @@ import { connect } from "node:net";
 import { DEFAULT_HANDLING, Input } from "@42tris/core";
 import type { Checkpoint, ClientCommand, ServerMessage } from "@42tris/protocol";
 import { createClient } from "../../protocol/src/client";
+import { connectSession } from "../../web/src/session-transport";
 import { createApp } from "../src/app";
 import { Rooms } from "../src/rooms";
 
@@ -20,12 +21,18 @@ async function server(production = false) {
 }
 
 async function client(url: string, resumeToken?: string) {
-  const socket = new WebSocket(url.replace("http", "ws") + "/ws");
   const messages: ServerMessage[] = [];
-  socket.addEventListener("message", event => messages.push(JSON.parse(String(event.data))));
-  await new Promise<void>((resolve, reject) => { socket.onopen = () => resolve(); socket.onerror = reject; });
-  stops.unshift(async () => { socket.close(); });
-  const send = (command: ClientCommand) => socket.send(JSON.stringify(command));
+  let socket!: WebSocket;
+  let transport!: ReturnType<typeof connectSession>;
+  await new Promise<void>((resolve, reject) => {
+    transport = connectSession(url, { open: resolve, message: message => messages.push(message), close() {} }, undefined, address => {
+      socket = new WebSocket(address);
+      socket.onerror = reject;
+      return socket;
+    });
+  });
+  stops.unshift(async () => { transport.close(); });
+  const send = (command: ClientCommand) => transport.send(command);
   async function wait<T extends ServerMessage["type"]>(type: T, predicate: (m: Extract<ServerMessage, { type: T }>) => boolean = () => true, after = 0) {
     const end = performance.now() + 2000;
     while (performance.now() < end) {
@@ -48,7 +55,7 @@ async function client(url: string, resumeToken?: string) {
     if (!checkpoint || checkpoint.type !== "checkpoint") throw new Error("Missing resync checkpoint before pong");
     return checkpoint;
   }
-  async function close() { if (socket.readyState === WebSocket.CLOSED) return; await new Promise<void>(resolve => { socket.addEventListener("close", () => resolve(), { once: true }); socket.close(); }); }
+  async function close() { if (socket.readyState === WebSocket.CLOSED) return; await new Promise<void>(resolve => { socket.addEventListener("close", () => resolve(), { once: true }); transport.close(); }); }
   return { socket, messages, welcome, send, wait, checkpoint, close };
 }
 

@@ -1,8 +1,8 @@
 import type { requestCompetitiveReplay } from "./replay-request";
 import { finesseAccuracy, FRAME_MS, INITIAL_FINESSE, type Handling } from "@42tris/core";
-import { createClient } from "@42tris/protocol/client";
-import type { RoomOptions, ServerMessage } from "@42tris/protocol";
+import type { RoomOptions } from "@42tris/protocol";
 import { Session } from "./session";
+import { connectSession } from "./session-transport";
 import type { SessionDiagnostics } from "./session-diagnostics";
 import { createMultiplayerBoard, drawMultiplayerBoard, setGarbage, type MultiplayerBoard } from "./multiplayer-board";
 import type { SkinState } from "./skin-state";
@@ -26,20 +26,7 @@ export function mountOnline(root: HTMLElement, options: {
   });
   const session = options.session ?? new Session({ now: () => performance.now(), storage: storage("sessionStorage"), profile: storage("localStorage"),
     clearKeys: options.clearKeys, skin: options.skin, diagnostics: options.diagnostics, inputLeadMs: options.inputLeadMs,
-    connect(callbacks) {
-      const socket = createClient(location.origin).ws.subscribe();
-      const diagnostics = options.diagnostics;
-      const record = diagnostics
-        ? (event: MessageEvent) => diagnostics.receivedMessage(performance.now(), event.data) : undefined;
-      const detach = () => { if (record) socket.ws.removeEventListener("message", record); };
-      socket.on("open", callbacks.open);
-      socket.on("close", () => { detach(); callbacks.close(); });
-      socket.subscribe(({ data }) => callbacks.message(data as ServerMessage));
-      // Eden exposes ws publicly. Its parsed-event rawData type is not populated
-      // by the installed runtime, so read the native event after Session handles it.
-      if (record) socket.ws.addEventListener("message", record);
-      return { send: command => socket.send(command), close: () => { detach(); socket.close(); } };
-    },
+    connect: callbacks => connectSession(location.origin, callbacks, options.diagnostics),
   });
   root.innerHTML = `<p data-status class="connection-status" role="status"></p><p data-notification class="online-notification" role="status" hidden></p>
     <div class="connection-actions"><button data-retry>Retry connection</button><button data-guest hidden>Join as another guest</button></div>
