@@ -256,6 +256,16 @@
       .emoji-tools .emoji-color { padding: 5px; font-size: 20px; line-height: 1; }
       .emoji-color[aria-pressed=true] { border-color: #22d3ee; background: #163036; }
       #emoji-status { min-height: 1.6em; }
+      .emoji-gesture { display: none; }
+      @media (max-width: 663px), (pointer: coarse) {
+        .emoji-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+        .emoji-gesture { display: flex; gap: 4px; }
+        .emoji-gesture label { display: flex; align-items: center; gap: 4px; min-height: 44px; padding-inline: 6px; border: 1px solid #666; touch-action: manipulation; }
+        .emoji-gesture input { margin: 0; accent-color: #22d3ee; }
+        .emoji-gesture label:has(:checked) { color: #22d3ee; border-color: #22d3ee; background: #163036; }
+        #emoji-view:has(#emoji-scroll:checked) #emoji-board { touch-action: pan-y pinch-zoom; }
+        #emoji-view:has(#emoji-scroll:checked) .emoji-cell { pointer-events: none; }
+      }
       @media (max-width: 663px) {
         main[data-view=emoji] { height: auto; min-height: 100dvh; padding-inline: 16px; }
         main[data-view=emoji] .app-header { gap: 6px 12px; padding: 4px 0 8px; }
@@ -269,7 +279,7 @@
           width: min(100%, 420px); margin-inline: auto;
         }
         .emoji-tools { display: contents; }
-        #emoji-title { grid-area: title; }
+        .emoji-heading { grid-area: title; position: sticky; top: 0; z-index: 2; padding-block: 4px; background: #111; }
         .emoji-blocks { grid-area: palette; }
         .emoji-tools h2 { margin: 0 0 6px; }
         #emoji-palette { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
@@ -382,7 +392,13 @@
       <section id="emoji-view" hidden aria-labelledby="emoji-title">
         <div class="emoji-layout">
           <div class="emoji-tools">
-            <h1 id="emoji-title" tabindex="-1">Emojitetorisu</h1>
+            <div class="emoji-heading">
+              <h1 id="emoji-title" tabindex="-1">Emojitetorisu</h1>
+              <div class="emoji-gesture" role="group" aria-label="Board touch mode">
+                <label><input type="radio" name="emoji-gesture" id="emoji-paint" checked> Paint</label>
+                <label><input type="radio" name="emoji-gesture" id="emoji-scroll"> Scroll</label>
+              </div>
+            </div>
             <div class="actions emoji-actions">
               <button class="primary" id="emoji-copy" type="button">Copy board</button>
               <button id="emoji-copy-half" type="button" aria-label="Copy bottom 10 rows">Copy bottom 10</button>

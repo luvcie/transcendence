@@ -113,6 +113,14 @@ export function mountEmojiEditor(root: HTMLElement) {
   let selected: string = blocks[0][0];
   let stroke: { pointerId: number; value: string; lastCell: number } | null = null;
 
+  for (const label of root.querySelectorAll<HTMLLabelElement>(".emoji-gesture label")) {
+    const mode = label.querySelector<HTMLInputElement>("input")!;
+    label.addEventListener("pointerup", event => {
+      if (event.pointerType === "touch" && event.isPrimary &&
+        label.contains(document.elementFromPoint(event.clientX, event.clientY))) mode.checked = true;
+    });
+  }
+
   function makeButton(text: string, className = "") {
     const button = document.createElement("button");
     button.type = "button";
