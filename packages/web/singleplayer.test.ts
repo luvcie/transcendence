@@ -32,6 +32,12 @@ test("normal entry selects home; invitations and reserved sessions bypass it on 
   }
 });
 
+test("the direct Emojitetorisu link opens the editor even with a reserved session", () => {
+  const url = "http://localhost:5173/emojitetorisu";
+  expect(initialView(url, false)).toBe("emoji");
+  expect(initialView(url + "/", true)).toBe("emoji");
+});
+
 test.each([4, 8, 10, 12])("Zen retains width %i, opening preview and automatic undo without a preference", width => {
   const run = new Singleplayer("zen", 108, 0, DEFAULT_HANDLING, width);
   expect(run.game.width).toBe(width);

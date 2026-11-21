@@ -40,6 +40,7 @@ import { SprintPlayback } from "./sprint-playback";
 import { SessionDiagnostics } from "./session-diagnostics";
 import { configuredInputLead } from "./netplay-options";
 import { mountModeCard, SprintCountdown } from "./sprint-training";
+import { mountEmojiEditor } from "./emoji-editor";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
@@ -56,9 +57,10 @@ const netDiagnostics = (() => {
 if (netDiagnostics) (globalThis as unknown as { __42trisNetDiagnostics?: SessionDiagnostics }).__42trisNetDiagnostics = netDiagnostics;
 let hasResume = false;
 try { hasResume = !!sessionStorage.getItem("42tris.resume"); } catch { /* Online session will report storage failures. */ }
-let atHome = initialView(location.href, hasResume) === "home";
+const entryView = initialView(location.href, hasResume);
+let atHome = entryView !== "lobby";
 const showView = mountAppView(document);
-showView(atHome ? "home" : "lobby");
+showView(entryView);
 
 const canvas = document.querySelector<HTMLCanvasElement>("#board")!;
 const status = document.querySelector<HTMLParagraphElement>("#status")!;
@@ -169,6 +171,7 @@ const pauseDialog = document.querySelector<HTMLDialogElement>("#pause-dialog")!;
 const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dialog")!;
 const abandonDialog = document.querySelector<HTMLDialogElement>("#abandon-dialog")!;
 const navSettingsButton = document.querySelector<HTMLButtonElement>("#nav-settings-button")!;
+const emojiView = document.querySelector<HTMLElement>("#emoji-view")!;
 
 function gameplayActive() {
   return !atHome && !activePlayback() && !document.hidden && !document.querySelector("dialog[open]")
@@ -200,7 +203,8 @@ function releaseSoloControls() {
 
 function focusView() {
   const gameView = document.querySelector<HTMLElement>("#game-view")!;
-  (atHome ? document.querySelector<HTMLElement>("#home-title")! : gameView.hidden ? document.querySelector<HTMLElement>("#view-title")! : gameView).focus({ preventScroll: true });
+  const heading = atHome ? (emojiView.hidden ? "#home-title" : "#emoji-title") : "#view-title";
+  (gameView.hidden ? document.querySelector<HTMLElement>(heading)! : gameView).focus({ preventScroll: true });
 }
 
 function pause() {
@@ -776,4 +780,5 @@ function frame(now: number) {
 let frameId = requestAnimationFrame(frame);
 window.addEventListener("pagehide", e => { holdExit.cancel(); modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { holdExit.dispose(); volumeOverlay.dispose(); unmountInput(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
-if (!atHome) enterOnline();
+if (entryView === "emoji") mountEmojiEditor(emojiView);
+else if (!atHome) enterOnline();

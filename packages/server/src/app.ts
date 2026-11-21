@@ -141,7 +141,11 @@ export function createApp(options: ServerOptions = {}) {
       for (const lease of sockets.values()) { rooms.disconnect(lease.peer.id); lease.peer.close(1001, "SERVER_STOP"); }
       sockets.clear();
     });
-  if (options.production) app.use(staticPlugin({ assets: options.assets ?? resolve(import.meta.dir, "../../web/dist"), prefix: "/", alwaysStatic: true, indexHTML: true, decodeURI: false }));
+  if (options.production) {
+    const assets = options.assets ?? resolve(import.meta.dir, "../../web/dist");
+    app.get("/emojitetorisu", () => Bun.file(resolve(assets, "index.html")));
+    app.use(staticPlugin({ assets, prefix: "/", alwaysStatic: true, indexHTML: true, decodeURI: false }));
+  }
   return app;
 }
 

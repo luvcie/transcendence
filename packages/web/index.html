@@ -225,13 +225,15 @@
 
       .app-header .brand { border: 0; background: transparent; padding-left: 0; }
       .app-header .brand:hover { color: #22d3ee; }
-      #home-title:focus, #sprint-result-title:focus { outline: none; }
+      #home-title:focus, #emoji-title:focus, #sprint-result-title:focus { outline: none; }
       main[data-view=solo] .game-footer { margin-top: 8px; }
       main[data-view=solo] #game-stats { gap: 4px 16px; }
       main[data-view=solo] .game-feedback { gap: 4px 16px; }
       main[data-view=solo] .game-footer summary { padding: 4px 0; }
-      #home-view { width: min(800px, 100%); margin: 0 auto; padding: 64px 0 32px; }
-      main[data-view=home] .view-heading { display: none; }
+      #home-view, #emoji-view { width: min(800px, 100%); margin: 0 auto; }
+      #home-view { padding: 64px 0 32px; }
+      #emoji-view { padding: 24px 0 32px; }
+      main:is([data-view=home], [data-view=emoji]) .view-heading { display: none; }
       .menu-label { color: #22d3ee; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
       #home-title { margin: 0 0 20px; }
       .mode-list { display: grid; gap: 12px; }
@@ -240,6 +242,58 @@
       .mode-name { display: flex; justify-content: space-between; gap: 16px; font-size: 20px; font-weight: bold; }
       .mode-name > span { color: #22d3ee; }
       .mode-description { line-height: 1.5; }
+      #emoji-title { margin: 0; font-size: 16px; }
+      .emoji-layout { display: flex; flex-flow: row-reverse wrap; justify-content: flex-end; align-items: flex-end; gap: 20px 24px; }
+      .emoji-tools { flex: 1 1 260px; min-width: 0; max-width: 360px; }
+      .emoji-tools h2 { margin: 18px 0 8px; }
+      .emoji-tools .actions { gap: 6px; margin-top: 8px; }
+      .emoji-tools button { padding: 8px 10px; }
+      #emoji-palette > div { display: contents; }
+      #emoji-board { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); width: min(100%, 356px); padding: 8px; border-radius: 12px; background: #2a2d2e; touch-action: none; user-select: none; }
+      .emoji-cell, .emoji-color { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+      .emoji-cell { aspect-ratio: 1; overflow: hidden; padding: 0; border: 0; background: transparent; font-size: 30px; line-height: 1; }
+      .emoji-cell:is(:hover, :focus-visible) { outline: 1px solid #22d3ee; outline-offset: -1px; }
+      .emoji-tools .emoji-color { padding: 5px; font-size: 20px; line-height: 1; }
+      .emoji-color[aria-pressed=true] { border-color: #22d3ee; background: #163036; }
+      #emoji-status { min-height: 1.6em; }
+      @media (max-width: 663px) {
+        main[data-view=emoji] { height: auto; min-height: 100dvh; padding-inline: 16px; }
+        main[data-view=emoji] .app-header { gap: 6px 12px; padding: 4px 0 8px; }
+        main[data-view=emoji] .app-header nav { order: 1; flex-basis: 100%; }
+        main[data-view=emoji] .app-header button { min-height: 44px; }
+        main[data-view=emoji] #nav-settings-button { margin-left: auto; }
+        #emoji-view { padding: 14px 0 20px; }
+        .emoji-layout {
+          display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
+          grid-template-areas: "title" "board" "palette" "openers" "actions" "status";
+          width: min(100%, 420px); margin-inline: auto;
+        }
+        .emoji-tools { display: contents; }
+        #emoji-title { grid-area: title; }
+        .emoji-blocks { grid-area: palette; }
+        .emoji-tools h2 { margin: 0 0 6px; }
+        #emoji-palette { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+        .emoji-tools button { min-height: 44px; touch-action: manipulation; }
+        .emoji-tools .emoji-color { padding-inline: 0; }
+        .emoji-tools .actions { margin: 0; }
+        #emoji-board { grid-area: board; width: 100%; container-type: inline-size; }
+        .emoji-cell { font-size: 8.8cqw; }
+        .emoji-actions { grid-area: actions; }
+        .emoji-openers { grid-area: openers; }
+        #emoji-status { grid-area: status; margin: 0; }
+      }
+      @media (460px <= width <= 663px) {
+        .emoji-layout {
+          grid-template-columns: 44px minmax(0, 1fr) 44px;
+          grid-template-areas: "title title title" "colors-left board colors-right" "openers openers openers" "actions actions actions" "status status status";
+          width: min(100%, 528px);
+        }
+        .emoji-blocks, #emoji-palette { display: contents; }
+        #emoji-palette-title { display: none; }
+        #emoji-palette > div { display: grid; align-self: center; gap: 4px; }
+        #emoji-colors-left { grid-area: colors-left; }
+        #emoji-colors-right { grid-area: colors-right; }
+      }
       .mode-card { display: grid; }
       .mode-card > * { grid-area: 1 / 1; }
       .mode-card-back { display: grid; gap: 12px; align-content: center; padding: 16px 24px; background: #181818; border: 1px solid #444; visibility: hidden; }
@@ -278,7 +332,7 @@
       .result-panel h2 { font-size: 24px; margin: 16px 0; }
       #result-time { color: #22d3ee; font-size: clamp(28px, 5vw, 40px); margin: 20px 0; }
       @media (max-width: 480px), (max-height: 650px) {
-        #home-view { padding: 24px 0; margin: 0 auto; }
+        #home-view { padding: 24px 0; }
         .mode-choice { padding: 18px; gap: 8px; }
       }
       #match-replay-host { overflow-y: auto; flex: 1; min-height: 0; }
@@ -323,6 +377,31 @@
               <div class="mode-card-actions"><button id="zen-back" type="button">Back</button><button class="primary" data-mode="zen" type="button">Play</button></div>
             </div>
           </div>
+        </div>
+      </section>
+      <section id="emoji-view" hidden aria-labelledby="emoji-title">
+        <div class="emoji-layout">
+          <div class="emoji-tools">
+            <h1 id="emoji-title" tabindex="-1">Emojitetorisu</h1>
+            <div class="actions emoji-actions">
+              <button class="primary" id="emoji-copy" type="button">Copy board</button>
+              <button id="emoji-copy-half" type="button" aria-label="Copy bottom 10 rows">Copy bottom 10</button>
+              <button id="emoji-clear" type="button">Clear board</button>
+            </div>
+            <div class="emoji-blocks">
+              <h2 class="menu-label" id="emoji-palette-title">Blocks</h2>
+              <div class="actions" id="emoji-palette" role="group" aria-labelledby="emoji-palette-title">
+                <div id="emoji-colors-left"></div>
+                <div id="emoji-colors-right"></div>
+              </div>
+            </div>
+            <div class="emoji-openers">
+              <h2 class="menu-label" id="emoji-openers-title">Openers</h2>
+              <div class="actions" id="emoji-openers" role="group" aria-labelledby="emoji-openers-title"></div>
+            </div>
+            <p class="hint" id="emoji-status" role="status"></p>
+          </div>
+          <div id="emoji-board" role="group" aria-label="Emoji board"></div>
         </div>
       </section>
       <section id="online" hidden aria-label="Online play"></section>
