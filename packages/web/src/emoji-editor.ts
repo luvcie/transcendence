@@ -111,7 +111,8 @@ export function mountEmojiEditor(root: HTMLElement) {
   const copyHalf = root.querySelector<HTMLButtonElement>("#emoji-copy-half")!;
   const cells = Array.from({ length: cols * rows }, () => makeButton(empty, "emoji-cell"));
   let selected: string = blocks[0][0];
-  let stroke: { pointerId: number; value: string; lastCell: number } | null = null;
+  type StrokeSource = "pointer" | "touch-pointer" | "touch";
+  let stroke: { source: StrokeSource; id: number; value: string; lastCell: number } | null = null;
 
   for (const label of root.querySelectorAll<HTMLLabelElement>(".emoji-gesture label")) {
     const mode = label.querySelector<HTMLInputElement>("input")!;
@@ -133,6 +134,12 @@ export function mountEmojiEditor(root: HTMLElement) {
     const cell = cells[index];
     cell.textContent = value;
     cell.setAttribute("aria-label", `Row ${Math.floor(index / cols) + 1}, column ${index % cols + 1}: ${value}`);
+  }
+
+  function startStroke(index: number, source: StrokeSource, id: number) {
+    const value = cells[index].textContent === empty ? selected : empty;
+    stroke = { source, id, value, lastCell: index };
+    paint(index, value);
   }
 
   for (const [index, [emoji, name]] of blocks.entries()) {
@@ -157,11 +164,13 @@ export function mountEmojiEditor(root: HTMLElement) {
     paint(index, empty);
     cell.addEventListener("pointerdown", event => {
       if (event.button !== 0 || !event.isPrimary || stroke) return;
+      if (event.pointerType === "touch") {
+        startStroke(index, "touch-pointer", event.pointerId);
+        return;
+      }
       event.preventDefault();
       board.setPointerCapture(event.pointerId);
-      const value = cell.textContent === empty ? selected : empty;
-      stroke = { pointerId: event.pointerId, value, lastCell: index };
-      paint(index, value);
+      startStroke(index, "pointer", event.pointerId);
     });
     cell.addEventListener("click", event => {
       if (event.detail === 0) paint(index, cell.textContent === empty ? selected : empty);
@@ -169,10 +178,14 @@ export function mountEmojiEditor(root: HTMLElement) {
   });
   board.append(...cells);
 
-  function extendStroke(event: PointerEvent) {
-    if (!stroke || event.pointerId !== stroke.pointerId) return;
-    const hit = document.elementFromPoint(event.clientX, event.clientY);
-    const index = hit instanceof HTMLButtonElement ? cells.indexOf(hit) : -1;
+  function cellAt(x: number, y: number) {
+    const hit = document.elementFromPoint(x, y);
+    return hit instanceof HTMLButtonElement ? cells.indexOf(hit) : -1;
+  }
+
+  function extendStroke(x: number, y: number) {
+    if (!stroke) return;
+    const index = cellAt(x, y);
     const previous = stroke.lastCell;
     stroke.lastCell = index;
     if (index < 0 || index === previous) return;
@@ -193,21 +206,63 @@ export function mountEmojiEditor(root: HTMLElement) {
     }
   }
 
-  function endStroke(event: PointerEvent) {
-    if (stroke?.pointerId === event.pointerId) stroke = null;
+  function movePointer(event: PointerEvent) {
+    if (stroke && stroke.source !== "touch" && stroke.id === event.pointerId) extendStroke(event.clientX, event.clientY);
   }
-  board.addEventListener("pointermove", extendStroke);
+
+  function endPointer(event: PointerEvent) {
+    if (stroke && stroke.source !== "touch" && stroke.id === event.pointerId) stroke = null;
+  }
+  board.addEventListener("pointermove", movePointer);
   board.addEventListener("pointerup", event => {
-    extendStroke(event);
-    endStroke(event);
+    movePointer(event);
+    endPointer(event);
   });
-  board.addEventListener("pointercancel", endStroke);
-  board.addEventListener("lostpointercapture", endStroke);
-  window.addEventListener("blur", () => {
-    if (!stroke) return;
-    const { pointerId } = stroke;
+  board.addEventListener("pointercancel", endPointer);
+  board.addEventListener("lostpointercapture", endPointer);
+
+  board.addEventListener("touchstart", event => {
+    if (event.touches.length !== 1) return;
+    const touch = event.changedTouches[0];
+    if (stroke?.source === "touch-pointer") {
+      stroke.source = "touch";
+      stroke.id = touch.identifier;
+      event.preventDefault();
+      return;
+    }
+    if (stroke) return;
+    const index = cellAt(touch.clientX, touch.clientY);
+    if (index < 0) return;
+    event.preventDefault();
+    startStroke(index, "touch", touch.identifier);
+  }, { passive: false });
+
+  function movedTouch(event: TouchEvent) {
+    if (stroke?.source !== "touch") return;
+    const id = stroke.id;
+    return Array.from(event.changedTouches).find(touch => touch.identifier === id);
+  }
+
+  board.addEventListener("touchmove", event => {
+    const touch = movedTouch(event);
+    if (!touch) return;
+    event.preventDefault();
+    extendStroke(touch.clientX, touch.clientY);
+  }, { passive: false });
+
+  board.addEventListener("touchend", event => {
+    const touch = movedTouch(event);
+    if (!touch) return;
+    extendStroke(touch.clientX, touch.clientY);
     stroke = null;
-    if (board.hasPointerCapture(pointerId)) board.releasePointerCapture(pointerId);
+  });
+  board.addEventListener("touchcancel", event => {
+    if (movedTouch(event)) stroke = null;
+  });
+
+  window.addEventListener("blur", () => {
+    if (stroke?.source === "pointer" && board.hasPointerCapture(stroke.id)) board.releasePointerCapture(stroke.id);
+    stroke = null;
   });
 
   function setBoard(layout: string[]) {
