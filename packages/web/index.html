@@ -250,11 +250,12 @@
       .emoji-tools button { padding: 8px 10px; }
       #emoji-palette > div { display: contents; }
       #emoji-board { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); width: min(100%, 356px); padding: 8px; border-radius: 12px; background: #2a2d2e; touch-action: none; user-select: none; }
-      .emoji-cell, .emoji-color { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+      .emoji-cell, .emoji-color, #emoji-mirror { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
       .emoji-cell { aspect-ratio: 1; overflow: hidden; padding: 0; border: 0; background: transparent; font-size: 30px; line-height: 1; }
       .emoji-cell:is(:hover, :focus-visible) { outline: 1px solid #22d3ee; outline-offset: -1px; }
       .emoji-tools .emoji-color { padding: 5px; font-size: 20px; line-height: 1; }
-      .emoji-color[aria-pressed=true] { border-color: #22d3ee; background: #163036; }
+      #emoji-mirror { margin-top: 8px; width: 44px; height: 44px; padding: 0; font-size: 20px; line-height: 1; }
+      #emoji-mirror[aria-pressed=true], .emoji-color[aria-pressed=true] { border-color: #22d3ee; background: #163036; }
       #emoji-status { min-height: 1.6em; }
       .emoji-gesture { display: none; }
       @media (max-width: 663px), (pointer: coarse) {
@@ -275,10 +276,11 @@
         #emoji-view { padding: 14px 0 20px; }
         .emoji-layout {
           display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
-          grid-template-areas: "title" "board" "palette" "openers" "actions" "status";
+          grid-template-areas: "title" "board" "mirror" "palette" "openers" "actions" "status";
           width: min(100%, 420px); margin-inline: auto;
         }
         .emoji-tools { display: contents; }
+        #emoji-mirror { grid-area: mirror; justify-self: end; margin: 0; }
         .emoji-heading { grid-area: title; position: sticky; top: 0; z-index: 2; padding-block: 4px; background: #111; }
         .emoji-blocks { grid-area: palette; }
         .emoji-tools h2 { margin: 0 0 6px; }
@@ -303,6 +305,7 @@
         #emoji-palette > div { display: grid; align-self: center; gap: 4px; }
         #emoji-colors-left { grid-area: colors-left; }
         #emoji-colors-right { grid-area: colors-right; }
+        #emoji-mirror { grid-area: colors-right; align-self: end; justify-self: center; }
       }
       .mode-card { display: grid; }
       .mode-card > * { grid-area: 1 / 1; }
@@ -415,6 +418,7 @@
               <h2 class="menu-label" id="emoji-openers-title">Openers</h2>
               <div class="actions" id="emoji-openers" role="group" aria-labelledby="emoji-openers-title"></div>
             </div>
+            <button id="emoji-mirror" type="button" aria-label="Toggle mirror" aria-pressed="false">🪞</button>
             <p class="hint" id="emoji-status" role="status"></p>
           </div>
           <div id="emoji-board" role="group" aria-label="Emoji board"></div>

@@ -94,6 +94,7 @@ const openers = {
 const empty = "⬛";
 const cols = 10;
 const rows = 20;
+const mirrorPair: Record<string, string> = { "🟥": "🟩", "🟩": "🟥", "🟦": "🟧", "🟧": "🟦" };
 const blocks = [
   ["⬜", "I piece"], ["🟪", "T piece"], ["🟥", "Z piece"], ["🟨", "O piece"],
   ["🟩", "S piece"], ["🟦", "J piece"], ["🟧", "L piece"], [empty, "Erase"],
@@ -108,9 +109,11 @@ export function mountEmojiEditor(root: HTMLElement) {
   const presets = root.querySelector<HTMLElement>("#emoji-openers")!;
   const status = root.querySelector<HTMLElement>("#emoji-status")!;
   const copy = root.querySelector<HTMLButtonElement>("#emoji-copy")!;
+  const mirror = root.querySelector<HTMLButtonElement>("#emoji-mirror")!;
   const copyHalf = root.querySelector<HTMLButtonElement>("#emoji-copy-half")!;
   const cells = Array.from({ length: cols * rows }, () => makeButton(empty, "emoji-cell"));
   let selected: string = blocks[0][0];
+  let mirrored = false;
   type StrokeSource = "pointer" | "touch-pointer" | "touch";
   let stroke: { source: StrokeSource; id: number; value: string; lastCell: number } | null = null;
 
@@ -265,11 +268,27 @@ export function mountEmojiEditor(root: HTMLElement) {
     stroke = null;
   });
 
+  function mirrorBoard() {
+    const flipped = cells.map((_, index) => {
+      const value = cells[Math.floor(index / cols) * cols + cols - 1 - index % cols].textContent!;
+      return mirrorPair[value] ?? value;
+    });
+    flipped.forEach((value, index) => paint(index, value));
+  }
+
   function setBoard(layout: string[]) {
     const painted = layout.flatMap(row => Array.from(row));
     const offset = cells.length - painted.length;
     cells.forEach((_, index) => paint(index, painted[index - offset] ?? empty));
+    if (mirrored) mirrorBoard();
   }
+
+  mirror.addEventListener("click", () => {
+    mirrored = !mirrored;
+    mirror.setAttribute("aria-pressed", String(mirrored));
+    mirrorBoard();
+    status.textContent = mirrored ? "Mirror mode on." : "Mirror mode off.";
+  });
 
   for (const [name, layouts] of Object.entries(openers)) {
     const button = makeButton(name);
