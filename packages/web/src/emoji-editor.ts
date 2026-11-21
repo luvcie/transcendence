@@ -156,6 +156,40 @@ const blocks = [
   ["🟩", "S piece"], ["🟦", "J piece"], ["🟧", "L piece"], [empty, "Erase"],
 ] as const;
 
+export function mirrorRows(board: string[]) {
+  return board.map(row => Array.from(row).reverse().map(value => mirrorPair[value] ?? value).join(""));
+}
+
+export type SavedOpener = { name: string; steps: string[][] };
+const storeKey = "emojitetorisu.openers";
+const maxSaved = 12;
+const maxName = 20;
+const maxSteps = 20;
+const known = new Set<string>(blocks.map(([emoji]) => emoji));
+const validBoard = (board: unknown) => Array.isArray(board) && board.length <= rows && board.every(row =>
+  typeof row === "string" && Array.from(row).length === cols && Array.from(row).every(value => known.has(value)));
+
+// storage can hold anything, so keep only entries that look like what we wrote
+export function parseSavedOpeners(raw: string | null): SavedOpener[] {
+  try {
+    const data = JSON.parse(raw ?? "[]");
+    if (!Array.isArray(data)) return [];
+    return data.filter(item => typeof item?.name === "string" && item.name.length > 0 && item.name.length <= maxName &&
+      Array.isArray(item.steps) && item.steps.length > 0 && item.steps.length <= maxSteps && item.steps.every(validBoard))
+      .slice(0, maxSaved);
+  } catch {
+    return [];
+  }
+}
+
+function readSaved() {
+  try {
+    return parseSavedOpeners(localStorage.getItem(storeKey));
+  } catch {
+    return [];
+  }
+}
+
 export function mountEmojiEditor(root: HTMLElement) {
   const { ownerDocument: document } = root;
   const board = root.querySelector<HTMLElement>("#emoji-board")!;
@@ -175,6 +209,11 @@ export function mountEmojiEditor(root: HTMLElement) {
   const codeBlock = root.querySelector<HTMLInputElement>("#emoji-code-block")!;
   const splits = root.querySelector<HTMLElement>("#emoji-splits")!;
   const seqTools = root.querySelector<HTMLElement>("#emoji-seq")!;
+  const savedList = root.querySelector<HTMLElement>("#emoji-custom")!;
+  const addStep = root.querySelector<HTMLButtonElement>("#emoji-add-step")!;
+  const removeStep = root.querySelector<HTMLButtonElement>("#emoji-remove-step")!;
+  const saveSequence = root.querySelector<HTMLButtonElement>("#emoji-save")!;
+  const deleteSaved = root.querySelector<HTMLButtonElement>("#emoji-delete")!;
   const copy = root.querySelector<HTMLButtonElement>("#emoji-copy")!;
   const mirror = root.querySelector<HTMLButtonElement>("#emoji-mirror")!;
   const copyHalf = root.querySelector<HTMLButtonElement>("#emoji-copy-half")!;
@@ -359,6 +398,32 @@ export function mountEmojiEditor(root: HTMLElement) {
 
   let sequence: string[][] = [];
   let step = 0;
+  // a draft is the user's own sequence, it follows edits made to the board
+  let draft = false;
+  let draftName = "";
+  let saved = readSaved();
+
+  function boardLines() {
+    return Array.from({ length: rows }, (_, row) =>
+      cells.slice(row * cols, (row + 1) * cols).map(cell => cell.textContent).join(""));
+  }
+
+  // steps are stored unmirrored and without the empty rows on top
+  function captureBoard() {
+    const lines = boardLines();
+    const first = lines.findIndex(line => line !== empty.repeat(cols));
+    const board = first < 0 ? [] : lines.slice(first);
+    return mirrored ? mirrorRows(board) : board;
+  }
+
+  function saveCurrent() {
+    if (draft) sequence[step] = captureBoard();
+  }
+
+  function updateDraftButtons() {
+    removeStep.disabled = !draft;
+    deleteSaved.hidden = !(draft && saved.some(item => item.name === draftName));
+  }
 
   function goTo(next: number) {
     step = next;
@@ -366,12 +431,31 @@ export function mountEmojiEditor(root: HTMLElement) {
     stepBack.disabled = step === 0;
     stepNext.disabled = step === sequence.length - 1;
     stepLabel.textContent = sequence.length > 1 ? `${step + 1}/${sequence.length}` : "";
+    updateDraftButtons();
   }
+
+  function syncRange() {
+    seqFrom.value = "1";
+    seqTo.value = seqFrom.max = seqTo.max = String(sequence.length);
+  }
+
+  function openSequence(steps: string[][], isDraft: boolean, name: string) {
+    sequence = steps;
+    draft = isDraft;
+    draftName = name;
+    seqTools.hidden = sequence.length < (isDraft ? 1 : 2);
+    syncRange();
+    goTo(0);
+    renderSplits();
+  }
+
   stepBack.addEventListener("click", () => {
+    saveCurrent();
     goTo(step - 1);
     status.textContent = `Step ${step + 1} of ${sequence.length}.`;
   });
   stepNext.addEventListener("click", () => {
+    saveCurrent();
     goTo(step + 1);
     status.textContent = `Step ${step + 1} of ${sequence.length}.`;
   });
@@ -380,21 +464,111 @@ export function mountEmojiEditor(root: HTMLElement) {
     const button = makeButton(name);
     let variant = 0;
     button.addEventListener("click", () => {
-      sequence = [layouts[variant], ...continuations[name] ?? []];
-      seqTools.hidden = sequence.length < 2;
-      seqFrom.value = "1";
-      seqTo.value = seqFrom.max = seqTo.max = String(sequence.length);
-      renderSplits();
-      goTo(0);
+      openSequence([layouts[variant], ...continuations[name] ?? []], false, "");
       status.textContent = layouts.length > 1 ? `${name} variant ${variant + 1} loaded.` : `${name} loaded.`;
       variant = (variant + 1) % layouts.length;
     });
     presets.append(button);
   }
+
+  function renderSaved() {
+    savedList.replaceChildren(...saved.map(item => {
+      const button = makeButton(item.name);
+      button.addEventListener("click", () => {
+        openSequence(item.steps.map(board => [...board]), true, item.name);
+        status.textContent = `${item.name} loaded.`;
+      });
+      return button;
+    }));
+  }
+  renderSaved();
+
+  function persist(done: string) {
+    try {
+      localStorage.setItem(storeKey, JSON.stringify(saved));
+      status.textContent = done;
+    } catch {
+      status.textContent = "Could not save, browser storage is unavailable.";
+    }
+  }
+
+  addStep.addEventListener("click", () => {
+    saveCurrent();
+    if (!draft) {
+      sequence = [];
+      draft = true;
+      draftName = "";
+    }
+    if (sequence.length >= maxSteps) {
+      status.textContent = `A sequence can have ${maxSteps} steps at most.`;
+      return;
+    }
+    sequence.push(captureBoard());
+    seqTools.hidden = false;
+    syncRange();
+    goTo(sequence.length - 1);
+    renderSplits();
+    status.textContent = `Step ${sequence.length} added.`;
+  });
+
+  removeStep.addEventListener("click", () => {
+    sequence.splice(step, 1);
+    if (!sequence.length) {
+      draft = false;
+      draftName = "";
+      seqTools.hidden = stepBack.disabled = stepNext.disabled = true;
+      stepLabel.textContent = "";
+      updateDraftButtons();
+    } else {
+      syncRange();
+      goTo(Math.min(step, sequence.length - 1));
+      renderSplits();
+    }
+    status.textContent = "Step removed.";
+  });
+
+  saveSequence.addEventListener("click", () => {
+    saveCurrent();
+    if (!draft) {
+      status.textContent = "Add a step first.";
+      return;
+    }
+    const name = window.prompt("Name this sequence", draftName)?.trim().slice(0, maxName);
+    if (!name) return;
+    if (name in openers) {
+      status.textContent = `${name} is a built-in opener.`;
+      return;
+    }
+    const index = saved.findIndex(item => item.name === name);
+    if (index >= 0 && name !== draftName && !window.confirm(`Replace ${name}?`)) return;
+    if (index < 0 && saved.length >= maxSaved) {
+      status.textContent = `You can save ${maxSaved} sequences at most.`;
+      return;
+    }
+    const item = { name, steps: sequence.map(board => [...board]) };
+    if (index >= 0) saved[index] = item;
+    else saved.push(item);
+    draftName = name;
+    renderSaved();
+    updateDraftButtons();
+    persist(`Saved ${name}.`);
+  });
+
+  deleteSaved.addEventListener("click", () => {
+    if (!window.confirm(`Delete ${draftName}?`)) return;
+    saved = saved.filter(item => item.name !== draftName);
+    draftName = "";
+    renderSaved();
+    updateDraftButtons();
+    persist("Deleted.");
+  });
+
   root.querySelector("#emoji-clear")!.addEventListener("click", () => {
     setBoard([]);
-    seqTools.hidden = stepBack.disabled = stepNext.disabled = true;
-    stepLabel.textContent = "";
+    if (!draft) {
+      seqTools.hidden = stepBack.disabled = stepNext.disabled = true;
+      stepLabel.textContent = "";
+    }
     status.textContent = "Board cleared.";
   });
   async function copyText(text: string, button: HTMLButtonElement) {
@@ -420,20 +594,18 @@ export function mountEmojiEditor(root: HTMLElement) {
   }
 
   async function copyRows(startRow: number, button: HTMLButtonElement) {
-    const text = Array.from({ length: rows - startRow }, (_, index) => {
-      const row = startRow + index;
-      return cells.slice(row * cols, (row + 1) * cols).map(cell => cell.textContent).join("");
-    }).join("\n");
+    const text = boardLines().slice(startRow).join("\n");
     status.textContent = await copyText(text, button) ? "Copied to clipboard!" : "Could not copy the board.";
   }
 
   const messageLimit = 2000;
 
   function sequenceGroups() {
+    saveCurrent();
     const from = Math.max(1, Math.min(Number(seqFrom.value) || 1, sequence.length));
     const to = Math.max(1, Math.min(Number(seqTo.value) || 1, sequence.length));
     const boards = sequence.slice(from - 1, to).map(board =>
-      mirrored ? board.map(row => Array.from(row).reverse().map(v => mirrorPair[v] ?? v).join("")) : board);
+      mirrored ? mirrorRows(board) : board);
     return { groups: arrangeBoards(boards, Number(perRow.value)), count: boards.length };
   }
 

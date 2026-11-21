@@ -258,6 +258,8 @@
       #emoji-mirror[aria-pressed=true], .emoji-color[aria-pressed=true] { border-color: #22d3ee; background: #163036; }
       #emoji-status { min-height: 1.6em; }
       #emoji-view { overflow-anchor: none; }
+      #emoji-custom:empty { display: none; }
+      .emoji-custom { margin-top: 16px; }
       .emoji-tools .emoji-openers-head { display: flex; align-items: center; gap: 16px; margin: 18px 0 8px; }
       .emoji-tools .emoji-openers-head h2 { margin: 0; }
       .emoji-stepper { display: flex; align-items: center; gap: 6px; }
@@ -287,7 +289,7 @@
         #emoji-view { padding: 14px 0 20px; }
         .emoji-layout {
           display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
-          grid-template-areas: "title" "board" "mirror" "palette" "openers" "actions" "seq" "status";
+          grid-template-areas: "title" "board" "mirror" "palette" "openers" "custom" "actions" "seq" "status";
           width: min(100%, 420px); margin-inline: auto;
         }
         .emoji-tools { display: contents; }
@@ -300,6 +302,7 @@
         .emoji-tools button { min-height: 44px; touch-action: manipulation; }
         .emoji-seq :is(input[type=number], select) { min-height: 44px; }
         #emoji-seq { grid-area: seq; display: grid; gap: 10px; }
+        .emoji-custom { grid-area: custom; display: grid; gap: 6px; margin: 0; }
         .emoji-tools .emoji-color { padding-inline: 0; }
         .emoji-tools .actions { margin: 0; }
         #emoji-board { grid-area: board; width: 100%; container-type: inline-size; }
@@ -311,7 +314,7 @@
       @media (460px <= width <= 663px) {
         .emoji-layout {
           grid-template-columns: 44px minmax(0, 1fr) 44px;
-          grid-template-areas: "title title title" "colors-left board colors-right" "openers openers openers" "actions actions actions" "seq seq seq" "status status status";
+          grid-template-areas: "title title title" "colors-left board colors-right" "openers openers openers" "custom custom custom" "actions actions actions" "seq seq seq" "status status status";
           width: min(100%, 528px);
         }
         .emoji-blocks, #emoji-palette { display: contents; }
@@ -448,6 +451,15 @@
                 </div>
               </div>
               <div class="actions" id="emoji-openers" role="group" aria-labelledby="emoji-openers-title"></div>
+            </div>
+            <div class="emoji-custom">
+              <div class="actions" id="emoji-custom" role="group" aria-label="Saved sequences"></div>
+              <div class="actions">
+                <button id="emoji-add-step" type="button">Add step</button>
+                <button id="emoji-remove-step" type="button" disabled>Remove step</button>
+                <button id="emoji-save" type="button">Save</button>
+                <button id="emoji-delete" type="button" hidden>Delete</button>
+              </div>
             </div>
             <button id="emoji-mirror" type="button" aria-label="Toggle mirror" aria-pressed="false">🪞</button>
             <p class="hint" id="emoji-status" role="status"></p>
