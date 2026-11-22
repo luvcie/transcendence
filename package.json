@@ -1,6 +1,7 @@
 {
   "name": "transcendence",
   "private": true,
+  "license": "AGPL-3.0-only",
   "workspaces": ["packages/*"],
   "scripts": {
     "dev": "bun scripts/dev.ts",
