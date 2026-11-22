@@ -445,6 +445,17 @@ async function enterOnline() {
   invite = null;
 }
 
+let editorMounted = false;
+function mountEditor() {
+  if (editorMounted) return;
+  editorMounted = true;
+  mountEmojiEditor(emojiView, skins);
+}
+document.querySelector("#editor-button")!.addEventListener("click", () => {
+  history.pushState(null, "", "/tetorisueditor");
+  showView("emoji");
+  mountEditor();
+});
 document.querySelector("#online-button")!.addEventListener("click", enterOnline);
 for (const id of ["#home-button", "#solo-button", "#result-home-button", "#pause-home-button"]) document.querySelector(id)!.addEventListener("click", enterHome);
 for (const button of document.querySelectorAll<HTMLButtonElement>("[data-mode]")) {
@@ -780,5 +791,5 @@ function frame(now: number) {
 let frameId = requestAnimationFrame(frame);
 window.addEventListener("pagehide", e => { holdExit.cancel(); modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { holdExit.dispose(); volumeOverlay.dispose(); unmountInput(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
-if (entryView === "emoji") mountEmojiEditor(emojiView, skins);
+if (entryView === "emoji") mountEditor();
 else if (!atHome) enterOnline();

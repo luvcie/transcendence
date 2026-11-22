@@ -32,8 +32,8 @@ test("normal entry selects home; invitations and reserved sessions bypass it on 
   }
 });
 
-test("the direct Emojitetorisu link opens the editor even with a reserved session", () => {
-  const url = "http://localhost:5173/emojitetorisu";
+test("the direct /tetorisueditor link opens the editor even with a reserved session", () => {
+  const url = "http://localhost:5173/tetorisueditor";
   expect(initialView(url, false)).toBe("emoji");
   expect(initialView(url + "/", true)).toBe("emoji");
 });

@@ -208,12 +208,12 @@ test("Eden exports type the real health and websocket routes", async () => {
 test("production serves only enumerated build files and rejects foreign origins", async () => {
   const s = await server(true);
   expect(await (await fetch(s.url + "/")).text()).toContain("server-static-fixture");
-  const editor = await fetch(s.url + "/emojitetorisu");
+  const editor = await fetch(s.url + "/tetorisueditor");
   expect(editor.status).toBe(200);
   expect(editor.headers.get("content-type")).toContain("text/html");
   expect(await editor.text()).toContain("server-static-fixture");
   expect((await fetch(s.url + "/api/health")).status).toBe(200);
-  for (const path of ["/%2e%2e/package.json", "/..%2f..%2fpackage.json", "/%2e%2e%5cpackage.json", "/.env", "/emojitetorisu/other"]) {
+  for (const path of ["/%2e%2e/package.json", "/..%2f..%2fpackage.json", "/%2e%2e%5cpackage.json", "/.env", "/emojitetorisu", "/tetorisueditor/other"]) {
     expect((await fetch(s.url + path)).status).toBe(404);
   }
   const response = await fetch(s.url + "/ws", { headers: { Origin: "https://untrusted.example", Upgrade: "websocket" } });

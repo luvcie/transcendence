@@ -143,7 +143,7 @@ export function createApp(options: ServerOptions = {}) {
     });
   if (options.production) {
     const assets = options.assets ?? resolve(import.meta.dir, "../../web/dist");
-    app.get("/emojitetorisu", () => Bun.file(resolve(assets, "index.html")));
+    app.get("/tetorisueditor", () => Bun.file(resolve(assets, "index.html")));
     app.use(staticPlugin({ assets, prefix: "/", alwaysStatic: true, indexHTML: true, decodeURI: false }));
   }
   return app;

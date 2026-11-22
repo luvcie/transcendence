@@ -168,7 +168,7 @@ export function mirrorRows(board: string[]) {
 }
 
 export type SavedOpener = { name: string; steps: string[][] };
-const storeKey = "emojitetorisu.openers";
+const storeKey = "tetorisueditor.openers";
 const maxSaved = 12;
 const maxName = 20;
 const maxSteps = 20;
@@ -717,7 +717,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   gifDownload.addEventListener("click", () => {
     const link = document.createElement("a");
     link.href = gifPreview.src;
-    link.download = "emojitetorisu.gif";
+    link.download = "tetorisu-editor.gif";
     link.click();
   });
   for (const input of [seqFrom, seqTo]) input.addEventListener("input", renderSplits);

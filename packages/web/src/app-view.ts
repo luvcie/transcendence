@@ -6,7 +6,7 @@ const titles: Record<AppView, string> = {
   sprintReplay: "Sprint replay",
   matchReplay: "Competitive replay",
   home: "Choose your game",
-  emoji: "Emojitetorisu",
+  emoji: "Tetorisu Editor",
   solo: "Singleplayer",
   lobby: "Online lobby",
   waiting: "Waiting room",
@@ -58,6 +58,6 @@ export function mountAppView(document: Document) {
 
 export function initialView(url: string, hasResume: boolean): "home" | "lobby" | "emoji" {
   const { pathname, searchParams } = new URL(url);
-  if (pathname === "/emojitetorisu" || pathname === "/emojitetorisu/") return "emoji";
+  if (pathname === "/tetorisueditor" || pathname === "/tetorisueditor/") return "emoji";
   return searchParams.has("room") || hasResume ? "lobby" : "home";
 }
