@@ -605,8 +605,10 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     return copied;
   }
 
+  const fence = (text: string) => codeBlock.checked ? "```\n" + text + "\n```" : text;
+
   async function copyRows(startRow: number, button: HTMLButtonElement) {
-    const text = boardLines().slice(startRow).join("\n");
+    const text = fence(boardLines().slice(startRow).join("\n"));
     status.textContent = await copyText(text, button) ? "Copied to clipboard!" : "Could not copy the board.";
   }
 
@@ -635,7 +637,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
       status.textContent = "Pick a valid step range.";
       return;
     }
-    const text = codeBlock.checked ? "```\n" + messages[index] + "\n```" : messages[index];
+    const text = fence(messages[index]);
     const done = autoSplit.checked ? `Copied message ${index + 1} of ${messages.length}.` : `Copied ${count} boards.`;
     if (!await copyText(text, button)) status.textContent = "Could not copy the sequence.";
     else status.textContent = text.length > messageLimit ?
