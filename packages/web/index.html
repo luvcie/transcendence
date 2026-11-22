@@ -269,6 +269,7 @@
       .emoji-seq input { accent-color: #22d3ee; }
       #emoji-splits:empty { display: none; }
       #emoji-gif-skin { width: 14em; max-width: 100%; }
+      #emoji-gif-seconds { width: 84px; }
       #emoji-gif-preview { max-width: 100%; max-height: 200px; }
       .emoji-seq :is(input[type=number], input[list], select) { background: #111; color: #eee; border: 1px solid #666; padding: 6px 8px; }
       .emoji-seq input[type=number] { width: 52px; }
@@ -437,6 +438,7 @@
               <div class="actions emoji-seq">
                 <label>Skin <input id="emoji-gif-skin" list="emoji-gif-skins" placeholder="Search skins" autocomplete="off" spellcheck="false"><datalist id="emoji-gif-skins"></datalist></label>
                 <label>Block <input id="emoji-gif-block" type="number" min="4" max="64" value="16"> px</label>
+                <label>Seconds per step <input id="emoji-gif-seconds" type="number" min="0.02" max="10" step="0.01" value="1"></label>
                 <button id="emoji-export-gif" type="button">Export GIF</button>
               </div>
               <div class="actions emoji-seq" id="emoji-gif-result" hidden>

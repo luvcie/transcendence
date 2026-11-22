@@ -215,6 +215,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   const gifSkin = root.querySelector<HTMLInputElement>("#emoji-gif-skin")!;
   const gifSkinList = root.querySelector<HTMLElement>("#emoji-gif-skins")!;
   const gifBlock = root.querySelector<HTMLInputElement>("#emoji-gif-block")!;
+  const gifSeconds = root.querySelector<HTMLInputElement>("#emoji-gif-seconds")!;
   const exportGif = root.querySelector<HTMLButtonElement>("#emoji-export-gif")!;
   const gifResult = root.querySelector<HTMLElement>("#emoji-gif-result")!;
   const gifPreview = root.querySelector<HTMLImageElement>("#emoji-gif-preview")!;
@@ -697,11 +698,12 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     status.textContent = "Making the GIF...";
     try {
       const cell = Math.max(4, Math.min(Math.round(Number(gifBlock.value)) || 16, 64));
+      const hold = Math.max(20, Math.min(Math.round((Number(gifSeconds.value) || 1) * 1000), 10000));
       const id = skinKeys.get(gifSkin.value.trim());
       if (!id) throw new Error("Pick a skin from the list.");
       const look: GifLook = id === "emoji" ? "emoji"
         : await skins.load(resolveSkin({ active: id, customs: skins.preferences.customs }));
-      const gif = await makeGif(document.createElement("canvas"), selectedBoards(), cell, look);
+      const gif = await makeGif(document.createElement("canvas"), selectedBoards(), cell, look, hold);
       gifBlob = new Blob([gif as Uint8Array<ArrayBuffer>], { type: "image/gif" });
       URL.revokeObjectURL(gifPreview.src);
       gifPreview.src = URL.createObjectURL(gifBlob);

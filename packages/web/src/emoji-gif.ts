@@ -9,14 +9,14 @@ const cols = 10;
 const maxBytes = 512 * 1024 * 1024;
 
 // animated skins get a frame every tick so their animation keeps running during each hold
-export function timeline(steps: number, animated: boolean, hold = 1000, last = 2000, tick = 100) {
+export function timeline(steps: number, animated: boolean, hold = 1000, tick = 100) {
   const out: { step: number; at: number; duration: number }[] = [];
   let at = 0;
   for (let step = 0; step < steps; step++) {
-    const total = step === steps - 1 ? last : hold;
-    const parts = animated ? total / tick : 1;
+    const total = step === steps - 1 ? hold * 2 : hold;
+    const parts = animated ? Math.max(1, Math.round(total / tick)) : 1;
     for (let i = 0; i < parts; i++) {
-      out.push({ step, at, duration: total / parts });
+      out.push({ step, at, duration: Math.round(total / parts) });
       at += total / parts;
     }
   }
@@ -46,10 +46,10 @@ function drawBoard(ctx: CanvasRenderingContext2D, board: string[], rows: number,
   }));
 }
 
-export async function makeGif(canvas: HTMLCanvasElement, boards: string[][], cell: number, look: GifLook) {
+export async function makeGif(canvas: HTMLCanvasElement, boards: string[][], cell: number, look: GifLook, hold: number) {
   const { rows, width, height } = gifSize(boards, cell);
   const skin = look === "emoji" ? undefined : look;
-  const frames = timeline(boards.length, !!skin?.animation);
+  const frames = timeline(boards.length, !!skin?.animation, hold);
   if (frames.length < 2) throw new Error("Pick at least 2 steps for a GIF.");
   if (frames.length * width * height * 4 > maxBytes) throw new Error("That GIF is too big. Lower the block size.");
   canvas.width = width; canvas.height = height;

@@ -38,6 +38,7 @@ test("timeline holds each step once for flat skins and ticks for animated ones",
   expect(animated).toHaveLength(30);
   expect(animated[10]).toEqual({ step: 1, at: 1000, duration: 100 });
   expect(animated.reduce((sum, frame) => sum + frame.duration, 0)).toBe(3000);
+  expect(timeline(2, false, 500).map(frame => frame.duration)).toEqual([500, 1000]);
 });
 
 test("gifSize sizes the canvas from the block size and the tallest board", () => {
