@@ -4,13 +4,13 @@ import { TETRIO_CONNECTION_ROWS, TETRIO_SKIN_ROWS } from "./tetrio-skins";
 
 export const COLORS = ["", "#ef4444", "#f97316", "#eab308", "#22c55e", "#22d3ee", "#3b82f6", "#a855f7", "#6b7280"];
 
-export function skinFrame(skin: LoadedSkin): number {
+export function skinFrame(skin: LoadedSkin, now = performance.now()): number {
   const ends = skin.animation?.frameEnds;
   if (ends) {
-    const time = performance.now() % ends[ends.length - 1];
+    const time = now % ends[ends.length - 1];
     for (let frame = 0; frame < ends.length; frame++) if (time < ends[frame]) return frame;
   }
-  return skin.animation ? Math.floor(performance.now() * 60 / (1000 * skin.animation.delay)) % skin.animation.frames : 0;
+  return skin.animation ? Math.floor(now * 60 / (1000 * skin.animation.delay)) % skin.animation.frames : 0;
 }
 
 export function drawTile(ctx: CanvasRenderingContext2D, id: number, x: number, y: number,

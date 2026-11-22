@@ -12,7 +12,8 @@
     "@42tris/core": "workspace:*",
     "@42tris/match": "workspace:*",
     "@42tris/protocol": "workspace:*",
-    "@42tris/replay": "workspace:*"
+    "@42tris/replay": "workspace:*",
+    "gifski-wasm": "^2.2.0"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

@@ -780,5 +780,5 @@ function frame(now: number) {
 let frameId = requestAnimationFrame(frame);
 window.addEventListener("pagehide", e => { holdExit.cancel(); modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { holdExit.dispose(); volumeOverlay.dispose(); unmountInput(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
-if (entryView === "emoji") mountEmojiEditor(emojiView);
+if (entryView === "emoji") mountEmojiEditor(emojiView, skins);
 else if (!atHome) enterOnline();

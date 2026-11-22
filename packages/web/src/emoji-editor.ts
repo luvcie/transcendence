@@ -1,3 +1,8 @@
+import type { SkinState } from "./skin-state";
+import { makeGif, type GifLook } from "./emoji-gif";
+import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
+import { resolveSkin } from "./skin-preferences";
+
 const openers = {
   "TKI": [
     [
@@ -190,7 +195,7 @@ function readSaved() {
   }
 }
 
-export function mountEmojiEditor(root: HTMLElement) {
+export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   const { ownerDocument: document } = root;
   const board = root.querySelector<HTMLElement>("#emoji-board")!;
   const palette = root.querySelector<HTMLElement>("#emoji-palette")!;
@@ -205,6 +210,13 @@ export function mountEmojiEditor(root: HTMLElement) {
   const seqTo = root.querySelector<HTMLInputElement>("#emoji-seq-to")!;
   const perRow = root.querySelector<HTMLSelectElement>("#emoji-per-row")!;
   const copySeq = root.querySelector<HTMLButtonElement>("#emoji-copy-seq")!;
+  const gifSkin = root.querySelector<HTMLInputElement>("#emoji-gif-skin")!;
+  const gifSkinList = root.querySelector<HTMLElement>("#emoji-gif-skins")!;
+  const gifBlock = root.querySelector<HTMLInputElement>("#emoji-gif-block")!;
+  const exportGif = root.querySelector<HTMLButtonElement>("#emoji-export-gif")!;
+  const gifResult = root.querySelector<HTMLElement>("#emoji-gif-result")!;
+  const gifPreview = root.querySelector<HTMLImageElement>("#emoji-gif-preview")!;
+  const gifDownload = root.querySelector<HTMLButtonElement>("#emoji-gif-download")!;
   const autoSplit = root.querySelector<HTMLInputElement>("#emoji-auto-split")!;
   const codeBlock = root.querySelector<HTMLInputElement>("#emoji-code-block")!;
   const splits = root.querySelector<HTMLElement>("#emoji-splits")!;
@@ -600,12 +612,15 @@ export function mountEmojiEditor(root: HTMLElement) {
 
   const messageLimit = 2000;
 
-  function sequenceGroups() {
+  function selectedBoards() {
     saveCurrent();
     const from = Math.max(1, Math.min(Number(seqFrom.value) || 1, sequence.length));
     const to = Math.max(1, Math.min(Number(seqTo.value) || 1, sequence.length));
-    const boards = sequence.slice(from - 1, to).map(board =>
-      mirrored ? mirrorRows(board) : board);
+    return sequence.slice(from - 1, to).map(board => mirrored ? mirrorRows(board) : board);
+  }
+
+  function sequenceGroups() {
+    const boards = selectedBoards();
     return { groups: arrangeBoards(boards, Number(perRow.value)), count: boards.length };
   }
 
@@ -639,6 +654,57 @@ export function mountEmojiEditor(root: HTMLElement) {
   copy.addEventListener("click", () => copyRows(0, copy));
   copyHalf.addEventListener("click", () => copyRows(rows / 2, copyHalf));
   copySeq.addEventListener("click", () => copyMessage(0, copySeq));
+  // names repeat across categories, so a repeat gets its category (or id) added to stay unique
+  const skinKeys = new Map<string, string>();
+  function fillSkins() {
+    const keys = new Map<string, string>();
+    skinKeys.clear();
+    const add = (id: string, label: string, group = id) => {
+      let key = label;
+      if (skinKeys.has(key)) key = `${label} (${group})`;
+      if (skinKeys.has(key)) key = `${label} (${id})`;
+      skinKeys.set(key, id); keys.set(id, key);
+    };
+    add("emoji", "Emojis");
+    BUILTIN_SKINS.forEach(def => add(def.id, def.label, def.category));
+    skins.preferences.customs.forEach((url, index) => { const def = customSkin(url, index); add(def.id, def.label); });
+    gifSkinList.replaceChildren(...[...skinKeys.keys()].map(key => {
+      const option = document.createElement("option");
+      option.value = key;
+      return option;
+    }));
+    return keys;
+  }
+  gifSkin.value = fillSkins().get(skins.preferences.active) ?? "Emojis";
+  gifSkin.addEventListener("focus", () => { fillSkins(); gifSkin.select(); });
+
+  let gifBlob: Blob | undefined;
+  exportGif.addEventListener("click", async () => {
+    exportGif.disabled = true;
+    status.textContent = "Making the GIF...";
+    try {
+      const cell = Math.max(4, Math.min(Math.round(Number(gifBlock.value)) || 16, 64));
+      const id = skinKeys.get(gifSkin.value.trim());
+      if (!id) throw new Error("Pick a skin from the list.");
+      const look: GifLook = id === "emoji" ? "emoji"
+        : await skins.load(resolveSkin({ active: id, customs: skins.preferences.customs }));
+      const gif = await makeGif(document.createElement("canvas"), selectedBoards(), cell, look);
+      gifBlob = new Blob([gif as Uint8Array<ArrayBuffer>], { type: "image/gif" });
+      URL.revokeObjectURL(gifPreview.src);
+      gifPreview.src = URL.createObjectURL(gifBlob);
+      gifResult.hidden = false;
+      status.textContent = `GIF ready (${Math.round(gif.length / 1024)} KB).`;
+    } catch (error) {
+      status.textContent = (error as Error).message;
+    } finally { exportGif.disabled = false; }
+  });
+
+  gifDownload.addEventListener("click", () => {
+    const link = document.createElement("a");
+    link.href = gifPreview.src;
+    link.download = "emojitetorisu.gif";
+    link.click();
+  });
   for (const input of [seqFrom, seqTo]) input.addEventListener("input", renderSplits);
   for (const input of [perRow, autoSplit]) input.addEventListener("change", renderSplits);
 }
