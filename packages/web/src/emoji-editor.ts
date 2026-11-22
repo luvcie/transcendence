@@ -474,6 +474,15 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     status.textContent = `Step ${step + 1} of ${sequence.length}.`;
   });
 
+  document.addEventListener("keydown", event => {
+    const target = event.target as HTMLElement;
+    if (root.hidden || event.ctrlKey || event.altKey || event.metaKey || target.closest("input, select, textarea, [contenteditable]")) return;
+    const button = { ArrowLeft: stepBack, h: stepBack, ArrowRight: stepNext, l: stepNext }[event.key];
+    if (!button) return;
+    event.preventDefault();
+    button.click();
+  });
+
   for (const [name, layouts] of Object.entries(openers)) {
     const button = makeButton(name);
     let variant = 0;
