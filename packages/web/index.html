@@ -249,13 +249,18 @@
       .emoji-tools .actions { gap: 6px; margin-top: 8px; }
       .emoji-tools button { padding: 8px 10px; }
       #emoji-palette > div { display: contents; }
-      #emoji-board { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); width: min(100%, 356px); padding: 8px; border-radius: 12px; background: #2a2d2e; touch-action: none; user-select: none; }
+      #emoji-board { position: relative; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); width: min(100%, 356px); padding: 8px; border-radius: 12px; background: #2a2d2e; touch-action: none; user-select: none; }
       .emoji-cell, .emoji-color, #emoji-mirror { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
-      .emoji-cell { aspect-ratio: 1; overflow: hidden; padding: 0; border: 0; background: transparent; font-size: 30px; line-height: 1; }
+      #emoji-board canvas { display: none; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+      #emoji-view.skin-look #emoji-board canvas { display: block; }
+      #emoji-view.skin-look .emoji-cell { font-size: 0; }
+      #emoji-view.skin-look .emoji-color { position: relative; }
+      #emoji-view.skin-look .emoji-color::after { content: ""; position: absolute; inset: 0; background-color: inherit; background-image: var(--tile); background-position: center; background-repeat: no-repeat; background-size: calc(100% - 10px); }
+      .emoji-cell { position: relative; aspect-ratio: 1; overflow: hidden; padding: 0; border: 0; background: transparent; font-size: 30px; line-height: 1; }
       .emoji-cell:is(:hover, :focus-visible) { outline: 1px solid #22d3ee; outline-offset: -1px; }
       .emoji-tools .emoji-color { padding: 5px; font-size: 20px; line-height: 1; }
       #emoji-mirror { margin-top: 8px; width: 44px; height: 44px; padding: 0; font-size: 20px; line-height: 1; }
-      #emoji-mirror[aria-pressed=true], .emoji-color[aria-pressed=true] { border-color: #22d3ee; background: #163036; }
+      #emoji-mirror[aria-pressed=true], .emoji-color[aria-pressed=true] { border-color: #22d3ee; background-color: #163036; }
       #emoji-status { min-height: 1.6em; }
       #emoji-view { overflow-anchor: none; }
       #emoji-custom:empty { display: none; }
@@ -268,7 +273,9 @@
       .emoji-seq label { display: flex; align-items: center; gap: 6px; color: #aaa; font-size: 12px; }
       .emoji-seq input { accent-color: #22d3ee; }
       #emoji-splits:empty { display: none; }
-      #emoji-gif-skin { width: 14em; max-width: 100%; }
+      .emoji-tools .emoji-look { column-gap: 28px; }
+      #emoji-skin { width: 14em; max-width: 100%; }
+      #emoji-skin:disabled { opacity: .5; }
       #emoji-gif-seconds { width: 84px; }
       #emoji-gif-preview { max-width: 100%; max-height: 200px; }
       .emoji-seq :is(input[type=number], input[list], select) { background: #111; color: #eee; border: 1px solid #666; padding: 6px 8px; }
@@ -292,7 +299,7 @@
         #emoji-view { padding: 14px 0 20px; }
         .emoji-layout {
           display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
-          grid-template-areas: "title" "board" "mirror" "palette" "openers" "custom" "actions" "seq" "status";
+          grid-template-areas: "title" "board" "mirror" "look" "palette" "openers" "custom" "actions" "seq" "status";
           width: min(100%, 420px); margin-inline: auto;
         }
         .emoji-tools { display: contents; }
@@ -310,6 +317,7 @@
         .emoji-tools .actions { margin: 0; }
         #emoji-board { grid-area: board; width: 100%; container-type: inline-size; }
         .emoji-cell { font-size: 8.8cqw; }
+        .emoji-look { grid-area: look; }
         .emoji-actions { grid-area: actions; }
         .emoji-openers { grid-area: openers; }
         #emoji-status { grid-area: status; margin: 0; }
@@ -317,7 +325,7 @@
       @media (460px <= width <= 663px) {
         .emoji-layout {
           grid-template-columns: 44px minmax(0, 1fr) 44px;
-          grid-template-areas: "title title title" "colors-left board colors-right" "openers openers openers" "custom custom custom" "actions actions actions" "seq seq seq" "status status status";
+          grid-template-areas: "title title title" "colors-left board colors-right" "look look look" "openers openers openers" "custom custom custom" "actions actions actions" "seq seq seq" "status status status";
           width: min(100%, 528px);
         }
         .emoji-blocks, #emoji-palette { display: contents; }
@@ -423,6 +431,10 @@
                 <label><input type="radio" name="emoji-gesture" id="emoji-scroll"> Scroll</label>
               </div>
             </div>
+            <div class="actions emoji-seq emoji-look">
+              <label><input id="emoji-mode" type="checkbox" checked> Emoji mode</label>
+              <label>Skin <input id="emoji-skin" list="emoji-skins" placeholder="Search skins" autocomplete="off" spellcheck="false"><datalist id="emoji-skins"></datalist></label>
+            </div>
             <div class="actions emoji-actions">
               <button class="primary" id="emoji-copy" type="button">Copy board</button>
               <button id="emoji-copy-half" type="button" aria-label="Copy bottom 10 rows">Copy bottom 10</button>
@@ -437,7 +449,6 @@
                 <button id="emoji-copy-seq" type="button">Copy sequence</button>
               </div>
               <div class="actions emoji-seq">
-                <label>Skin <input id="emoji-gif-skin" list="emoji-gif-skins" placeholder="Search skins" autocomplete="off" spellcheck="false"><datalist id="emoji-gif-skins"></datalist></label>
                 <label>Block <input id="emoji-gif-block" type="number" min="4" max="64" value="16"> px</label>
                 <label>Seconds per step <input id="emoji-gif-seconds" type="number" min="0.02" max="10" step="0.01" value="1"></label>
                 <button id="emoji-export-gif" type="button">Export GIF</button>

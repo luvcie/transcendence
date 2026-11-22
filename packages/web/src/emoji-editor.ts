@@ -1,7 +1,9 @@
 import type { SkinState } from "./skin-state";
-import { makeGif, type GifLook } from "./emoji-gif";
+import { ids, makeGif } from "./emoji-gif";
 import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
 import { resolveSkin } from "./skin-preferences";
+import type { LoadedSkin } from "./skin-loader";
+import { drawTile, skinFrame } from "./tile-renderer";
 
 const openers = {
   "TKI": [
@@ -167,6 +169,10 @@ export function mirrorRows(board: string[]) {
   return board.map(row => Array.from(row).reverse().map(value => mirrorPair[value] ?? value).join(""));
 }
 
+const modeKey = "tetorisueditor.emojiMode";
+// anything but an explicit "false" keeps the default, emoji mode
+export const parseEmojiMode = (raw: string | null) => raw !== "false";
+
 export type SavedOpener = { name: string; steps: string[][] };
 const storeKey = "tetorisueditor.openers";
 const maxSaved = 12;
@@ -212,8 +218,9 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   const seqTo = root.querySelector<HTMLInputElement>("#emoji-seq-to")!;
   const perRow = root.querySelector<HTMLSelectElement>("#emoji-per-row")!;
   const copySeq = root.querySelector<HTMLButtonElement>("#emoji-copy-seq")!;
-  const gifSkin = root.querySelector<HTMLInputElement>("#emoji-gif-skin")!;
-  const gifSkinList = root.querySelector<HTMLElement>("#emoji-gif-skins")!;
+  const emojiMode = root.querySelector<HTMLInputElement>("#emoji-mode")!;
+  const skinInput = root.querySelector<HTMLInputElement>("#emoji-skin")!;
+  const skinList = root.querySelector<HTMLElement>("#emoji-skins")!;
   const gifBlock = root.querySelector<HTMLInputElement>("#emoji-gif-block")!;
   const gifSeconds = root.querySelector<HTMLInputElement>("#emoji-gif-seconds")!;
   const exportGif = root.querySelector<HTMLButtonElement>("#emoji-export-gif")!;
@@ -233,6 +240,11 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   const mirror = root.querySelector<HTMLButtonElement>("#emoji-mirror")!;
   const copyHalf = root.querySelector<HTMLButtonElement>("#emoji-copy-half")!;
   const cells = Array.from({ length: cols * rows }, () => makeButton(empty, "emoji-cell"));
+  const canvas = document.createElement("canvas");
+  const swatches: [HTMLButtonElement, number][] = [];
+  let swatchSkin: LoadedSkin | undefined | null = null;
+  let frameRequest = 0;
+  let queued = false;
   let selected: string = blocks[0][0];
   let mirrored = false;
   type StrokeSource = "pointer" | "touch-pointer" | "touch";
@@ -258,6 +270,65 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     const cell = cells[index];
     cell.textContent = value;
     cell.setAttribute("aria-label", `Row ${Math.floor(index / cols) + 1}, column ${index % cols + 1}: ${value}`);
+    redraw();
+  }
+
+  function drawCell(ctx: CanvasRenderingContext2D, id: number | undefined, x: number, y: number, size: number,
+    skin: LoadedSkin | undefined, frame: number) {
+    ctx.fillStyle = "#111";
+    ctx.fillRect(x, y, size, size);
+    if (id) drawTile(ctx, id, x, y, size, skin, 0, false, frame);
+    if (!id || !skin) {
+      ctx.strokeStyle = "#333";
+      ctx.strokeRect(x + .5, y + .5, size - 1, size - 1);
+    }
+  }
+
+  function paintSwatches(skin: LoadedSkin | undefined) {
+    swatchSkin = skin;
+    const tile = document.createElement("canvas");
+    tile.width = tile.height = 32;
+    const ctx = tile.getContext("2d")!;
+    for (const [button, id] of swatches) {
+      drawCell(ctx, id, 0, 0, 32, skin, 0);
+      button.style.setProperty("--tile", `url(${tile.toDataURL()})`);
+    }
+  }
+
+  // the grid stays the source of truth, the canvas only repaints it from the real cell rects
+  function draw() {
+    if (emojiMode.checked || !board.clientWidth) return;
+    const skin = skins.loaded;
+    if (skin !== swatchSkin) paintSwatches(skin);
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.round(board.clientWidth * dpr), height = Math.round(board.clientHeight * dpr);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    const ctx = canvas.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, board.clientWidth, board.clientHeight);
+    const frame = skin ? skinFrame(skin) : 0;
+    const origin = board.getBoundingClientRect();
+    for (const cell of cells) {
+      const rect = cell.getBoundingClientRect();
+      drawCell(ctx, ids[cell.textContent!], rect.left - origin.left, rect.top - origin.top, rect.width, skin, frame);
+    }
+    if (skin?.animation && !frameRequest) frameRequest = requestAnimationFrame(() => {
+      frameRequest = 0;
+      draw();
+    });
+  }
+
+  // paints call this per cell, so batch them into one draw before the next frame
+  function redraw() {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      draw();
+    });
   }
 
   function startStroke(index: number, source: StrokeSource, id: number) {
@@ -268,6 +339,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
 
   for (const [index, [emoji, name]] of blocks.entries()) {
     const button = makeButton(emoji, "emoji-color");
+    swatches.push([button, ids[emoji]]);
     button.setAttribute("aria-label", name);
     button.setAttribute("aria-pressed", String(emoji === selected));
     function selectColor() {
@@ -300,7 +372,8 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
       if (event.detail === 0) paint(index, cell.textContent === empty ? selected : empty);
     });
   });
-  board.append(...cells);
+  board.append(canvas, ...cells);
+  new ResizeObserver(redraw).observe(board);
 
   function cellAt(x: number, y: number) {
     const hit = document.elementFromPoint(x, y);
@@ -679,18 +752,38 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
       if (skinKeys.has(key)) key = `${label} (${id})`;
       skinKeys.set(key, id); keys.set(id, key);
     };
-    add("emoji", "Emojis");
     BUILTIN_SKINS.forEach(def => add(def.id, def.label, def.category));
     skins.preferences.customs.forEach((url, index) => { const def = customSkin(url, index); add(def.id, def.label); });
-    gifSkinList.replaceChildren(...[...skinKeys.keys()].map(key => {
+    skinList.replaceChildren(...[...skinKeys.keys()].map(key => {
       const option = document.createElement("option");
       option.value = key;
       return option;
     }));
     return keys;
   }
-  gifSkin.value = fillSkins().get(skins.preferences.active) ?? "Emojis";
-  gifSkin.addEventListener("focus", () => { fillSkins(); gifSkin.select(); });
+  const activeSkinKey = () => fillSkins().get(skins.preferences.active) ?? "";
+  skinInput.value = activeSkinKey();
+  skinInput.addEventListener("focus", () => { skinInput.value = activeSkinKey(); skinInput.select(); });
+  skinInput.addEventListener("change", async () => {
+    const id = skinKeys.get(skinInput.value.trim());
+    if (id) await skins.select(id);
+    skinInput.value = activeSkinKey();
+    redraw();
+  });
+
+  try { emojiMode.checked = parseEmojiMode(localStorage.getItem(modeKey)); } catch { /* keep the default */ }
+  function applyMode() {
+    root.classList.toggle("skin-look", !emojiMode.checked);
+    skinInput.disabled = emojiMode.checked;
+    redraw();
+  }
+  emojiMode.addEventListener("change", () => {
+    applyMode();
+    try { localStorage.setItem(modeKey, String(emojiMode.checked)); } catch { /* the choice lasts for the session */ }
+  });
+  applyMode();
+  // the first skin may still be loading, draw again once it has settled
+  if (!skins.loaded) skins.load(resolveSkin(skins.preferences)).catch(() => {}).then(() => setTimeout(redraw));
 
   let gifBlob: Blob | undefined;
   exportGif.addEventListener("click", async () => {
@@ -699,11 +792,8 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     try {
       const cell = Math.max(4, Math.min(Math.round(Number(gifBlock.value)) || 16, 64));
       const hold = Math.max(20, Math.min(Math.round((Number(gifSeconds.value) || 1) * 1000), 10000));
-      const id = skinKeys.get(gifSkin.value.trim());
-      if (!id) throw new Error("Pick a skin from the list.");
-      const look: GifLook = id === "emoji" ? "emoji"
-        : await skins.load(resolveSkin({ active: id, customs: skins.preferences.customs }));
-      const gif = await makeGif(document.createElement("canvas"), selectedBoards(), cell, look, hold);
+      const gif = await makeGif(document.createElement("canvas"), selectedBoards(), cell,
+        emojiMode.checked ? "emoji" : skins.loaded, hold);
       gifBlob = new Blob([gif as Uint8Array<ArrayBuffer>], { type: "image/gif" });
       URL.revokeObjectURL(gifPreview.src);
       gifPreview.src = URL.createObjectURL(gifBlob);

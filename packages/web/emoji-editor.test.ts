@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { arrangeBoards, mirrorRows, parseSavedOpeners } from "./src/emoji-editor";
+import { arrangeBoards, mirrorRows, parseEmojiMode, parseSavedOpeners } from "./src/emoji-editor";
 import { gifSize, timeline } from "./src/emoji-gif";
 
 const row = (emoji: string) => emoji.repeat(10);
@@ -43,4 +43,9 @@ test("timeline holds each step once for flat skins and ticks for animated ones",
 
 test("gifSize sizes the canvas from the block size and the tallest board", () => {
   expect(gifSize([["⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛"], Array(4).fill("⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛")], 16)).toEqual({ rows: 4, width: 160, height: 64 });
+});
+
+test("emoji mode is on unless storage explicitly says false", () => {
+  expect(parseEmojiMode("false")).toBe(false);
+  for (const raw of ["true", null, "", "0", "nope"]) expect(parseEmojiMode(raw)).toBe(true);
 });

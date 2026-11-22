@@ -2,7 +2,7 @@ import { Piece } from "@42tris/core";
 import type { LoadedSkin } from "./skin-loader";
 import { drawTile, skinFrame } from "./tile-renderer";
 
-const ids: Record<string, number> = {
+export const ids: Record<string, number> = {
   "🟥": Piece.Z, "🟧": Piece.L, "🟨": Piece.O, "🟩": Piece.S, "⬜": Piece.I, "🟦": Piece.J, "🟪": Piece.T,
 };
 const cols = 10;
