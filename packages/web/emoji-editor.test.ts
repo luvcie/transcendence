@@ -31,14 +31,14 @@ test("saved openers ignore anything that is not valid", () => {
 });
 
 test("timeline holds each step once for flat skins and ticks for animated ones", () => {
-  expect(timeline(3, false)).toEqual([
+  expect(timeline([1000, 1000, 1000], false)).toEqual([
     { step: 0, at: 0, duration: 1000 }, { step: 1, at: 1000, duration: 1000 }, { step: 2, at: 2000, duration: 2000 },
   ]);
-  const animated = timeline(2, true);
+  const animated = timeline([1000, 1000], true);
   expect(animated).toHaveLength(30);
   expect(animated[10]).toEqual({ step: 1, at: 1000, duration: 100 });
   expect(animated.reduce((sum, frame) => sum + frame.duration, 0)).toBe(3000);
-  expect(timeline(2, false, 500).map(frame => frame.duration)).toEqual([500, 1000]);
+  expect(timeline([500, 500], false).map(frame => frame.duration)).toEqual([500, 1000]);
 });
 
 test("gifSize sizes the canvas from the block size and the tallest board", () => {

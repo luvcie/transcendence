@@ -1,5 +1,6 @@
 import type { SkinState } from "./skin-state";
-import { ids, makeGif } from "./emoji-gif";
+import { animatedLook, ids, makeGif, timeline } from "./emoji-gif";
+import { animateSteps } from "./gif-pieces";
 import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
 import { resolveSkin, type SkinPreferences } from "./skin-preferences";
 import type { LoadedSkin } from "./skin-loader";
@@ -233,6 +234,10 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   const skinList = root.querySelector<HTMLElement>("#emoji-skins")!;
   const gifBlock = root.querySelector<HTMLInputElement>("#emoji-gif-block")!;
   const gifSeconds = root.querySelector<HTMLInputElement>("#emoji-gif-seconds")!;
+  const gifAnimate = root.querySelector<HTMLInputElement>("#emoji-gif-animate")!;
+  const gifHint = root.querySelector<HTMLElement>("#emoji-gif-hint")!;
+  const gifBuild = root.querySelector<HTMLInputElement>("#emoji-gif-build")!;
+  const gifBuildLabel = root.querySelector<HTMLElement>("#emoji-gif-build-label")!;
   const exportGif = root.querySelector<HTMLButtonElement>("#emoji-export-gif")!;
   const gifResult = root.querySelector<HTMLElement>("#emoji-gif-result")!;
   const gifPreview = root.querySelector<HTMLImageElement>("#emoji-gif-preview")!;
@@ -728,6 +733,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   }
 
   const messageLimit = 2000;
+  const maxGifFrames = 400;
 
   function selectedBoards() {
     saveCurrent();
@@ -838,17 +844,29 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     try {
       const cell = Math.max(4, Math.min(Math.round(Number(gifBlock.value)) || 16, 64));
       const hold = Math.max(20, Math.min(Math.round((Number(gifSeconds.value) || 1) * 1000), 10000));
-      const gif = await makeGif(document.createElement("canvas"), selectedBoards(), cell,
-        emojiMode.checked ? "emoji" : skin, hold);
+      const look = emojiMode.checked ? "emoji" : skin;
+      let boards = selectedBoards(), holds = boards.map(() => hold), frames = "", note = "";
+      if (gifAnimate.checked && (boards.length > 1 || gifBuild.checked)) {
+        const animated = animateSteps(boards, hold, gifBuild.checked);
+        ({ boards, holds } = animated);
+        const count = timeline(holds, animatedLook(look)).length;
+        if (count > maxGifFrames) throw new Error(`Animating needs ${count} frames, ${maxGifFrames} at most. Pick fewer steps or a non animated skin.`);
+        if (gifBuild.checked && !animated.built) note = " The first board cannot be built piece by piece, so it shows as drawn.";
+        status.textContent = `Animating: ${count} frames...${note}`;
+        frames = `${count} frames, `;
+      }
+      const gif = await makeGif(document.createElement("canvas"), boards, cell, look, holds);
       gifBlob = new Blob([gif as Uint8Array<ArrayBuffer>], { type: "image/gif" });
       URL.revokeObjectURL(gifPreview.src);
       gifPreview.src = URL.createObjectURL(gifBlob);
       gifResult.hidden = false;
-      status.textContent = `GIF ready (${Math.round(gif.length / 1024)} KB).`;
+      status.textContent = `GIF ready (${frames}${Math.round(gif.length / 1024)} KB).${note}`;
     } catch (error) {
       status.textContent = (error as Error).message;
     } finally { exportGif.disabled = false; }
   });
+
+  gifAnimate.addEventListener("change", () => { gifHint.hidden = gifBuildLabel.hidden = !gifAnimate.checked; });
 
   gifDownload.addEventListener("click", () => {
     const link = document.createElement("a");

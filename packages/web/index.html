@@ -467,8 +467,11 @@
               <div class="actions emoji-seq">
                 <label>Block <input id="emoji-gif-block" type="number" min="4" max="64" value="16"> px</label>
                 <label>Seconds per step <input id="emoji-gif-seconds" type="number" min="0.02" max="10" step="0.01" value="1"></label>
+                <label><input id="emoji-gif-animate" type="checkbox"> Animate pieces</label>
+                <label id="emoji-gif-build-label" hidden><input id="emoji-gif-build" type="checkbox"> Build the first board too</label>
                 <button id="emoji-export-gif" type="button">Export GIF</button>
               </div>
+              <p class="hint" id="emoji-gif-hint" hidden>Seconds per step is per input when animating, 0.1 is a good start.</p>
               <div class="actions emoji-seq" id="emoji-gif-result" hidden>
                 <img id="emoji-gif-preview" alt="Exported GIF">
                 <button id="emoji-gif-download" type="button">Download</button>
