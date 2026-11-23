@@ -260,7 +260,7 @@
       #emoji-view.playing :is(#emoji-copy, #emoji-copy-half, #emoji-seq, .emoji-openers, .emoji-custom) { display: none; }
       #emoji-view.playing #emoji-board .emoji-side { opacity: 1; transform: none; }
       .emoji-cell.ghost { opacity: .3; }
-      #emoji-view.skin-look #emoji-board canvas { display: block; }
+      #emoji-view.skin-look #emoji-board canvas:not(.emoji-side) { display: block; }
       #emoji-view.skin-look .emoji-cell { font-size: 0; }
       #emoji-view.skin-look .emoji-color { position: relative; }
       #emoji-view.skin-look .emoji-color::after { content: ""; position: absolute; inset: 0; background-color: inherit; background-image: var(--tile); background-position: center; background-repeat: no-repeat; background-size: calc(100% - 10px); }
@@ -318,13 +318,13 @@
         .emoji-tools .emoji-openers-head { display: grid; grid-template-columns: 1fr auto 1fr; }
         #emoji-palette { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
         .emoji-tools button { min-height: 44px; touch-action: manipulation; }
-        .emoji-seq :is(input[type=number], input[list], select) { min-height: 44px; }
+        .emoji-seq :is(input[type=number], input[list], select), .emoji-seq label { min-height: 44px; }
+        .emoji-stepper button { min-width: 44px; }
         #emoji-seq { grid-area: seq; display: grid; gap: 10px; }
         .emoji-custom { grid-area: custom; display: grid; gap: 6px; margin: 0; }
         .emoji-tools .emoji-color { padding-inline: 0; }
         .emoji-tools .actions { margin: 0; }
         #emoji-board { grid-area: board; width: 100%; container-type: inline-size; }
-        #emoji-board .emoji-side { display: none; }
         .emoji-cell { font-size: 8.8cqw; }
         .emoji-look { grid-area: look; }
         .emoji-actions { grid-area: actions; }
@@ -344,6 +344,11 @@
         #emoji-colors-left { grid-area: colors-left; }
         #emoji-colors-right { grid-area: colors-right; }
         #emoji-mirror { grid-area: colors-right; align-self: end; justify-self: center; }
+      }
+      /* hold and queue sit outside the 800px view, below this they overflow (scrollbar included) */
+      @media (max-width: 959px) {
+        #emoji-board .emoji-side { display: none; }
+        #emoji-view.playing .emoji-tools { transform: none; }
       }
       .mode-card { display: grid; }
       .mode-card > * { grid-area: 1 / 1; }
