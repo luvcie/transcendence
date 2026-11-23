@@ -24,10 +24,8 @@ test.each([
 
 test("manual crop reads the selected area", () => {
   const first = recognizeBoard(load("harddrop-1"), { bounds: { x: 11, y: 15, width: 274, height: 219 } });
-  expect(first.rows).toBe(8);
   expect(toEmoji(first.cells, first.cols)).toEqual(expected("harddrop-1"));
   const second = recognizeBoard(load("youtube-2"), { bounds: { x: 175, y: 100, width: 231, height: 462 } });
-  expect(second.rows).toBe(20);
   expect(toEmoji(second.cells, second.cols)).toEqual(expected("youtube-2"));
 });
 
@@ -39,6 +37,60 @@ test.each([
 ])("recognizes manual crop for $name", ({ name, ...bounds }) => {
   const board = recognizeBoard(load(name), { bounds });
   expect(toEmoji(board.cells, board.cols)).toEqual(expected(name));
+});
+
+test.each([
+  { name: "tetrio-panels", x: 109, y: 39, width: 174, height: 346, boardX: 124, boardY: 58 },
+  { name: "tetrio-panels", x: 124, y: 31, width: 151, height: 354, boardX: 124, boardY: 58 },
+  { name: "crop-c-padded", x: 9, y: 6, width: 445, height: 292, boardX: 106, boardY: 56 },
+])("fits the board within a loose crop of $name", ({ name, boardX, boardY, ...bounds }) => {
+  const board = recognizeBoard(load(name), { bounds });
+  expect(board.rows).toBeLessThanOrEqual(20);
+  expect(toEmoji(board.cells, board.cols)).toEqual(expected(name));
+  expect(Math.abs(board.bounds.x - boardX)).toBeLessThan(2);
+  expect(Math.abs(board.bounds.y - boardY)).toBeLessThan(2);
+});
+
+test.each([
+  { name: "crop-c-padded", x: 0, y: 0, width: 80, height: 80 },
+  { name: "tetrio-panels", x: 5, y: 5, width: 60, height: 60 },
+  { name: "tetrio-panels", x: 282, y: 60, width: 70, height: 75 },
+])("rejects a crop without a board in $name at $x, $y", ({ name, ...bounds }) => {
+  const board = recognizeBoard(load(name), { bounds });
+  expect(board.rows).toBe(0);
+  expect(board.confidence).toHaveLength(0);
+});
+
+test("rejects a literal box taller than 20 rows when no grid fits", () => {
+  const width = 40, height = 88;
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = height - 4; y < height; y++) {
+    for (let x = 0; x < 4; x++) data.set([0, 145, 210, 255], (y * width + x) * 4);
+  }
+  const board = recognizeBoard({ width, height, data }, { bounds: { x: 0, y: 0, width, height } });
+  expect(board.rows).toBe(0);
+});
+
+test("reads grey garbage in a literal crop", () => {
+  const width = 40, height = 12;
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 8; y < 12; y++) {
+    for (let x = 0; x < 4; x++) data.set([55, 55, 55, 255], (y * width + x) * 4);
+  }
+  const board = recognizeBoard({ width, height, data }, { bounds: { x: 0, y: 0, width, height } });
+  expect(toEmoji(board.cells, board.cols)).toEqual(["🟫" + "⬛".repeat(9)]);
+});
+
+test.each(["harddrop-1", "harddrop-2"])("uniform grey garbage is confident in %s", name => {
+  const board = recognizeBoard(load(name));
+  const grey = [...board.confidence].filter((_, i) => board.cells[i] === 8);
+  expect(grey.length).toBeGreaterThan(0);
+  expect(Math.min(...grey)).toBeGreaterThan(0.5);
+});
+
+test("uncertain cells still get marked in youtube-2", () => {
+  const board = recognizeBoard(load("youtube-2"));
+  expect([...board.confidence].some((confidence, i) => confidence <= 0.5 && board.cells[i] === 0)).toBe(true);
 });
 
 test.each([
@@ -65,7 +117,7 @@ test("saturated cyan near the blue hue boundary is confident", () => {
   }
   const board = recognizeBoard({ width, height, data }, { bounds: { x: 0, y: 0, width, height } });
   expect(toEmoji(board.cells, board.cols)).toEqual(["⬜" + "⬛".repeat(9)]);
-  expect(board.confidence[10]).toBeGreaterThan(0.5);
+  expect(board.confidence[board.cells.indexOf(5)]).toBeGreaterThan(0.5);
 });
 
 test("an image shorter than one cell has no board", () => {

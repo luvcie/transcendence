@@ -11,7 +11,9 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
   const pick = root.querySelector<HTMLButtonElement>("#minolens-pick")!;
   const file = root.querySelector<HTMLInputElement>("#minolens-file")!;
   const work = root.querySelector<HTMLElement>("#minolens-work")!;
+  const toolbar = root.querySelector<HTMLElement>(".minolens-toolbar")!;
   const actions = root.querySelector<HTMLElement>(".minolens-actions")!;
+  const cropButton = root.querySelector<HTMLButtonElement>("#minolens-crop")!;
   const source = root.querySelector<HTMLCanvasElement>("#minolens-source")!;
   const ctx = source.getContext("2d");
   const board = root.querySelector<HTMLElement>("#minolens-board")!;
@@ -38,11 +40,12 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
   function update() {
     if (!recognition) return;
     const { cols, confidence } = recognition;
+    const hasBlocks = cells.some(id => id !== 0);
     let marked = 0;
     buttons.forEach((button, index) => {
       const id = cells[index];
       const emoji = emojis[id];
-      const uncertain = confidence[index] <= 0.5 && !edited.has(index);
+      const uncertain = hasBlocks && confidence[index] <= 0.5 && !edited.has(index);
       if (uncertain) marked++;
       if (button.textContent !== emoji) {
         button.textContent = emoji;
@@ -55,7 +58,6 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     output.value = toEmoji(cells, cols, trim.checked).join("\n");
     copy.disabled = open.disabled = !output.value;
     reset.disabled = edited.size === 0;
-    const hasBlocks = cells.some(id => id !== 0);
     const guidance = !hasBlocks
       ? "No blocks detected. Try cropping around the board in the screenshot."
       : marked === 1 ? "1 cell to check" : marked > 1 ? `${marked} cells to check` : "";
@@ -129,7 +131,19 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
   }
 
   function recognize(bounds: Rect) {
-    if (image) showRecognition(recognizeBoard(image, { bounds }));
+    if (!image) return;
+    keyboardCrop = undefined;
+    const next = recognizeBoard(image, { bounds });
+    const emojiText = toEmoji(next.cells, next.cols).join("\n");
+    if (typeof parseBoardText(emojiText) === "string") {
+      message.setAttribute("data-error", "");
+      message.textContent = "Could not read a board in that crop. Drag around the full board and try again.";
+      drawSource();
+      return;
+    }
+    message.removeAttribute("data-error");
+    message.textContent = "";
+    showRecognition(next);
   }
 
   async function load(blob: Blob) {
@@ -160,10 +174,12 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
       source.style.setProperty("--source-ratio", String(image.width / image.height));
       actions.hidden = false;
       work.hidden = false;
+      cropButton.setAttribute("aria-pressed", "false");
       showRecognition(next);
       pick.classList.remove("primary");
       pick.textContent = "Replace image";
       uploadHint.textContent = "Paste or drop another";
+      message.removeAttribute("data-error");
       message.textContent = "";
     } catch {
       if (version !== loadVersion || root.hidden) return;
@@ -188,13 +204,18 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => {
       paint = paint === id ? null : id;
-      board.classList.toggle("painting", paint !== null);
       swatches.forEach((swatch, color) => swatch.setAttribute("aria-pressed", String(paint === color)));
     });
     return button;
   });
   palette.replaceChildren(...swatches);
   mountBoardFocus(board, () => ({ cells: buttons, cols: recognition?.cols ?? 10 }));
+  work.addEventListener("focusin", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.matches(":focus-visible")) return;
+    const offset = target.getBoundingClientRect().top - toolbar.getBoundingClientRect().bottom;
+    if (offset < 0) document.defaultView?.scrollBy(0, offset - 8);
+  });
 
   function paintAt(event: PointerEvent) {
     const target = document.elementFromPoint(event.clientX, event.clientY);
@@ -202,7 +223,7 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     paintCell(Number(target.dataset.cell), paint);
   }
   board.addEventListener("pointerdown", event => {
-    if (paint === null || !event.isPrimary || event.button !== 0) return;
+    if (paint === null || event.pointerType !== "mouse" || !event.isPrimary || event.button !== 0) return;
     board.setPointerCapture(event.pointerId);
     paintAt(event);
   });
@@ -226,8 +247,12 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
       width: Math.abs(start.x - point.x), height: Math.abs(start.y - point.y),
     };
   }
+  cropButton.addEventListener("click", () => {
+    cropButton.setAttribute("aria-pressed", String(cropButton.getAttribute("aria-pressed") === "false"));
+  });
   source.addEventListener("pointerdown", event => {
     if (!event.isPrimary || event.button !== 0) return;
+    if (event.pointerType === "touch" && cropButton.getAttribute("aria-pressed") !== "true") return;
     keyboardCrop = undefined;
     source.setPointerCapture(event.pointerId);
     start = imagePoint(event);
@@ -238,7 +263,10 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
   });
   source.addEventListener("pointerup", event => {
     const rect = crop(event);
-    if (rect && rect.width >= 20 && rect.height >= 4) recognize(rect);
+    if (rect && rect.width >= 20 && rect.height >= 4) {
+      cropButton.setAttribute("aria-pressed", "false");
+      recognize(rect);
+    }
   });
   source.addEventListener("lostpointercapture", () => {
     start = undefined;

@@ -158,6 +158,7 @@ function hueToPiece(h: number): { id: number; margin: number } {
 
 const diff = (a: number[], b: number[]) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
 const NEAR = 40;
+const MAX_ROWS = 20;
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
 
 type Cell = { id: number; conf: number; light: number };
@@ -186,10 +187,14 @@ function classify(im: RGBAImage, ox: number, oy: number, p: number, cols: number
     const d = Math.min(diff(c, bg), diff(rings[k], bg));
     if (d <= NEAR) return { id: 0, conf: clamp(1 - d / (2 * NEAR)), light: 0 };
     // blocks are about uniform, a centre unlike its ring is a ghost outline or a marker
-    if (diff(c, rings[k]) > 60) return { id: 0, conf: 0.5, light: 0 };
+    const spread = diff(c, rings[k]);
+    if (spread > 60) return { id: 0, conf: 0.5, light: 0 };
     const [light, chroma, hue] = oklch(c);
+    if (chroma < 0.04) {
+      const contrast = clamp((d - NEAR) / (NEAR / 2 + spread));
+      return { id: 8, conf: Math.min(contrast, clamp(1 - chroma / 0.08)), light };
+    }
     const sure = clamp((d - NEAR) / NEAR);
-    if (chroma < 0.04) return { id: 8, conf: Math.min(sure, clamp(1 - chroma / 0.08)), light };
     const { id, margin } = hueToPiece(hue);
     return { id, conf: Math.min(sure, clamp(margin * chroma / 0.8), clamp(chroma / 0.08)), light };
   });
@@ -222,12 +227,38 @@ const result = (cells: Cell[], p: number, bounds: Rect): Recognition => ({
   cell: p,
 });
 
-export function recognizeBoard(im: RGBAImage, options: { bounds?: Rect } = {}): Recognition {
-  const b = options.bounds;
-  if (b) {
-    const p = b.width / 10, rows = Math.max(1, Math.round(b.height / p));
-    return result(classify(im, b.x, b.y, p, 10, rows), p, { ...b, height: rows * p });
+const noBoard = () => result([], 0, { x: 0, y: 0, width: 0, height: 0 });
+
+export function recognizeBoard(im: RGBAImage, { bounds }: { bounds?: Rect } = {}): Recognition {
+  if (!bounds) return fitBoard(im);
+  const x = Math.max(0, Math.round(bounds.x));
+  const y = Math.max(0, Math.round(bounds.y));
+  const width = Math.min(im.width, Math.round(bounds.x + bounds.width)) - x;
+  const height = Math.min(im.height, Math.round(bounds.y + bounds.height)) - y;
+  if (!(width > 0 && height > 0)) return noBoard();
+
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let row = 0; row < height; row++) {
+    const start = ((y + row) * im.width + x) * 4;
+    data.set(im.data.subarray(start, start + width * 4), row * width * 4);
   }
+  const cropped = { width, height, data };
+  const fitted = fitBoard(cropped, true);
+  if (fitted.cells.some(id => id > 0)) {
+    return { ...fitted, bounds: { ...fitted.bounds, x: fitted.bounds.x + x, y: fitted.bounds.y + y } };
+  }
+
+  const p = width / 10, rows = Math.round(height / p);
+  if (rows < 1 || rows > MAX_ROWS) return noBoard();
+  // a literal crop still needs evidence of a cell edge in each direction
+  const [px, py] = profiles(cropped, lumOf(cropped));
+  if (combScore(px, p, 0) * 10 < p - 1 || (rows > 1 && combScore(py, p, 0) * rows < p - 1)) return noBoard();
+  const cells = classify(cropped, 0, 0, p, 10, rows);
+  if (!cells.some(c => c.id > 0 && c.conf > 0.5)) return noBoard();
+  return result(cells, p, { x, y, width, height: rows * p });
+}
+
+function fitBoard(im: RGBAImage, requireFullWidth = false): Recognition {
   const g = fitGrid(im);
   const p = g.cell;
   // keep all ten columns of a tight crop, including edge cells clipped near their centres
@@ -243,7 +274,7 @@ export function recognizeBoard(im: RGBAImage, options: { bounds?: Rect } = {}): 
   const nx = tight ? 10 : Math.floor((im.width - g.ox) / p - 0.5) - i0 + 1;
   const ny = Math.floor((im.height - g.oy) / p - 0.5) - j0 + 1;
   const ox = g.ox + i0 * p, oy = g.oy + j0 * p;
-  if (nx < 1 || ny < 1) return result([], p, { x: 0, y: 0, width: 0, height: 0 });
+  if (nx < 1 || ny < 1 || (requireFullWidth && (nx < 10 || g.score <= 0))) return noBoard();
   const cells = classify(im, ox, oy, p, nx, ny);
   const filled = (i: number, j: number) => i >= 0 && i < nx && cells[j * nx + i].id > 0;
 
@@ -263,7 +294,7 @@ export function recognizeBoard(im: RGBAImage, options: { bounds?: Rect } = {}): 
   while (bottom > 0 && !rowFilled(bottom)) bottom--;
   // the visible playfield has at most 20 rows; a gap also separates spawn previews
   let top = bottom;
-  for (let j = bottom, gap = 0; j >= Math.max(0, bottom - 19) && gap < 3; j--) {
+  for (let j = bottom, gap = 0; j >= Math.max(0, bottom - MAX_ROWS + 1) && gap < 3; j--) {
     if (rowFilled(j)) [top, gap] = [j, 0];
     else gap++;
   }
