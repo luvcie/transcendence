@@ -1,6 +1,10 @@
 import { GARBAGE, Piece } from "@42tris/core";
 
 export const empty = "⬛";
+export const blockNames: Record<string, string> = {
+  "⬜": "I piece", "🟪": "T piece", "🟥": "Z piece", "🟨": "O piece",
+  "🟩": "S piece", "🟦": "J piece", "🟧": "L piece", "🟫": "Garbage", [empty]: "Erase",
+};
 export const ids: Record<string, number> = {
   "🟥": Piece.Z, "🟧": Piece.L, "🟨": Piece.O, "🟩": Piece.S, "⬜": Piece.I, "🟦": Piece.J, "🟪": Piece.T,
   "🟫": GARBAGE,

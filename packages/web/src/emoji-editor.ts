@@ -1,5 +1,6 @@
 import type { SkinState } from "./skin-state";
-import { empty, ids } from "./board-emoji";
+import { blockNames, empty, ids } from "./board-emoji";
+import { mountBoardFocus } from "./board-focus";
 import { animatedLook, makeGif, tetrominoEdges, timeline } from "./emoji-gif";
 import type { GifPlanJob, GifPlanMessage } from "./gif-planner-worker";
 import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
@@ -178,10 +179,7 @@ export function arrangeBoards(boards: string[][], perRow: number) {
   return groups;
 }
 const mirrorPair: Record<string, string> = { "🟥": "🟩", "🟩": "🟥", "🟦": "🟧", "🟧": "🟦" };
-const blocks = [
-  ["⬜", "I piece"], ["🟪", "T piece"], ["🟥", "Z piece"], ["🟨", "O piece"],
-  ["🟩", "S piece"], ["🟦", "J piece"], ["🟧", "L piece"], ["🟫", "Garbage"], [empty, "Erase"],
-] as const;
+const blocks = Object.entries(blockNames);
 
 export function mirrorRows(board: string[]) {
   return board.map(row => Array.from(row).reverse().map(value => mirrorPair[value] ?? value).join(""));
@@ -318,7 +316,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   function paint(index: number, value: string) {
     const cell = cells[index];
     cell.textContent = value;
-    cell.setAttribute("aria-label", `Row ${Math.floor(index / cols) + 1}, column ${index % cols + 1}: ${value}`);
+    cell.setAttribute("aria-label", `Row ${Math.floor(index / cols) + 1}, column ${index % cols + 1}: ${value === empty ? "Empty" : blockNames[value]}`);
     redraw();
   }
 
@@ -417,6 +415,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   }
 
   cells.forEach((cell, index) => {
+    cell.tabIndex = index === 0 ? 0 : -1;
     paint(index, empty);
     cell.addEventListener("pointerdown", event => {
       if (event.button !== 0 || !event.isPrimary || stroke) return;
@@ -434,6 +433,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     });
   });
   board.append(canvas, ...cells);
+  mountBoardFocus(board, () => ({ cells: play && !play.paused ? [] : cells, cols }));
   new ResizeObserver(redraw).observe(board);
 
   function cellAt(x: number, y: number) {
@@ -602,7 +602,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
 
   document.addEventListener("keydown", event => {
     const target = event.target as HTMLElement;
-    if (root.hidden || play || event.ctrlKey || event.altKey || event.metaKey || target.closest("input, select, textarea, [contenteditable]")) return;
+    if (event.defaultPrevented || root.hidden || play || event.ctrlKey || event.altKey || event.metaKey || target.closest("input, select, textarea, [contenteditable]")) return;
     const button = { ArrowLeft: stepBack, h: stepBack, ArrowRight: stepNext, l: stepNext }[event.key];
     if (!button) return;
     event.preventDefault();

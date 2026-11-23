@@ -1,10 +1,14 @@
-import { emojis } from "../board-emoji";
+import { blockNames, emojis } from "../board-emoji";
+import { mountBoardFocus } from "../board-focus";
 import { parseBoardText } from "../emoji-editor";
 import { toEmoji } from "./emoji";
 import { recognizeBoard, type Recognition, type Rect } from "./recognize";
 
 export function mountMinolens(root: HTMLElement, openEditor: (text: string) => boolean) {
   const { ownerDocument: document } = root;
+  const upload = root.querySelector<HTMLElement>("#minolens-upload")!;
+  const uploadHint = root.querySelector<HTMLElement>("#minolens-upload-hint")!;
+  const pick = root.querySelector<HTMLButtonElement>("#minolens-pick")!;
   const file = root.querySelector<HTMLInputElement>("#minolens-file")!;
   const work = root.querySelector<HTMLElement>("#minolens-work")!;
   const source = root.querySelector<HTMLCanvasElement>("#minolens-source")!;
@@ -12,7 +16,11 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
   const board = root.querySelector<HTMLElement>("#minolens-board")!;
   const palette = root.querySelector<HTMLElement>("#minolens-palette")!;
   const output = root.querySelector<HTMLTextAreaElement>("#minolens-output")!;
+  const text = root.querySelector<HTMLDetailsElement>("#minolens-text")!;
   const message = root.querySelector<HTMLElement>("#minolens-status")!;
+  const review = root.querySelector<HTMLElement>("#minolens-review")!;
+  const exportStatus = root.querySelector<HTMLElement>("#minolens-export-status")!;
+  const reset = root.querySelector<HTMLButtonElement>("#minolens-reset")!;
   const trim = root.querySelector<HTMLInputElement>("#minolens-trim")!;
   const copy = root.querySelector<HTMLButtonElement>("#minolens-copy")!;
   const open = root.querySelector<HTMLButtonElement>("#minolens-open")!;
@@ -20,25 +28,57 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
   let recognition: Recognition | undefined;
   let cells: Uint8Array = new Uint8Array(0);
   let buttons: HTMLButtonElement[] = [];
+  const edited = new Set<number>();
+  let keyboardCrop: Rect | undefined;
   let paint: number | null = null;
   let loadVersion = 0;
 
   function update() {
+    if (!recognition) return;
+    const { cols, confidence } = recognition;
+    let marked = 0;
     buttons.forEach((button, index) => {
-      const emoji = emojis[cells[index]];
+      const id = cells[index];
+      const emoji = emojis[id];
+      const uncertain = confidence[index] <= 0.5 && !edited.has(index);
+      if (uncertain) marked++;
       if (button.textContent !== emoji) button.textContent = emoji;
+      button.toggleAttribute("data-review", uncertain);
+      const label = `Row ${Math.floor(index / cols) + 1}, column ${index % cols + 1}: ${id === 0 ? "Empty" : blockNames[emoji]}${uncertain ? ", check this cell" : ""}`;
+      if (button.getAttribute("aria-label") !== label) button.setAttribute("aria-label", label);
     });
-    output.value = recognition ? toEmoji(cells, recognition.cols, trim.checked).join("\n") : "";
+    output.value = toEmoji(cells, cols, trim.checked).join("\n");
     output.rows = Math.max(3, Math.min(8, output.value.split("\n").length));
     copy.disabled = open.disabled = !output.value;
+    reset.disabled = edited.size === 0;
+    const guidance = !cells.some(id => id !== 0)
+      ? "No blocks detected. Try cropping around the board in the screenshot."
+      : marked ? "Check the cells marked with a yellow dot." : "";
+    if (review.textContent !== guidance) review.textContent = guidance;
+    exportStatus.textContent = "";
+  }
+
+  function paintCell(index: number, id: number) {
+    if (cells[index] === id && edited.has(index)) return;
+    cells[index] = id;
+    edited.add(index);
+    update();
   }
 
   function drawSource(drag?: Rect) {
     if (!ctx || !image || !recognition) return;
     ctx.putImageData(image, 0, 0);
     const { bounds: { x, y, width, height }, cell, rows, cols } = recognition;
-    ctx.lineWidth = (2 * source.width) / (source.clientWidth || source.width);
-    ctx.strokeStyle = "#ffffff59";
+    const pixel = source.width / (source.clientWidth || source.width);
+    if (width && height) {
+      ctx.beginPath();
+      ctx.rect(0, 0, source.width, source.height);
+      ctx.rect(x, y, width, height);
+      ctx.fillStyle = "#0007";
+      ctx.fill("evenodd");
+    }
+    ctx.lineWidth = pixel;
+    ctx.strokeStyle = "#ffffff47";
     ctx.beginPath();
     for (let i = 1; i < cols && width; i++) {
       ctx.moveTo(x + i * cell, y);
@@ -49,11 +89,14 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
       ctx.lineTo(x + width, y + j * cell);
     }
     ctx.stroke();
+    ctx.lineWidth = 2 * pixel;
     ctx.strokeStyle = "#22d3ee";
-    ctx.strokeRect(x, y, width, height);
+    if (width && height) ctx.strokeRect(x, y, width, height);
     if (drag) {
       ctx.strokeStyle = "#fff";
+      ctx.setLineDash([4 * pixel, 3 * pixel]);
       ctx.strokeRect(drag.x, drag.y, drag.width, drag.height);
+      ctx.setLineDash([]);
     }
   }
 
@@ -61,22 +104,22 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     if (!image) return;
     recognition = recognizeBoard(image, { bounds });
     cells = recognition.cells.slice();
-    message.textContent = cells.some(id => id !== 0) ? "" : "No board found. Drag around it on the image.";
+    edited.clear();
+    keyboardCrop = undefined;
     const cols = recognition.cols;
     buttons = Array.from(cells, (_, index) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "emoji-cell";
+      button.tabIndex = index === 0 ? 0 : -1;
       button.dataset.cell = String(index);
-      button.addEventListener("click", () => {
-        cells[index] = paint ?? (cells[index] + 1) % emojis.length;
-        update();
-      });
+      button.addEventListener("click", () => paintCell(index, paint ?? (cells[index] + 1) % emojis.length));
       return button;
     });
     board.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
     board.replaceChildren(...buttons);
     board.hidden = cells.length === 0;
+    palette.hidden = reset.hidden = text.hidden = board.hidden;
     drawSource();
     update();
   }
@@ -100,6 +143,10 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
       }
       work.hidden = false;
       recognize();
+      pick.classList.remove("primary");
+      pick.textContent = "Replace image";
+      uploadHint.textContent = "Paste or drop another";
+      message.textContent = "";
     } catch {
       if (version !== loadVersion || root.hidden) return;
       if (image) {
@@ -107,7 +154,7 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
         source.height = image.height;
         drawSource();
       }
-      message.textContent = "Could not read that image.";
+      message.textContent = "Could not read that image. Try another screenshot.";
     }
   }
 
@@ -116,6 +163,8 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     button.type = "button";
     button.className = "emoji-color";
     button.textContent = emoji;
+    button.setAttribute("aria-label", blockNames[emoji]);
+    button.title = blockNames[emoji];
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => {
       paint = paint === id ? null : id;
@@ -125,14 +174,12 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     return button;
   });
   palette.replaceChildren(...swatches);
+  mountBoardFocus(board, () => ({ cells: buttons, cols: recognition?.cols ?? 10 }));
 
   function paintAt(event: PointerEvent) {
     const target = document.elementFromPoint(event.clientX, event.clientY);
     if (!(target instanceof HTMLButtonElement) || target.parentElement !== board || paint === null) return;
-    const index = Number(target.dataset.cell);
-    if (cells[index] === paint) return;
-    cells[index] = paint;
-    update();
+    paintCell(Number(target.dataset.cell), paint);
   }
   board.addEventListener("pointerdown", event => {
     if (paint === null || !event.isPrimary || event.button !== 0) return;
@@ -161,6 +208,7 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
   }
   source.addEventListener("pointerdown", event => {
     if (!event.isPrimary || event.button !== 0) return;
+    keyboardCrop = undefined;
     source.setPointerCapture(event.pointerId);
     start = imagePoint(event);
   });
@@ -177,29 +225,75 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     drawSource();
   });
 
-  root.querySelector("#minolens-reset")!.addEventListener("click", () => {
+  source.addEventListener("keydown", event => {
+    if (!recognition || event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.key === "Escape" && keyboardCrop) {
+      event.preventDefault();
+      keyboardCrop = undefined;
+      drawSource();
+      return;
+    }
+    if (event.key === "Enter" && keyboardCrop) {
+      event.preventDefault();
+      recognize(keyboardCrop);
+      return;
+    }
+
+    let dx = 0, dy = 0;
+    switch (event.key) {
+      case "ArrowLeft": dx = -1; break;
+      case "ArrowRight": dx = 1; break;
+      case "ArrowUp": dy = -1; break;
+      case "ArrowDown": dy = 1; break;
+      default: return;
+    }
+    if (source.width < 20 || source.height < 4) return;
+    event.preventDefault();
+    const previous = keyboardCrop ?? recognition.bounds;
+    const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+    let width = clamp(previous.width || source.width, 20, source.width);
+    let height = clamp(previous.height || source.height, 4, source.height);
+    const x = clamp(previous.x + (event.shiftKey ? 0 : dx), 0, source.width - width);
+    const y = clamp(previous.y + (event.shiftKey ? 0 : dy), 0, source.height - height);
+    if (event.shiftKey) {
+      width = clamp(width + dx, 20, source.width - x);
+      height = clamp(height + dy, 4, source.height - y);
+    }
+    keyboardCrop = { x, y, width, height };
+    drawSource(keyboardCrop);
+  });
+  source.addEventListener("blur", () => {
+    if (!keyboardCrop) return;
+    keyboardCrop = undefined;
+    drawSource();
+  });
+  new ResizeObserver(() => drawSource(keyboardCrop)).observe(source);
+
+  reset.addEventListener("click", () => {
     if (!recognition) return;
     cells = recognition.cells.slice();
-    message.textContent = "";
+    edited.clear();
     update();
   });
   trim.addEventListener("change", update);
   copy.addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(output.value);
-      message.textContent = "Copied.";
+      exportStatus.textContent = "Emoji board copied.";
     } catch {
+      text.open = true;
+      output.focus();
       output.select();
-      message.textContent = "Use the copy shortcut to copy the selected text.";
+      exportStatus.textContent = "Use the copy shortcut to copy the selected text.";
     }
   });
   open.addEventListener("click", () => {
     const parsed = parseBoardText(output.value);
-    if (typeof parsed === "string") message.textContent = parsed;
-    else if (!openEditor(output.value)) message.textContent = "Could not send the board. Copy it and paste it in the editor.";
+    if (typeof parsed === "string") exportStatus.textContent = parsed;
+    else if (!openEditor(output.value)) exportStatus.textContent = "Could not send the board. Copy it and paste it in the editor.";
   });
 
-  root.querySelector("#minolens-pick")!.addEventListener("click", () => file.click());
+  pick.addEventListener("click", () => file.click());
   file.addEventListener("change", () => {
     const picked = file.files?.[0];
     if (picked) void load(picked);
@@ -213,9 +307,15 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     void load(pasted);
   });
   root.addEventListener("dragover", event => {
-    if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+    if (!event.dataTransfer?.types.includes("Files")) return;
+    event.preventDefault();
+    upload.classList.add("is-dragging");
+  });
+  root.addEventListener("dragleave", event => {
+    if (!(event.relatedTarget instanceof Node) || !root.contains(event.relatedTarget)) upload.classList.remove("is-dragging");
   });
   root.addEventListener("drop", event => {
+    upload.classList.remove("is-dragging");
     const dropped = event.dataTransfer?.files[0];
     if (!dropped) return;
     event.preventDefault();
