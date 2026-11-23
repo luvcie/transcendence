@@ -1,5 +1,6 @@
 import type { SkinState } from "./skin-state";
-import { animatedLook, ids, makeGif, tetrominoEdges, timeline } from "./emoji-gif";
+import { empty, ids } from "./board-emoji";
+import { animatedLook, makeGif, tetrominoEdges, timeline } from "./emoji-gif";
 import type { GifPlanJob, GifPlanMessage } from "./gif-planner-worker";
 import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
 import { resolveSkin, type SkinPreferences } from "./skin-preferences";
@@ -150,7 +151,6 @@ const continuations: Record<string, string[][]> = {
   ],
 };
 
-const empty = "⬛";
 const cols = 10;
 const rows = 20;
 
@@ -800,6 +800,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
       status.textContent = parsed;
       return false;
     }
+    stopPlay();
     if (sequence.length) {
       sequence[step] = captureBoard(parsed);
       draft = true;
@@ -1033,4 +1034,6 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     renderSplits();
     status.textContent = `Position kept as step ${step + 1}.`;
   });
+
+  return pasteBoard;
 }

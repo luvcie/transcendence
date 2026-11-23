@@ -230,10 +230,10 @@
       main[data-view=solo] #game-stats { gap: 4px 16px; }
       main[data-view=solo] .game-feedback { gap: 4px 16px; }
       main[data-view=solo] .game-footer summary { padding: 4px 0; }
-      #home-view, #emoji-view { width: min(800px, 100%); margin: 0 auto; }
+      #home-view, #emoji-view, #minolens-view { width: min(800px, 100%); margin: 0 auto; }
       #home-view { padding: 64px 0 32px; }
-      #emoji-view { padding: 24px 0 32px; }
-      main:is([data-view=home], [data-view=emoji]) .view-heading { display: none; }
+      #emoji-view, #minolens-view { padding: 24px 0 32px; }
+      main:is([data-view=home], [data-view=emoji], [data-view=minolens]) .view-heading { display: none; }
       .menu-label { color: #22d3ee; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
       #home-title { margin: 0 0 20px; }
       .mode-list { display: grid; gap: 12px; }
@@ -242,7 +242,7 @@
       .mode-name { display: flex; justify-content: space-between; gap: 16px; font-size: 20px; font-weight: bold; }
       .mode-name > span { color: #22d3ee; }
       .mode-description { line-height: 1.5; }
-      #emoji-title { margin: 0; font-size: 16px; }
+      #emoji-title, #minolens-title { margin: 0; font-size: 16px; }
       .emoji-layout { display: flex; flex-flow: row-reverse wrap; justify-content: flex-end; align-items: flex-start; gap: 20px 24px; }
       .emoji-tools { flex: 1 1 260px; min-width: 0; max-width: 360px; }
       .emoji-tools h2 { margin: 18px 0 8px; }
@@ -257,7 +257,7 @@
       #emoji-board #emoji-hold { right: calc(100% + 12px); transform: translateX(72px); }
       #emoji-board #emoji-next { left: calc(100% + 12px); transform: translateX(-72px); }
       #emoji-view.playing .emoji-tools { transform: translateX(60px); }
-      #emoji-view.playing :is(#emoji-copy, #emoji-copy-half, #emoji-paste, #emoji-seq, .emoji-openers, .emoji-custom) { display: none; }
+      #emoji-view.playing :is(#emoji-copy, #emoji-copy-half, #emoji-paste, #emoji-screenshot, #emoji-seq, .emoji-openers, .emoji-custom) { display: none; }
       #emoji-view.playing #emoji-board .emoji-side { opacity: 1; transform: none; }
       .emoji-cell.ghost { opacity: .3; }
       #emoji-view.skin-look #emoji-board canvas:not(.emoji-side) { display: block; }
@@ -289,6 +289,19 @@
       .emoji-seq :is(input[type=number], input[list], select) { background: #111; color: #eee; border: 1px solid #666; padding: 6px 8px; }
       .emoji-seq input[type=number] { width: 52px; }
       .emoji-gesture { display: none; }
+      main[data-view=minolens] { height: auto; min-height: 100dvh; }
+      #minolens-view .actions { gap: 8px; margin-top: 8px; }
+      #minolens-view .hint { margin: 8px 0; }
+      #minolens-view button { min-height: 40px; }
+      #minolens-work { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
+      #minolens-source { display: block; max-width: 100%; max-height: 65vh; cursor: crosshair; touch-action: none; }
+      #minolens-board { display: grid; padding: 4px; background: #2a2d2e; border-radius: 12px; user-select: none; }
+      #minolens-board.painting { touch-action: none; }
+      #minolens-board .emoji-cell { width: 100%; font-size: clamp(16px, 7vw, 30px); }
+      #minolens-view #minolens-palette { gap: 4px; }
+      #minolens-palette button { min-width: 40px; padding: 4px; font-size: 20px; }
+      #minolens-output { display: block; width: 100%; resize: vertical; background: #111; color: #eee; border: 1px solid #666; padding: 8px; font: inherit; }
+      #minolens-view label { min-height: 40px; }
       @media (max-width: 663px), (pointer: coarse) {
         .emoji-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
         .emoji-gesture { display: flex; gap: 4px; }
@@ -299,12 +312,13 @@
         #emoji-view:has(#emoji-scroll:checked) .emoji-cell { pointer-events: none; }
       }
       @media (max-width: 663px) {
-        main[data-view=emoji] { height: auto; min-height: 100dvh; padding-inline: 16px; }
-        main[data-view=emoji] .app-header { gap: 6px 12px; padding: 4px 0 8px; }
-        main[data-view=emoji] .app-header nav { order: 1; flex-basis: 100%; }
-        main[data-view=emoji] .app-header button { min-height: 44px; }
-        main[data-view=emoji] #nav-settings-button { margin-left: auto; }
-        #emoji-view { padding: 14px 0 20px; }
+        main:is([data-view=emoji], [data-view=minolens]) { height: auto; min-height: 100dvh; padding-inline: 16px; }
+        main:is([data-view=emoji], [data-view=minolens]) .app-header { gap: 6px 12px; padding: 4px 0 8px; }
+        main:is([data-view=emoji], [data-view=minolens]) .app-header nav { order: 1; flex-basis: 100%; }
+        main:is([data-view=emoji], [data-view=minolens]) .app-header button { min-height: 44px; }
+        main:is([data-view=emoji], [data-view=minolens]) #nav-settings-button { margin-left: auto; }
+        #emoji-view, #minolens-view { padding: 14px 0 20px; }
+        #minolens-work { grid-template-columns: minmax(0, 1fr); }
         .emoji-layout {
           display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
           grid-template-areas: "title" "board" "mirror" "look" "play" "palette" "openers" "custom" "actions" "seq" "status";
@@ -461,6 +475,7 @@
               <button id="emoji-copy-half" type="button" aria-label="Copy bottom 10 rows">Copy bottom 10</button>
               <button id="emoji-paste" type="button">Paste board</button>
               <button id="emoji-clear" type="button">Clear board</button>
+              <button id="emoji-screenshot" type="button">From screenshot</button>
             </div>
             <div id="emoji-seq" hidden>
               <div class="actions emoji-seq">
@@ -517,6 +532,33 @@
           <div id="emoji-board" role="group" aria-label="Emoji board">
             <canvas class="emoji-side" id="emoji-hold" width="150" height="90" aria-label="Hold empty"></canvas>
             <canvas class="emoji-side" id="emoji-next" width="150" height="450" aria-label="Next pieces"></canvas>
+          </div>
+        </div>
+      </section>
+      <section id="minolens-view" hidden aria-labelledby="minolens-title">
+        <h1 id="minolens-title" tabindex="-1">Minolens</h1>
+        <div class="actions emoji-seq">
+          <button id="minolens-pick" type="button">Choose image</button>
+          <input id="minolens-file" type="file" accept="image/*" hidden>
+          <p class="hint">Paste or drop a board screenshot here.</p>
+        </div>
+        <p class="hint" id="minolens-status" role="status"></p>
+        <div id="minolens-work" hidden>
+          <div>
+            <canvas id="minolens-source" aria-label="Screenshot with detected board"></canvas>
+            <p class="hint">Drag around the board to crop it.</p>
+          </div>
+          <div>
+            <div id="minolens-board" role="group" aria-label="Detected board"></div>
+            <div class="actions" id="minolens-palette" role="group" aria-label="Paint color"></div>
+            <p class="hint">Tap a cell to cycle it. Pick a color to paint.</p>
+            <textarea id="minolens-output" readonly rows="3" aria-label="Emoji board text"></textarea>
+            <div class="actions emoji-seq">
+              <button class="primary" id="minolens-open" type="button">Open in editor</button>
+              <button id="minolens-copy" type="button">Copy</button>
+              <button id="minolens-reset" type="button">Reset</button>
+              <label><input id="minolens-trim" type="checkbox" checked> Trim empty top rows</label>
+            </div>
           </div>
         </div>
       </section>

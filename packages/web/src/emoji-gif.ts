@@ -1,11 +1,8 @@
-import { GARBAGE, MINOS, Piece, pieceEdges } from "@42tris/core";
+import { MINOS, pieceEdges } from "@42tris/core";
+import { ids } from "./board-emoji";
 import type { LoadedSkin } from "./skin-loader";
 import { connectionMask, drawTile, skinFrame } from "./tile-renderer";
 
-export const ids: Record<string, number> = {
-  "🟥": Piece.Z, "🟧": Piece.L, "🟨": Piece.O, "🟩": Piece.S, "⬜": Piece.I, "🟦": Piece.J, "🟪": Piece.T,
-  "🟫": GARBAGE,
-};
 const cols = 10;
 const maxBytes = 512 * 1024 * 1024;
 

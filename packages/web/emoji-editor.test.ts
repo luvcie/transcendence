@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { GARBAGE, MINOS, pieceEdges } from "@42tris/core";
 import { arrangeBoards, boardCells, mirrorRows, parseBoardText, parseEmojiMode, parseSavedOpeners } from "./src/emoji-editor";
-import { gifSize, ids, tetrominoEdges, timeline } from "./src/emoji-gif";
+import { ids } from "./src/board-emoji";
+import { gifSize, tetrominoEdges, timeline } from "./src/emoji-gif";
 import { BUILTIN_SKINS } from "./src/skin-catalog";
 import type { LoadedSkin } from "./src/skin-loader";
 import { COLORS, drawTile } from "./src/tile-renderer";

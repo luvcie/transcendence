@@ -32,10 +32,12 @@ test("normal entry selects home; invitations and reserved sessions bypass it on 
   }
 });
 
-test("the direct /tetorisueditor link opens the editor even with a reserved session", () => {
-  const url = "http://localhost:5173/tetorisueditor";
-  expect(initialView(url, false)).toBe("emoji");
-  expect(initialView(url + "/", true)).toBe("emoji");
+test.each([["/tetorisueditor", "emoji"], ["/minolens", "minolens"]] as const)(
+  "the direct %s link opens the tool even with a reserved session", (path, view) => {
+    const url = "http://localhost:5173" + path;
+    expect(initialView(url, false)).toBe(view);
+    expect(initialView(url + "/", true)).toBe(view);
+    expect(initialView(url + "/other", false)).toBe("home");
 });
 
 test.each([4, 8, 10, 12])("Zen retains width %i, opening preview and automatic undo without a preference", width => {
