@@ -1,6 +1,6 @@
 import type { SkinState } from "./skin-state";
 import { animatedLook, ids, makeGif, timeline } from "./emoji-gif";
-import { animateSteps } from "./gif-pieces";
+import type { GifPlanJob, GifPlanMessage } from "./gif-planner-worker";
 import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
 import { resolveSkin, type SkinPreferences } from "./skin-preferences";
 import type { LoadedSkin } from "./skin-loader";
@@ -153,6 +153,18 @@ const continuations: Record<string, string[][]> = {
 const empty = "⬛";
 const cols = 10;
 const rows = 20;
+
+function planGif(job: GifPlanJob, onProgress: (step: number, total: number) => void) {
+  const worker = new Worker(new URL("./gif-planner-worker.ts", import.meta.url), { type: "module" });
+  return new Promise<Extract<GifPlanMessage, { kind: "done" }>["plan"]>((resolve, reject) => {
+    worker.onmessage = ({ data }: MessageEvent<GifPlanMessage>) => {
+      if (data.kind === "progress") onProgress(data.step, data.total);
+      else resolve(data.plan);
+    };
+    worker.onerror = () => reject(new Error("Could not plan the GIF animation."));
+    worker.postMessage(job);
+  }).finally(() => worker.terminate());
+}
 
 // boards sit side by side, so a row of boards wraps on narrow chat clients
 export function arrangeBoards(boards: string[][], perRow: number) {
@@ -845,14 +857,21 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
       const cell = Math.max(4, Math.min(Math.round(Number(gifBlock.value)) || 16, 64));
       const hold = Math.max(20, Math.min(Math.round((Number(gifSeconds.value) || 1) * 1000), 10000));
       const look = emojiMode.checked ? "emoji" : skin;
+      const build = gifBuild.checked;
       let boards = selectedBoards(), holds = boards.map(() => hold), frames = "", note = "";
-      if (gifAnimate.checked && (boards.length > 1 || gifBuild.checked)) {
-        const animated = animateSteps(boards, hold, gifBuild.checked);
+      if (gifAnimate.checked && (boards.length > 1 || build)) {
+        const animated = await planGif({ boards, hold, build }, (step, total) => {
+          status.textContent = `Animating step ${step} of ${total}...`;
+        });
         ({ boards, holds } = animated);
+        const stepList = (steps: number[]) => `GIF step${steps.length === 1 ? "" : "s"} ${steps.join(", ")}`;
+        if (animated.skipped.length) note += ` Could not animate ${stepList(animated.skipped)} in time.`;
+        else if (build && !animated.built) note += " The first board shows as drawn.";
+        if (animated.limited.length) note += ` Search limit reached for ${stepList(animated.limited)}.`;
         const count = timeline(holds, animatedLook(look)).length;
         if (count > maxGifFrames) throw new Error(`Animating needs ${count} frames, ${maxGifFrames} at most. Pick fewer steps or a non animated skin.`);
-        if (gifBuild.checked && !animated.built) note = " The first board cannot be built piece by piece, so it shows as drawn.";
-        status.textContent = `Animating: ${count} frames...${note}`;
+        if (count < 2) throw new Error(animated.skipped.length ? note.trim() : "The first board cannot be built piece by piece.");
+        status.textContent = `Encoding ${count} frames...`;
         frames = `${count} frames, `;
       }
       const gif = await makeGif(document.createElement("canvas"), boards, cell, look, holds);

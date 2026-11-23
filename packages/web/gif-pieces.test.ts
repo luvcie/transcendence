@@ -8,8 +8,8 @@ const pad = (rows: string[]) => [...Array(20 - rows.length).fill(empty), ...rows
 const filled = (board: string[]) => Array.from(board.join("")).filter(cell => cell !== "⬛").length;
 
 // frames keep the old stack, show at most one extra piece and end on the new board
-function check(from: string[], to: string[], maxPieces?: number) {
-  const frames = planStep(from, to, to.length, maxPieces)!;
+function check(from: string[], to: string[]) {
+  const frames = planStep(from, to, to.length)!;
   expect(frames).not.toBeNull();
   expect(frames.at(-1)).toEqual(to);
   for (const frame of frames) {
@@ -77,9 +77,9 @@ test("animateSteps holds each step end three times and jumps where it cannot ani
 const tki = ["⬛⬛⬛🟦🟦🟦⬛⬛⬛⬛", "🟧⬛⬛🟥🟥🟦🟩⬛⬛⬛", "🟧⬛⬛⬛🟥🟥🟩🟩🟨🟨", "🟧🟧⬛⬜⬜⬜⬜🟩🟨🟨"];
 
 test("the first board can be built from empty", () => {
-  const frames = planStep([], tki, 4, Infinity)!;
+  const frames = planStep([], tki)!;
   expect(frames.at(-1)).toEqual(tki);
-  expect(check(Array(4).fill(empty), tki, Infinity)).toEqual(frames);
+  expect(check(Array(4).fill(empty), tki)).toEqual(frames);
   const { boards, holds, built } = animateSteps([tki], 100, true);
   expect(built).toBe(true);
   expect(boards[0]).toEqual(Array(4).fill(empty));
@@ -90,12 +90,51 @@ test("the first board can be built from empty", () => {
 
 test("a first board that is not whole pieces shows as drawn", () => {
   const odd = ["🟦🟦🟦⬛⬛⬛⬛⬛⬛⬛"];
-  expect(animateSteps([odd, odd], 100, true)).toEqual({ boards: [odd, odd], holds: [300, 300], built: false });
+  expect(animateSteps([odd, odd], 100, true)).toEqual({ boards: [odd, odd], holds: [300, 300], built: false, skipped: [], limited: [] });
 });
 
-test("the order with the fewest presses wins, so the i hard drops before the s boxes it in", () => {
-  const frames = planStep([], tki, 4, Infinity)!;
-  // every piece here is a plain hard drop, one lock frame each
+test("a timed out search reports its step without flagging the line clear", () => {
+  const a = pad(["⬜⬜⬜⬜⬛⬛⬛⬛⬛⬛", empty, empty]);
+  const b = pad(["⬜⬜⬜⬜⬛⬛⬛⬛⬛⬛", "🟨🟨⬛⬛⬛⬛⬛⬛⬛⬛", "🟨🟨⬛⬛⬛⬛⬛⬛⬛⬛"]);
+  const c = pad([]);
+  expect(animateSteps([a, b], 100).boards.length).toBeGreaterThan(2);
+  const progress: number[][] = [];
+  expect(animateSteps([a, b, c], 100, false, { stepTimeoutMs: 0, onProgress: (...args) => progress.push(args) }))
+    .toEqual({ boards: [a, b, c], holds: [300, 300, 300], built: false, skipped: [2], limited: [] });
+  expect(progress).toEqual([[2, 3], [3, 3]]);
+  expect(animateSteps([tki], 100, true, { stepTimeoutMs: 0 }).skipped).toEqual([1]);
+});
+
+const blocks = Array.from("⬛🟥🟧🟨🟩⬜🟦🟪");
+const tallStack = pad([
+  "7000000666", "7701100446", "7335114420", "0335112225", "3305711405",
+  "3325770445", "2227766645", "5077711633", "5422001133", "5442666040",
+  "5642116244", "7666011204", "7755556225", "7440336665", "4400332225",
+  "3307112045", "3377511044", "2227566604", "2777511633", "0070501133",
+].map(row => Array.from(row, id => blocks[Number(id)]).join("")));
+
+test("build from empty animates all 42 pieces of a 20-row stack", () => {
+  const { boards, built, skipped } = animateSteps([tallStack], 100, true);
+  expect(built).toBe(true);
+  expect(skipped).toEqual([]);
+  expect(boards[0]).toEqual(pad([]));
+  expect(boards.at(-1)).toEqual(tallStack);
+  const target = tallStack.map(row => Array.from(row));
+  const counts = new Set(boards.filter(board => board.every((row, y) =>
+    Array.from(row).every((cell, x) => cell === "⬛" || cell === target[y][x]))).map(filled));
+  for (let count = 4; count <= 168; count += 4) expect(counts.has(count)).toBe(true);
+});
+
+test("a transition can add more than seven pieces", () => {
+  const from = pad([]);
+  const { boards, skipped } = animateSteps([from, tallStack], 100);
+  expect(skipped).toEqual([]);
+  expect(boards.length).toBeGreaterThan(42);
+  expect(boards.at(-1)).toEqual(tallStack);
+});
+
+test("the shortest order drops i before s", () => {
+  const frames = planStep([], tki)!;
   expect(frames).toHaveLength(6);
   expect(frames[0]).toEqual([empty, empty, empty, "⬛⬛⬛⬜⬜⬜⬜⬛⬛⬛"]);
   const board = new Uint8Array(ROWS * 10);
