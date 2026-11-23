@@ -481,7 +481,14 @@ function showTool(view: ToolView, push = true) {
   }
 }
 document.querySelector("#editor-button")!.addEventListener("click", () => showTool("emoji"));
-document.querySelector("#emoji-screenshot")!.addEventListener("click", () => showTool("minolens"));
+for (const [selector, view] of [["#emoji-screenshot", "minolens"], ["#minolens-back", "emoji"]] as const) {
+  document.querySelector<HTMLAnchorElement>(selector)!.addEventListener("click", event => {
+    if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    showTool(view);
+    window.scrollTo(0, 0);
+  });
+}
 window.addEventListener("popstate", () => {
   if (!atHome) return;
   const view = initialView(location.href, false);

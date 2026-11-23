@@ -9,7 +9,7 @@ const titles: Record<AppView, string> = {
   matchReplay: "Competitive replay",
   home: "Choose your game",
   emoji: "Tetorisu Editor",
-  minolens: "Minolens",
+  minolens: "Minolens screenshot import",
   solo: "Singleplayer",
   lobby: "Online lobby",
   waiting: "Waiting room",
@@ -46,6 +46,7 @@ export function mountAppView(document: Document) {
     if (view === "sprintReplay" || view === "matchReplay") main.setAttribute("data-replay", "");
     else main.removeAttribute("data-replay");
     title.textContent = titles[view];
+    document.title = view === "minolens" ? `${titles[view]} | Tetorisu Editor` : "42tris";
     game.hidden = !hasGameView(view);
     const singleplayer = view === "solo" || view === "home" || tool || view === "sprintReplay";
     online.hidden = singleplayer || view === "matchReplay";
