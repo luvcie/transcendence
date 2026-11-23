@@ -74,6 +74,10 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     update();
   }
 
+  function nextValue(index: number) {
+    return paint === null ? (cells[index] + 1) % emojis.length : cells[index] === 0 ? paint : 0;
+  }
+
   function drawSource(drag?: Rect) {
     if (!ctx || !image || !recognition) return;
     ctx.putImageData(image, 0, 0);
@@ -120,7 +124,11 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
       button.className = "emoji-cell";
       button.tabIndex = index === 0 ? 0 : -1;
       button.dataset.cell = String(index);
-      button.addEventListener("click", () => paintCell(index, paint ?? (cells[index] + 1) % emojis.length));
+      button.addEventListener("click", event => {
+        // a mouse stroke already handled this press
+        if (event instanceof PointerEvent && event.pointerType === "mouse") return;
+        paintCell(index, nextValue(index));
+      });
       return button;
     });
     board.style.setProperty("--rows", String(Math.max(1, recognition.rows)));
@@ -232,19 +240,40 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     if (offset < 0) document.defaultView?.scrollBy(0, offset - 8);
   });
 
-  function paintAt(event: PointerEvent) {
+  // like the editor: with a colour, a stroke on an empty cell paints and on a filled one erases
+  let stroke: { value: number; last: number } | undefined;
+  function cellAt(event: PointerEvent) {
     const target = document.elementFromPoint(event.clientX, event.clientY);
-    if (!(target instanceof HTMLButtonElement) || target.parentElement !== board || paint === null) return;
-    paintCell(Number(target.dataset.cell), paint);
+    return target instanceof HTMLButtonElement && target.parentElement === board ? Number(target.dataset.cell) : -1;
+  }
+  function extend(event: PointerEvent) {
+    if (!stroke) return;
+    const index = cellAt(event), previous = stroke.last;
+    if (index < 0 || index === previous) return;
+    stroke.last = index;
+    const cols = recognition?.cols ?? 10;
+    const fromRow = Math.floor(previous / cols), fromCol = previous % cols;
+    const rows = Math.floor(index / cols) - fromRow, columns = index % cols - fromCol;
+    const steps = Math.max(Math.abs(rows), Math.abs(columns));
+    // fast drags skip cells, fill the line between
+    for (let step = 1; step <= steps; step++) {
+      paintCell(Math.round(fromRow + rows * step / steps) * cols + Math.round(fromCol + columns * step / steps), stroke.value);
+    }
   }
   board.addEventListener("pointerdown", event => {
-    if (paint === null || event.pointerType !== "mouse" || !event.isPrimary || event.button !== 0) return;
+    if (event.pointerType !== "mouse" || !event.isPrimary || event.button !== 0) return;
+    const index = cellAt(event);
+    if (index < 0) return;
     board.setPointerCapture(event.pointerId);
-    paintAt(event);
+    // cycling mode: the first cell steps to the next colour and the drag keeps painting it
+    stroke = { value: nextValue(index), last: index };
+    paintCell(index, stroke.value);
   });
-  board.addEventListener("pointermove", event => {
-    if (board.hasPointerCapture(event.pointerId)) paintAt(event);
-  });
+  board.addEventListener("pointermove", extend);
+  const endStroke = () => { stroke = undefined; };
+  board.addEventListener("pointerup", event => { extend(event); endStroke(); });
+  board.addEventListener("pointercancel", endStroke);
+  board.addEventListener("lostpointercapture", endStroke);
 
   function imagePoint(event: PointerEvent) {
     const rect = source.getBoundingClientRect();
