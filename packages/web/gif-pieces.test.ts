@@ -12,14 +12,15 @@ function check(from: string[], to: string[]) {
   const frames = planStep(from, to, to.length)!;
   expect(frames).not.toBeNull();
   expect(frames.at(-1)).toEqual(to);
-  for (const frame of frames) {
+  frames.forEach((frame, i) => {
+    if (i) expect(frame).not.toEqual(frames[i - 1]);
     expect(frame).toHaveLength(to.length);
     frame.forEach((line, y) => Array.from(from[y]).forEach((cell, x) => {
       if (cell !== "⬛") expect(Array.from(line)[x]).toBe(cell);
     }));
     expect(filled(frame)).toBeGreaterThanOrEqual(filled(from));
     expect(filled(frame)).toBeLessThanOrEqual(filled(to) + 4);
-  }
+  });
   return frames;
 }
 
@@ -29,7 +30,8 @@ test("one tucked piece gets a frame per press and ends on the new board", () => 
   const board = new Uint8Array(ROWS * 10);
   boardToGame(from, board);
   const moves = pathTo(board, Piece.O, { x: 0, y: 38, rot: 0 })!;
-  expect(check(from, to)).toHaveLength(moves.length);
+  // the hard drop frame is the same as the last press here, so it is not shown twice
+  expect(check(from, to)).toHaveLength(moves.length - 1);
 });
 
 test("a piece resting on another is placed after it", () => {
@@ -63,15 +65,14 @@ test("line clears, edits and partial pieces fall back to a jump", () => {
   expect(planStep(pad([]), pad(["🟦⬛🟦⬛🟦⬛🟦⬛⬛⬛"]))).toBeNull();
 });
 
-test("animateSteps holds each step end three times and jumps where it cannot animate", () => {
+test("animateSteps holds only boards it jumps to, moving pieces never pause", () => {
   const a = pad([]), b = pad(["🟨🟨⬛⬛⬛⬛⬛⬛⬛⬛", "🟨🟨⬛⬛⬛⬛⬛⬛⬛⬛"]), c = pad([]);
   const { boards, holds } = animateSteps([a, b, c], 100);
   expect(boards.at(-1)).toEqual(c);
   expect(boards.at(-2)).toEqual(b);
   expect(holds.at(-1)).toBe(300);
-  expect(holds.at(-2)).toBe(300);
   expect(holds[0]).toBe(300);
-  expect(holds.slice(1, -2).every(hold => hold === 100)).toBe(true);
+  expect(holds.slice(1, -1).every(hold => hold === 100)).toBe(true);
 });
 
 const tki = ["⬛⬛⬛🟦🟦🟦⬛⬛⬛⬛", "🟧⬛⬛🟥🟥🟦🟩⬛⬛⬛", "🟧⬛⬛⬛🟥🟥🟩🟩🟨🟨", "🟧🟧⬛⬜⬜⬜⬜🟩🟨🟨"];
@@ -84,8 +85,7 @@ test("the first board can be built from empty", () => {
   expect(built).toBe(true);
   expect(boards[0]).toEqual(Array(4).fill(empty));
   expect(boards.at(-1)).toEqual(tki);
-  expect(holds[0]).toBe(300);
-  expect(holds.at(-1)).toBe(300);
+  expect(holds.every(hold => hold === 100)).toBe(true);
 });
 
 test("a first board that is not whole pieces shows as drawn", () => {

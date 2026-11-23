@@ -180,9 +180,12 @@ function searchStep(from: string[], to: string[], rows: number, search: Search):
   if (!plan) return { status: search.limited ? "deadline" : "unreachable" };
   const frames: string[][] = [];
   for (const { piece, placement } of plan) {
-    frames.push(...pieceFrames(board, piece, placement.moves, rows));
+    const presses = pieceFrames(board, piece, placement.moves, rows);
     for (const cell of placement.cells) board[cell] = piece;
-    frames.push(view(board, rows));
+    const lock = view(board, rows);
+    // a last press that already sits on the lock cells would show the same frame twice
+    if (presses.at(-1)?.join() === lock.join()) presses.pop();
+    frames.push(...presses, lock);
   }
   return { status: "animated", frames };
 }
@@ -204,13 +207,15 @@ export function animateSteps(boards: string[][], hold: number, build = false, op
   const rows = Math.max(...boards.map(board => board.length));
   const out: string[][] = [], holds: number[] = [], skipped: number[] = [], limited: number[] = [];
   let built = false;
-  const add = (frames: string[][]) => frames.forEach((frame, i) => {
-    out.push(frame);
-    holds.push(i === frames.length - 1 ? hold * 3 : hold);
-  });
+  const add = (frames: string[][], duration: number) => {
+    for (const frame of frames) {
+      out.push(frame);
+      holds.push(duration);
+    }
+  };
   for (let i = 0; i < boards.length; i++) {
     if (i === 0 && !build) {
-      add([boards[i]]);
+      add([boards[i]], hold * 3);
       continue;
     }
     options.onProgress?.(i + 1, boards.length);
@@ -222,12 +227,12 @@ export function animateSteps(boards: string[][], hold: number, build = false, op
       if (search.limited) limited.push(i + 1);
       if (i === 0) {
         built = true;
-        add([Array(rows).fill(empty)]);
+        add([Array(rows).fill(empty)], hold);
       }
-      add(result.frames);
+      add(result.frames, hold);
     } else {
       if (result.status === "deadline") skipped.push(i + 1);
-      add([boards[i]]);
+      add([boards[i]], hold * 3);
     }
   }
   return { boards: out, holds, built, skipped, limited };
