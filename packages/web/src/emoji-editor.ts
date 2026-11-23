@@ -1,10 +1,10 @@
 import type { SkinState } from "./skin-state";
-import { animatedLook, ids, makeGif, timeline } from "./emoji-gif";
+import { animatedLook, ids, makeGif, tetrominoEdges, timeline } from "./emoji-gif";
 import type { GifPlanJob, GifPlanMessage } from "./gif-planner-worker";
 import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
 import { resolveSkin, type SkinPreferences } from "./skin-preferences";
 import type { LoadedSkin } from "./skin-loader";
-import { drawTile, skinFrame } from "./tile-renderer";
+import { connectionMask, drawTile, skinFrame } from "./tile-renderer";
 import type { Handling } from "@42tris/core";
 import type { Keybinds } from "./keybinds";
 import type { Singleplayer } from "./singleplayer";
@@ -310,11 +310,11 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   }
 
   function drawCell(ctx: CanvasRenderingContext2D, id: number | undefined, x: number, y: number, size: number,
-    skin: LoadedSkin | undefined, frame: number, ghost = false) {
+    skin: LoadedSkin | undefined, frame: number, ghost = false, connections = 0) {
     ctx.fillStyle = "#111";
     ctx.fillRect(x, y, size, size);
     if (ghost) ctx.globalAlpha = .25;
-    if (id) drawTile(ctx, id, x, y, size, skin, 0, ghost, frame);
+    if (id) drawTile(ctx, id, x, y, size, skin, connections, ghost, frame);
     ctx.globalAlpha = 1;
     if (!id || !skin) {
       ctx.strokeStyle = "#333";
@@ -348,11 +348,14 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     ctx.clearRect(0, 0, board.clientWidth, board.clientHeight);
     const frame = skin ? skinFrame(skin) : 0;
     const origin = board.getBoundingClientRect();
-    for (const cell of cells) {
+    // ghosts are not part of the board, they must not join a piece
+    const edges = skin?.connected
+      ? tetrominoEdges(cells.map(cell => cell.classList.contains("ghost") ? 0 : ids[cell.textContent!] ?? 0)) : undefined;
+    cells.forEach((cell, index) => {
       const rect = cell.getBoundingClientRect();
       drawCell(ctx, ids[cell.textContent!], rect.left - origin.left, rect.top - origin.top, rect.width, skin, frame,
-        cell.classList.contains("ghost"));
-    }
+        cell.classList.contains("ghost"), edges ? connectionMask(edges[index]) : 0);
+    });
     if (skin?.animation && !frameRequest) frameRequest = requestAnimationFrame(() => {
       frameRequest = 0;
       draw();
