@@ -885,7 +885,12 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     } finally { exportGif.disabled = false; }
   });
 
-  gifAnimate.addEventListener("change", () => { gifHint.hidden = gifBuildLabel.hidden = !gifAnimate.checked; });
+  gifAnimate.addEventListener("change", () => {
+    gifHint.hidden = gifBuildLabel.hidden = !gifAnimate.checked;
+    // leave a value the user typed alone
+    if (gifAnimate.checked && gifSeconds.value === "1") gifSeconds.value = "0.1";
+    else if (!gifAnimate.checked && gifSeconds.value === "0.1") gifSeconds.value = "1";
+  });
 
   gifDownload.addEventListener("click", () => {
     const link = document.createElement("a");
