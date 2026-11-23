@@ -11,10 +11,12 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
   const pick = root.querySelector<HTMLButtonElement>("#minolens-pick")!;
   const file = root.querySelector<HTMLInputElement>("#minolens-file")!;
   const work = root.querySelector<HTMLElement>("#minolens-work")!;
+  const actions = root.querySelector<HTMLElement>(".minolens-actions")!;
   const source = root.querySelector<HTMLCanvasElement>("#minolens-source")!;
   const ctx = source.getContext("2d");
   const board = root.querySelector<HTMLElement>("#minolens-board")!;
   const palette = root.querySelector<HTMLElement>("#minolens-palette")!;
+  const paintHelp = root.querySelector<HTMLElement>("#minolens-paint-help")!;
   const output = root.querySelector<HTMLTextAreaElement>("#minolens-output")!;
   const text = root.querySelector<HTMLDetailsElement>("#minolens-text")!;
   const message = root.querySelector<HTMLElement>("#minolens-status")!;
@@ -42,18 +44,22 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
       const emoji = emojis[id];
       const uncertain = confidence[index] <= 0.5 && !edited.has(index);
       if (uncertain) marked++;
-      if (button.textContent !== emoji) button.textContent = emoji;
+      if (button.textContent !== emoji) {
+        button.textContent = emoji;
+        button.dataset.piece = String(id);
+      }
       button.toggleAttribute("data-review", uncertain);
       const label = `Row ${Math.floor(index / cols) + 1}, column ${index % cols + 1}: ${id === 0 ? "Empty" : blockNames[emoji]}${uncertain ? ", check this cell" : ""}`;
       if (button.getAttribute("aria-label") !== label) button.setAttribute("aria-label", label);
     });
     output.value = toEmoji(cells, cols, trim.checked).join("\n");
-    output.rows = Math.max(3, Math.min(8, output.value.split("\n").length));
     copy.disabled = open.disabled = !output.value;
     reset.disabled = edited.size === 0;
-    const guidance = !cells.some(id => id !== 0)
+    const hasBlocks = cells.some(id => id !== 0);
+    const guidance = !hasBlocks
       ? "No blocks detected. Try cropping around the board in the screenshot."
-      : marked ? "Check the cells marked with a yellow dot." : "";
+      : marked === 1 ? "1 cell to check" : marked > 1 ? `${marked} cells to check` : "";
+    review.toggleAttribute("data-marked", hasBlocks && marked > 0);
     if (review.textContent !== guidance) review.textContent = guidance;
     exportStatus.textContent = "";
   }
@@ -100,13 +106,11 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     }
   }
 
-  function recognize(bounds?: Rect) {
-    if (!image) return;
-    recognition = recognizeBoard(image, { bounds });
+  function showRecognition(next: Recognition) {
+    recognition = next;
     cells = recognition.cells.slice();
     edited.clear();
     keyboardCrop = undefined;
-    const cols = recognition.cols;
     buttons = Array.from(cells, (_, index) => {
       const button = document.createElement("button");
       button.type = "button";
@@ -116,33 +120,47 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
       button.addEventListener("click", () => paintCell(index, paint ?? (cells[index] + 1) % emojis.length));
       return button;
     });
-    board.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+    board.style.setProperty("--rows", String(Math.max(1, recognition.rows)));
     board.replaceChildren(...buttons);
     board.hidden = cells.length === 0;
-    palette.hidden = reset.hidden = text.hidden = board.hidden;
+    palette.hidden = paintHelp.hidden = reset.hidden = text.hidden = board.hidden;
     drawSource();
     update();
+  }
+
+  function recognize(bounds: Rect) {
+    if (image) showRecognition(recognizeBoard(image, { bounds }));
   }
 
   async function load(blob: Blob) {
     const version = ++loadVersion;
     if (!ctx) {
+      message.setAttribute("data-error", "");
       message.textContent = "Could not read image pixels in this browser.";
       return;
     }
+    message.removeAttribute("data-error");
+    message.textContent = "Reading screenshot…";
+    exportStatus.textContent = "";
     try {
       const bitmap = await createImageBitmap(blob);
+      let nextImage: ImageData;
       try {
+        await new Promise<void>(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
         if (version !== loadVersion || root.hidden) return;
         source.width = bitmap.width;
         source.height = bitmap.height;
         ctx.drawImage(bitmap, 0, 0);
-        image = ctx.getImageData(0, 0, source.width, source.height);
+        nextImage = ctx.getImageData(0, 0, source.width, source.height);
       } finally {
         bitmap.close();
       }
+      const next = recognizeBoard(nextImage);
+      image = nextImage;
+      source.style.setProperty("--source-ratio", String(image.width / image.height));
+      actions.hidden = false;
       work.hidden = false;
-      recognize();
+      showRecognition(next);
       pick.classList.remove("primary");
       pick.textContent = "Replace image";
       uploadHint.textContent = "Paste or drop another";
@@ -154,6 +172,7 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
         source.height = image.height;
         drawSource();
       }
+      message.setAttribute("data-error", "");
       message.textContent = "Could not read that image. Try another screenshot.";
     }
   }
@@ -162,6 +181,7 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     const button = document.createElement("button");
     button.type = "button";
     button.className = "emoji-color";
+    button.dataset.piece = String(id);
     button.textContent = emoji;
     button.setAttribute("aria-label", blockNames[emoji]);
     button.title = blockNames[emoji];

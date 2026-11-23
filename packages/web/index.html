@@ -295,38 +295,125 @@
       .emoji-seq input[type=number] { width: 52px; }
       .emoji-gesture { display: none; }
       main[data-view=minolens] { height: auto; min-height: 100dvh; }
-      .minolens-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
-      #minolens-view .hint { margin: 0; }
-      #minolens-view .minolens-intro { margin: 8px 0 16px; }
-      #minolens-upload { display: grid; justify-items: center; gap: 12px; padding: 32px 12px; border: 1px dashed #666; background: #181818; text-align: center; }
-      #minolens-view:has(#minolens-work:not([hidden])) #minolens-upload {
-        display: flex; align-items: center; flex-wrap: wrap;
-        padding: 8px 12px; border-style: solid; border-color: #444; text-align: left;
+      #minolens-view {
+        --panel: #181b1d;
+        --line: #363e43;
+        --board-height: clamp(340px, 100dvh - 314px, 620px);
+        --source-height: clamp(220px, var(--board-height) - 210px, 440px);
+        width: min(1040px, 100%);
+        padding-top: 22px;
       }
-      #minolens-pick:not(.primary) { order: -1; }
-      #minolens-upload:has(#minolens-pick:not(.primary)) #minolens-upload-hint { color: #aaa; font-size: 12px; }
-      #minolens-view #minolens-upload.is-dragging { border-color: #22d3ee; background: #163036; }
-      #minolens-view .actions { align-items: center; gap: 8px; margin: 0; }
-      #minolens-view :is(button, summary, label) { min-height: 40px; }
-      #minolens-view #minolens-status:not(:empty) { margin-top: 8px; }
-      #minolens-work { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px 20px; margin-top: 12px; }
-      #minolens-work h2 { margin: 0 0 8px; }
-      .minolens-actions { grid-column: 1 / -1; }
-      #minolens-screenshot-panel { position: sticky; top: 12px; align-self: start; }
-      .minolens-source-frame { display: grid; place-items: center; padding: 12px; margin-bottom: 8px; border: 1px solid #444; background: #181818; }
-      #minolens-source { display: block; max-width: 100%; max-height: min(420px, 55dvh); cursor: crosshair; touch-action: none; }
-      #minolens-result { min-width: 0; }
-      #minolens-board-scroll { overflow-x: auto; margin-bottom: 8px; }
-      #minolens-board { display: grid; background: #2a2d2e; border-radius: 8px; user-select: none; }
+      .minolens-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      #minolens-title { font-size: 30px; letter-spacing: -0.06em; }
+      #minolens-back { color: #c7cdd0; text-decoration: none; display: inline-flex; gap: 6px; align-items: center; min-height: 40px; }
+      #minolens-back:is(:hover, :focus-visible), #minolens-back span { color: #22d3ee; }
+      .minolens-intro { color: #b5bdc1; margin: 6px 0 20px; line-height: 1.65; }
+      #minolens-view .hint { margin: 0; color: #b5bdc1; }
+      #minolens-view:has(#minolens-work:not([hidden])) .minolens-intro { display: none; }
+      .minolens-toolbar:has(.minolens-actions:not([hidden])) {
+        position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center;
+        justify-content: space-between; gap: 6px 10px; padding: 8px 0; background: #111;
+        border-bottom: 1px solid var(--line);
+      }
+      #minolens-upload {
+        display: grid; justify-items: center; gap: 14px; padding: 52px 16px; text-align: center;
+        border: 1px dashed #5a6a73; border-radius: 10px; background: var(--panel);
+      }
+      .minolens-crop-icon {
+        width: 56px; height: 56px; border: 2px solid #22d3ee; border-radius: 5px;
+        background: repeating-linear-gradient(90deg, #22d3ee23 0 1px, transparent 1px 10px),
+          repeating-linear-gradient(#22d3ee23 0 1px, transparent 1px 10px), #14272c;
+        background-position: 1px 1px;
+      }
+      #minolens-upload:has(#minolens-pick:not(.primary)) {
+        order: -1; display: flex; align-items: center; gap: 10px; padding: 0;
+        border: 0; background: transparent; color: #b5bdc1; font-size: 12px;
+      }
+      #minolens-upload:has(#minolens-pick:not(.primary)) .minolens-crop-icon { display: none; }
+      #minolens-pick { order: -1; }
+      #minolens-pick.primary { order: 0; }
+      .minolens-toolbar button { min-height: 40px; padding: 8px 12px; border-radius: 5px; }
+      #minolens-view #minolens-upload.is-dragging { border-color: #22d3ee; outline: 2px solid #22d3ee; background: #163036; }
+      #minolens-view .minolens-actions { gap: 6px; margin: 0; }
+      #minolens-view :is(#minolens-status, #minolens-export-status):empty { position: absolute; }
+      #minolens-view :is(#minolens-status, #minolens-export-status):not(:empty) { flex-basis: 100%; padding: 5px 0 0; }
+      #minolens-view #minolens-status[data-error] { color: #ffabab; }
+      #minolens-work {
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas: "source board" "text board"; grid-template-rows: auto 1fr;
+        align-items: start; gap: 12px; margin-top: 12px;
+      }
+      #minolens-work > * { min-width: 0; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+      #minolens-work :is(h2, summary) { margin: 0; color: #eef3f4; font-size: 14px; font-weight: bold; }
+      #minolens-work :is(canvas, button, summary, textarea) { scroll-margin-top: 80px; }
+      #minolens-screenshot-panel { grid-area: source; }
+      .minolens-source-frame {
+        display: grid; place-items: center; background: #101213; border: 1px solid var(--line);
+        border-radius: 5px; margin: 10px 0 8px; padding: 8px;
+      }
+      #minolens-source {
+        display: block; width: min(100%, var(--source-height) * var(--source-ratio, 1));
+        height: auto; cursor: crosshair; touch-action: none; image-rendering: pixelated;
+      }
+      #minolens-crop-help span { display: block; }
+      #minolens-result { grid-area: board; }
+      .minolens-result-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      #minolens-reset { padding: 5px 8px; border-radius: 4px; min-height: 30px; font-size: 12px; }
+      .minolens-correction { margin-top: 4px; }
+      #minolens-palette { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; width: min(100%, 366px); margin: 8px auto 10px; }
+      #minolens-palette button { position: relative; min-height: 34px; border-radius: 4px; }
+      #minolens-board {
+        display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); margin-inline: auto;
+        width: min(100%, 344px, var(--board-height) * 10 / var(--rows, 20));
+        background: #111416; outline: 1px solid #46535a; border-radius: 3px; overflow: hidden;
+        user-select: none;
+      }
       #minolens-board.painting { touch-action: none; }
-      #minolens-board .emoji-cell { width: 100%; font-size: 30px; }
-      #minolens-board .emoji-cell[data-review]::after { content: ""; position: absolute; right: 3px; top: 3px; width: 7px; height: 7px; border: 1px solid #111; border-radius: 50%; background: #ffd166; }
-      #minolens-view #minolens-palette { display: grid; grid-template-columns: repeat(9, 40px); gap: 4px; margin: 8px 0; }
-      #minolens-palette button { min-width: 40px; padding: 4px; font-size: 20px; }
-      #minolens-view #minolens-review:not(:empty) { margin-bottom: 8px; color: #ffd166; }
-      #minolens-text { margin-top: 8px; }
-      #minolens-text summary { width: fit-content; line-height: 28px; }
-      #minolens-output { display: block; width: 100%; resize: vertical; white-space: pre; background: #181818; color: #eee; border: 1px solid #666; padding: 8px; font: inherit; }
+      #minolens-view :is(.emoji-cell, .emoji-color) { padding: 0; font-size: 0; }
+      #minolens-view [data-piece="1"] { --tile: #e55764; }
+      #minolens-view [data-piece="2"] { --tile: #ef943a; }
+      #minolens-view [data-piece="3"] { --tile: #f0c94e; }
+      #minolens-view [data-piece="4"] { --tile: #6bb851; }
+      #minolens-view [data-piece="5"] { --tile: #45bad8; }
+      #minolens-view [data-piece="6"] { --tile: #527cdb; }
+      #minolens-view [data-piece="7"] { --tile: #b46bd9; }
+      #minolens-view [data-piece="8"] { --tile: #858e98; }
+      #minolens-board .emoji-cell { width: 100%; box-shadow: inset 0 0 0 1px #242b2f; }
+      #minolens-board .emoji-cell[data-piece]:not([data-piece="0"])::before,
+      #minolens-palette button:not([data-piece="0"])::before {
+        content: ""; position: absolute; inset: 1px; border-radius: 2px; background: var(--tile);
+        box-shadow: inset 0 2px #ffffff40, inset 0 -2px #0003;
+      }
+      #minolens-board .emoji-cell:is(:hover, :focus-visible) { outline: 2px solid #22d3ee; outline-offset: -2px; z-index: 1; }
+      #minolens-palette button:not([data-piece="0"])::before { width: 17px; height: 17px; inset: 0; margin: auto; }
+      #minolens-palette [data-piece="0"]::before { content: "×"; font: 20px monospace; color: #e2e9eb; }
+      #minolens-palette button[aria-pressed=true] { box-shadow: inset 0 0 0 1px #22d3ee; }
+      #minolens-board .emoji-cell[data-review]::after, #minolens-review[data-marked]::before {
+        content: ""; width: 7px; height: 7px; border: 1px solid #111; border-radius: 50%; background: #ffd166;
+      }
+      #minolens-board .emoji-cell[data-review]::after { position: absolute; right: 2px; top: 2px; }
+      #minolens-view #minolens-review:not(:empty) { display: flex; align-items: baseline; gap: 6px; margin-top: 8px; color: #ffd166; }
+      #minolens-review[data-marked]::before { flex: none; }
+      #minolens-text { grid-area: text; }
+      #minolens-text summary { padding: 0; min-height: 24px; }
+      #minolens-text label { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-height: 24px; color: #c7cdd0; font-size: 12px; }
+      #minolens-text input { margin: 0; }
+      #minolens-output {
+        display: block; width: 100%; resize: vertical; background: #101213; color: #eee;
+        border: 1px solid #515e65; border-radius: 4px; padding: 6px 8px; font: 14px/1.35 monospace;
+      }
+      @media (min-width: 900px) {
+        .minolens-correction {
+          display: grid; grid-template-columns: minmax(0, 1fr) 116px; grid-template-areas: "board paint";
+          align-items: start; gap: 12px; margin-top: 8px;
+        }
+        #minolens-board { grid-area: board; }
+        .minolens-paint-controls { grid-area: paint; }
+        #minolens-palette { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 0; }
+      }
+      @media (forced-colors: active) {
+        #minolens-view :is(.emoji-cell, .emoji-color)::before { forced-color-adjust: none; }
+      }
       @media (max-width: 663px), (pointer: coarse) {
         .emoji-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
         .emoji-tools :is(button, .action-link) { min-height: 44px; touch-action: manipulation; }
@@ -344,14 +431,14 @@
         main:is([data-view=emoji], [data-view=minolens]) .app-header button { min-height: 44px; }
         main:is([data-view=emoji], [data-view=minolens]) #nav-settings-button { margin-left: auto; }
         #emoji-view, #minolens-view { padding: 14px 0 20px; }
-        #minolens-view:has(#minolens-work:not([hidden])) .minolens-intro { display: none; }
-        #minolens-view:has(#minolens-work:not([hidden])) #minolens-upload { margin-top: 12px; }
-        #minolens-work { grid-template-columns: minmax(0, 1fr); }
-        #minolens-screenshot-panel { position: static; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: center; gap: 8px 12px; }
-        #minolens-work #minolens-source-title { grid-column: 1 / -1; margin: 0; }
-        .minolens-source-frame { margin: 0; }
-        #minolens-source { max-height: min(220px, 42dvh); }
-        #minolens-view button:not(.emoji-cell, .emoji-color) { padding-inline: 10px; }
+        #minolens-view { --board-height: 640px; --source-height: min(190px, 36dvh); width: min(100%, 460px); }
+        #minolens-title { font-size: 26px; }
+        #minolens-upload:has(#minolens-pick:not(.primary)) #minolens-upload-hint { display: none; }
+        .minolens-toolbar button { min-height: 44px; padding-inline: 8px; }
+        #minolens-work { grid-template: "source" auto "board" auto "text" auto / minmax(0, 1fr); }
+        #minolens-board { max-width: 320px; }
+        #minolens-palette button { min-height: 40px; }
+        #minolens-text label { min-height: 36px; }
         .emoji-layout {
           display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
           grid-template-areas: "title" "import" "palette" "board" "actions" "look" "play" "openers" "custom" "seq" "status";
@@ -380,12 +467,7 @@
         #emoji-status { grid-area: status; margin: 0; }
       }
       @media (max-width: 431px) {
-        #emoji-board-scroll, #minolens-board-scroll { margin-inline: -16px; }
-        #minolens-view #minolens-palette { margin-inline: -16px; overflow-x: auto; }
-        #minolens-palette button:focus-visible { outline-offset: -3px; }
-      }
-      @media (max-width: 374px) {
-        #minolens-view #minolens-palette { grid-template-columns: repeat(5, 40px); margin-inline: 0; overflow-x: visible; }
+        #emoji-board-scroll { margin-inline: -16px; }
       }
       @media (540px <= width <= 663px) {
         .emoji-layout {
@@ -583,45 +665,50 @@
       <section id="minolens-view" hidden aria-labelledby="minolens-title">
         <div class="minolens-heading">
           <h1 id="minolens-title" tabindex="-1">Minolens</h1>
-          <a class="action-link" id="minolens-back" href="/tetorisueditor">Back to editor</a>
+          <a id="minolens-back" href="/tetorisueditor"><span aria-hidden="true">←</span> Back to editor</a>
         </div>
-        <p class="hint minolens-intro">Turn a Tetris screenshot into an editable board you can share as emoji.</p>
-        <div id="minolens-upload">
-          <span id="minolens-upload-hint">Paste or drop a board screenshot</span>
-          <button class="primary" id="minolens-pick" type="button" aria-describedby="minolens-upload-hint">Choose image</button>
-          <input id="minolens-file" type="file" accept="image/*" hidden>
-        </div>
-        <p class="hint" id="minolens-status" role="status"></p>
-        <div id="minolens-work" hidden>
-          <div class="actions minolens-actions">
-            <button class="primary" id="minolens-open" type="button">Open in editor</button>
-            <button id="minolens-copy" type="button">Copy emoji</button>
-            <p class="hint" id="minolens-export-status" role="status"></p>
+        <p class="minolens-intro">Turn a Tetris screenshot into an editable board you can share as emoji.</p>
+        <div class="minolens-toolbar">
+          <div id="minolens-upload">
+            <span class="minolens-crop-icon" aria-hidden="true"></span>
+            <span id="minolens-upload-hint">Paste or drop a board screenshot</span>
+            <button class="primary" id="minolens-pick" type="button" aria-describedby="minolens-upload-hint">Choose image</button>
+            <input id="minolens-file" type="file" accept="image/*" hidden>
           </div>
+          <div class="actions minolens-actions" hidden>
+            <button id="minolens-copy" type="button">Copy emoji</button>
+            <button class="primary" id="minolens-open" type="button">Open in editor</button>
+          </div>
+          <p class="hint" id="minolens-status" role="status"></p>
+          <p class="hint" id="minolens-export-status" role="status"></p>
+        </div>
+        <div id="minolens-work" hidden>
           <section id="minolens-screenshot-panel" aria-labelledby="minolens-source-title">
-            <h2 class="menu-label" id="minolens-source-title">Screenshot</h2>
+            <h2 id="minolens-source-title">Screenshot</h2>
             <div class="minolens-source-frame">
               <canvas id="minolens-source" tabindex="0" aria-label="Screenshot with detected board" aria-describedby="minolens-crop-help"></canvas>
             </div>
-            <p class="hint" id="minolens-crop-help">Drag a box around the board to crop. Use arrows to move, Shift + arrows to resize, and Enter to apply.</p>
+            <p class="hint" id="minolens-crop-help">Drag a box around the board to crop. <span>Arrows move, Shift + arrows resize, Enter applies.</span></p>
           </section>
           <section id="minolens-result" aria-labelledby="minolens-result-title">
-            <h2 class="menu-label" id="minolens-result-title">Detected board</h2>
-            <p class="hint">Compare with the screenshot. Tap a cell to cycle it or pick a color to paint.</p>
-            <div class="actions" id="minolens-palette" role="group" aria-label="Paint color"></div>
-            <p class="hint" id="minolens-review" role="status"></p>
-            <div id="minolens-board-scroll">
+            <div class="minolens-result-heading">
+              <h2 id="minolens-result-title">Detected board</h2>
+              <button id="minolens-reset" type="button">Reset edits</button>
+            </div>
+            <div class="minolens-correction">
+              <div class="minolens-paint-controls">
+                <p class="hint" id="minolens-paint-help">Tap to cycle. Pick a color to paint.</p>
+                <div id="minolens-palette" role="group" aria-label="Paint color"></div>
+              </div>
               <div id="minolens-board" role="group" aria-labelledby="minolens-result-title" aria-description="Use arrow keys to move and Space to change a cell."></div>
             </div>
-            <button id="minolens-reset" type="button">Reset edits</button>
-            <details id="minolens-text">
-              <summary>Emoji text</summary>
-              <textarea id="minolens-output" readonly rows="3" aria-label="Emoji board text"></textarea>
-              <div class="actions emoji-seq">
-                <label><input id="minolens-trim" type="checkbox" checked> Trim empty top rows</label>
-              </div>
-            </details>
+            <p class="hint" id="minolens-review" role="status"></p>
           </section>
+          <details id="minolens-text" open>
+            <summary>Emoji text</summary>
+            <textarea id="minolens-output" readonly rows="3" aria-label="Emoji board text" wrap="off"></textarea>
+            <label><input id="minolens-trim" type="checkbox" checked> Trim empty top rows</label>
+          </details>
         </div>
       </section>
       <section id="online" hidden aria-label="Online play"></section>

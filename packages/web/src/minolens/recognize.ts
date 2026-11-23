@@ -191,7 +191,7 @@ function classify(im: RGBAImage, ox: number, oy: number, p: number, cols: number
     const sure = clamp((d - NEAR) / NEAR);
     if (chroma < 0.04) return { id: 8, conf: Math.min(sure, clamp(1 - chroma / 0.08)), light };
     const { id, margin } = hueToPiece(hue);
-    return { id, conf: Math.min(sure, clamp(margin / 10), clamp(chroma / 0.08)), light };
+    return { id, conf: Math.min(sure, clamp(margin * chroma / 0.8), clamp(chroma / 0.08)), light };
   });
   // a frame (like the harddrop wiki one) is one colour along a whole row, or down from the top longer than an I piece
   const frames: number[][] = [];
@@ -230,9 +230,18 @@ export function recognizeBoard(im: RGBAImage, options: { bounds?: Rect } = {}): 
   }
   const g = fitGrid(im);
   const p = g.cell;
-  // grid over the whole image, keeping cells at least half inside
-  const i0 = Math.ceil(-g.ox / p - 0.5), j0 = Math.ceil(-g.oy / p - 0.5);
-  const nx = Math.floor((im.width - g.ox) / p - 0.5) - i0 + 1, ny = Math.floor((im.height - g.oy) / p - 0.5) - j0 + 1;
+  // keep all ten columns of a tight crop, including edge cells clipped near their centres
+  const span = 10 * p;
+  const centre = (im.width - span) / 2;
+  const tightStart = Math.round((centre - g.ox) / p);
+  const tightX = g.ox + tightStart * p;
+  const edgeTolerance = p / 2 + 1;
+  const tight = Math.abs(im.width - span) <= edgeTolerance && Math.max(-tightX, tightX + span - im.width) <= edgeTolerance;
+
+  const i0 = tight ? tightStart : Math.ceil(-g.ox / p - 0.5);
+  const j0 = Math.ceil(-g.oy / p - 0.5);
+  const nx = tight ? 10 : Math.floor((im.width - g.ox) / p - 0.5) - i0 + 1;
+  const ny = Math.floor((im.height - g.oy) / p - 0.5) - j0 + 1;
   const ox = g.ox + i0 * p, oy = g.oy + j0 * p;
   if (nx < 1 || ny < 1) return result([], p, { x: 0, y: 0, width: 0, height: 0 });
   const cells = classify(im, ox, oy, p, nx, ny);
@@ -243,8 +252,8 @@ export function recognizeBoard(im: RGBAImage, options: { bounds?: Rect } = {}): 
   for (let c = Math.min(0, nx - 10); c <= Math.max(0, nx - 10); c++) {
     let n = 0;
     for (let j = 0; j < ny; j++) for (let i = c; i < c + 10; i++) if (filled(i, j)) n++;
-    const off = Math.abs(c + 5 - nx / 2);
-    if (n > best || (n === best && off < Math.abs(c0 + 5 - nx / 2))) [c0, best] = [c, n];
+    const off = Math.abs(ox + c * p - centre);
+    if (n > best || (n === best && off < Math.abs(ox + c0 * p - centre))) [c0, best] = [c, n];
   }
   const rowFilled = (j: number) => {
     for (let i = c0; i < c0 + 10; i++) if (filled(i, j)) return true;
@@ -252,9 +261,9 @@ export function recognizeBoard(im: RGBAImage, options: { bounds?: Rect } = {}): 
   };
   let bottom = ny - 1;
   while (bottom > 0 && !rowFilled(bottom)) bottom--;
-  // stop after three empty rows to skip spawn previews
+  // the visible playfield has at most 20 rows; a gap also separates spawn previews
   let top = bottom;
-  for (let j = bottom, gap = 0; j >= 0 && gap < 3; j--) {
+  for (let j = bottom, gap = 0; j >= Math.max(0, bottom - 19) && gap < 3; j--) {
     if (rowFilled(j)) [top, gap] = [j, 0];
     else gap++;
   }
