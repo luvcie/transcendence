@@ -40,7 +40,16 @@ const ROTATED = 1, KICK4 = 2;
  * each with its cheapest presses. Hold is up to the caller: pass the piece after hold.
  */
 export function placements(board: Uint8Array, piece: PieceId, options: MovegenOptions = {}): Placement[] {
-  const costs = options.costs ?? UNIT_COSTS;
+  return findPlacements(board, piece, options.costs ?? UNIT_COSTS);
+}
+
+/** Cheapest lock for each requested set of sorted cells, regardless of spin. */
+export function targetPlacements(board: Uint8Array, piece: PieceId, targets: readonly (readonly number[])[]): Placement[] {
+  return targets.length ? findPlacements(board, piece, UNIT_COSTS, targets) : [];
+}
+
+function findPlacements(board: Uint8Array, piece: PieceId, costs: ArrayLike<number>,
+  targetCells?: readonly (readonly number[])[]): Placement[] {
   const width = board.length / ROWS;
   const xs = width + PAD, ys = ROWS + PAD;
   const size = 4 * ys * xs * 3;
@@ -67,8 +76,10 @@ export function placements(board: Uint8Array, piece: PieceId, options: MovegenOp
   const found = new Map<number, number>();
   const cells = new Int32Array(4);
   const area = width * ROWS;
+  const cellKey = (at: ArrayLike<number>) => ((at[0] * area + at[1]) * area + at[2]) * area + at[3];
+  const targets = targetCells && new Set(targetCells.map(cellKey));
 
-  for (; cost < buckets.length; cost++) {
+  search: for (; cost < buckets.length; cost++) {
     const bucket = buckets[cost];
     for (let i = 0; bucket && i < bucket.length; i++) {
       const s = from = bucket[i];
@@ -78,14 +89,18 @@ export function placements(board: Uint8Array, piece: PieceId, options: MovegenOp
 
       let floor = y;
       while (canPlace(board, piece, rot, x, floor + 1)) floor++;
-      const last = floor === y ? tag : 0;
-      const spin = SPINS.indexOf(classifySpin(board, piece, rot, x, floor, last !== 0, last === KICK4 ? 4 : 0));
       const m = MINOS[piece][rot];
       for (let k = 0; k < 4; k++) cells[k] = (floor + m[k * 2 + 1]) * width + x + m[k * 2];
       cells.sort();
-      const key = (((cells[0] * area + cells[1]) * area + cells[2]) * area + cells[3]) * 3 + spin;
-      // buckets pop in cost order, so the first state to reach a lock is a cheapest one
-      if (!found.has(key)) found.set(key, s);
+      const lock = cellKey(cells);
+      if (!targets || targets.delete(lock)) {
+        const last = floor === y ? tag : 0;
+        const spin = SPINS.indexOf(classifySpin(board, piece, rot, x, floor, last !== 0, last === KICK4 ? 4 : 0));
+        const key = lock * 3 + spin;
+        // buckets pop in cost order, so the first state to reach a lock is a cheapest one
+        if (!found.has(key)) found.set(key, s);
+        if (targets?.size === 0) break search;
+      }
 
       if (canPlace(board, piece, rot, x - 1, y)) relax(x - 1, y, rot, 0, Move.Left);
       if (canPlace(board, piece, rot, x + 1, y)) relax(x + 1, y, rot, 0, Move.Right);

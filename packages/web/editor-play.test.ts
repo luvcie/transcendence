@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Input } from "@42tris/core";
+import { GARBAGE, Input } from "@42tris/core";
 import { bagLeft, boardQueue, boardToGame, followQueue, gameToLines, mirrorBoard, mirrorPiece, paintGame, playCells } from "./src/editor-play";
 import { mirrorRows } from "./src/emoji-editor";
 import { editorSkin } from "./src/emoji-editor";
@@ -38,8 +38,9 @@ test("the active piece and its ghost are drawn into the cells", () => {
 
 test("a zen run starts on the drawn board and pieces stack on top of it", () => {
   const run = new Singleplayer("zen", 108, 0);
-  const gap = "🟨".repeat(9) + "⬛";
+  const gap = "🟫".repeat(9) + "⬛";
   boardToGame([gap, gap], run.game.board);
+  expect(run.game.board[390]).toBe(GARBAGE);
   run.tick(1000);
   run.apply(Input.HardDrop, 1000);
   const lines = gameToLines(run.game.board);

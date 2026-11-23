@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
-import { arrangeBoards, mirrorRows, parseEmojiMode, parseSavedOpeners } from "./src/emoji-editor";
-import { gifSize, timeline } from "./src/emoji-gif";
+import { GARBAGE, MINOS, pieceEdges } from "@42tris/core";
+import { arrangeBoards, boardCells, mirrorRows, parseBoardText, parseEmojiMode, parseSavedOpeners } from "./src/emoji-editor";
+import { ids } from "./src/board-emoji";
+import { gifSize, tetrominoEdges, timeline } from "./src/emoji-gif";
+import { BUILTIN_SKINS } from "./src/skin-catalog";
+import type { LoadedSkin } from "./src/skin-loader";
+import { COLORS, drawTile } from "./src/tile-renderer";
 
 const row = (emoji: string) => emoji.repeat(10);
 
@@ -20,8 +25,27 @@ test("mirroring flips a board and swaps S/Z and J/L", () => {
   expect(mirrorRows(["🟦🟦🟦⬛⬛⬛⬛⬛⬛🟩"])).toEqual(["🟥⬛⬛⬛⬛⬛⬛🟧🟧🟧"]);
 });
 
+test("pasted rows keep their order at the bottom of the board", () => {
+  const top = "⬛🟥🟧🟨🟩⬜🟦🟪🟫⬛";
+  const parsed = parseBoardText(`\t${top} \r\n \r\n 🔲◼️◼◻️◻⬛️⬜︎🟫🟦🟨\r`);
+  const bottom = "⬛⬛⬛⬜⬜⬛⬜🟫🟦🟨";
+  expect(parsed).toEqual([top, bottom]);
+  if (typeof parsed === "string") throw new Error(parsed);
+  expect(boardCells(parsed)).toEqual([...row("⬛").repeat(18), ...top, ...bottom]);
+});
+
+test("paste accepts up to 20 rows and rejects malformed boards", () => {
+  const full = Array<string>(20).fill(row("⬛"));
+  expect(parseBoardText(full.join("\n"))).toEqual(full);
+  expect(parseBoardText([...full, row("⬛")].join("\n"))).toContain("at most 20 rows");
+  for (const text of ["", " \n ", "hello", row("🍎"), row("🟫") + "⬛", "⬜".repeat(9),
+    row("⬛") + "\n" + "🟩".repeat(5) + " " + "🟦".repeat(5)]) {
+    expect(typeof parseBoardText(text)).toBe("string");
+  }
+});
+
 test("saved openers ignore anything that is not valid", () => {
-  const good = { name: "mine", steps: [[row("🟦")], []] };
+  const good = { name: "mine", steps: [[row("🟦"), row("🟫")], []] };
   expect(parseSavedOpeners(JSON.stringify([good]))).toEqual([good]);
   expect(parseSavedOpeners(null)).toEqual([]);
   expect(parseSavedOpeners("not json")).toEqual([]);
@@ -48,4 +72,51 @@ test("gifSize sizes the canvas from the block size and the tallest board", () =>
 test("emoji mode is on unless storage explicitly says false", () => {
   expect(parseEmojiMode("false")).toBe(false);
   for (const raw of ["true", null, "", "0", "nope"]) expect(parseEmojiMode(raw)).toBe(true);
+});
+
+// a 10 wide grid from rows of digits, 0 is empty
+const grid = (...rows: string[]) => rows.flatMap(line => [...line.padEnd(10, "0")].map(Number));
+
+test("every piece in every rotation gets the same edges as the game", () => {
+  for (let id = 1; id <= 7; id++) for (let rot = 0; rot < 4; rot++) {
+    const minos = MINOS[id][rot], cells = new Array(40).fill(0);
+    for (let i = 0; i < 8; i += 2) cells[minos[i + 1] * 10 + minos[i] + 3] = id;
+    const edges = tetrominoEdges(cells);
+    for (let i = 0; i < 8; i += 2) expect(edges[minos[i + 1] * 10 + minos[i] + 3]).toBe(pieceEdges(minos, i));
+  }
+});
+
+test("two touching pieces of one colour join only inside each piece", () => {
+  const edges = tetrominoEdges(grid("3333", "3333"));
+  expect([...edges.slice(0, 4)].map(edge => edge & 15)).toEqual([6, 3, 6, 3]);
+  const ts = tetrominoEdges(grid("777777", "070070"));
+  expect([...ts].filter(Boolean)).toHaveLength(8);
+  expect(ts[2] & 4).toBe(0);
+});
+
+test("a drawing that is not made of the colour's pieces stays single blocks", () => {
+  for (const cells of [grid("777", "777"), grid("7777", "7777"), grid("55555"), grid("11"), grid("88", "88")]) {
+    expect(tetrominoEdges(cells).every(edge => edge === 0)).toBe(true);
+  }
+});
+
+test("a different colour next to a piece never joins it", () => {
+  const edges = tetrominoEdges(grid("7772", "0702", "00022"));
+  expect(edges[2] & 15).toBe(1);
+  expect(edges[3] & 15).toBe(2);
+  expect(edges[11] & 15).toBe(8);
+});
+
+test("garbage uses the skin's own tile like the game, gray without a skin", () => {
+  const image = { width: 288, height: 32 } as HTMLCanvasElement;
+  const skins = [{ def: BUILTIN_SKINS.find(def => def.id === "four")!, image, tile: 32 },
+    { def: { id: "t", name: "t", url: "t.tpse" }, image, tile: 32, connected: true }] as LoadedSkin[];
+  for (const skin of [...skins, undefined]) {
+    const calls: unknown[] = [];
+    const ctx = { set fillStyle(color: string) { calls.push(color); }, fillRect() {},
+      drawImage: (...args: unknown[]) => calls.push(args.slice(1, 3)) } as unknown as CanvasRenderingContext2D;
+    drawTile(ctx, ids["🟫"], 0, 0, 32, skin, 0, false, 0);
+    expect(ids["🟫"]).toBe(GARBAGE);
+    expect(calls).toEqual([skin ? [0, skin.connected ? 12 * 32 : 0] : COLORS[GARBAGE]]);
+  }
 });

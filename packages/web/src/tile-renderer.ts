@@ -15,19 +15,20 @@ export function skinFrame(skin: LoadedSkin, now = performance.now()): number {
 
 export function drawTile(ctx: CanvasRenderingContext2D, id: number, x: number, y: number,
   size: number, skin?: LoadedSkin, connections = 0, ghost = false, frame = skin ? skinFrame(skin) : 0) {
-  // Ghosts and garbage never read sprite columns, including with a custom sheet.
-  if (skin && !ghost && id >= 1 && id <= 7) {
+  // without the skin's own ghost, ghosts stay flat colors
+  if (skin && (!ghost || skin.ghost) && id >= 1 && id <= 8) {
     const row = skin.connected ? TETRIO_CONNECTION_ROWS[connections]
       : skin.def.join ? (connections & 8 ? skin.def.join.joined : skin.def.join.open) : 0;
     if (skin.tiles) {
-      const tile = skin.tiles[(frame * TETRIO_SKIN_ROWS + row) * 7 + id - 1];
+      const tile = skin.tiles[(frame * TETRIO_SKIN_ROWS + row) * 9 + (ghost ? 8 : id - 1)];
       const columns = skin.image.width / skin.tile;
       ctx.drawImage(skin.image, tile % columns * skin.tile, Math.floor(tile / columns) * skin.tile,
         skin.tile, skin.tile, x, y, size, size);
       return;
     }
     const columns = Math.min(skin.animation?.frames ?? 1, 16);
-    ctx.drawImage(skin.image, (frame % columns * 9 + id + 1) * skin.tile,
+    // sheets keep the jstris order: garbage, ghost, then Z to T
+    ctx.drawImage(skin.image, (frame % columns * 9 + (ghost ? 1 : (id + 1) % 9)) * skin.tile,
       (Math.floor(frame / columns) * TETRIO_SKIN_ROWS + row) * skin.tile, skin.tile, skin.tile, x, y, size, size);
   } else {
     ctx.fillStyle = COLORS[id];

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { COLS, createBoard, ROWS } from "./board";
 import { finessePlacement } from "./finesse";
 import { Game, type PlacementSettlement } from "./game";
-import { Move, pathTo, placements, toInputs, type MoveId } from "./movegen";
+import { Move, pathTo, placements, targetPlacements, toInputs, type MoveId } from "./movegen";
 import { GARBAGE, MINOS, Piece, SPAWN_Y, spawnX, type PieceId } from "./pieces";
 import { Rng } from "./rng";
 
@@ -140,4 +140,23 @@ test("an enclosed pocket is never offered", () => {
   fill(board, [...row(37), ...row(38, [4, 5]), ...row(39, [4, 5])]);
   expect(pathTo(board, Piece.O, { x: 4, y: 38, rot: 0 })).toBeNull();
   expect(placements(board, Piece.O).every(p => p.cells.every(c => c < 37 * COLS))).toBe(true);
+});
+
+test("target placements return the cheapest path per requested lock", () => {
+  const board = garbageBoard(42);
+  for (const piece of PIECES) {
+    const all = placements(board, piece);
+    const wanted = new Set(all.filter((_, i) => i % 5 === 0).map(p => p.cells.join()));
+    const cheapest = new Map<string, number>();
+    for (const p of all) {
+      const key = p.cells.join();
+      if (wanted.has(key)) cheapest.set(key, Math.min(cheapest.get(key) ?? Infinity, p.cost));
+    }
+    const targets = [...wanted].map(key => key.split(",").map(Number));
+    const found = targetPlacements(board, piece, targets);
+    expect(found).toHaveLength(cheapest.size);
+    expect(new Map(found.map(p => [p.cells.join(), p.cost]))).toEqual(cheapest);
+  }
+  fill(board, row(20));
+  expect(targetPlacements(board, Piece.O, [[384, 385, 394, 395]])).toEqual([]);
 });

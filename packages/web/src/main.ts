@@ -32,7 +32,7 @@ import { mountGameplayInput } from "./gameplay-input";
 import { mountHoldExit } from "./hold-exit";
 import { renderOnlineWaiting } from "./waiting-view";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
-import { initialView, mountAppView, onlineView } from "./app-view";
+import { initialView, mountAppView, onlineView, toolPaths, type ToolView } from "./app-view";
 import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary, type SingleplayerMode } from "./singleplayer";
 import { SprintRecorder } from "@42tris/replay";
 import { abandonSprintRecording, sprintRecordingFor, startSprintRecording } from "./sprint-recording";
@@ -41,6 +41,7 @@ import { SessionDiagnostics } from "./session-diagnostics";
 import { configuredInputLead } from "./netplay-options";
 import { mountModeCard, SprintCountdown } from "./sprint-training";
 import { mountEmojiEditor } from "./emoji-editor";
+import { mountMinolens } from "./minolens/view";
 
 let online: ReturnType<typeof mountOnline> | undefined;
 let invite = new URL(location.href).searchParams.get("room");
@@ -172,6 +173,7 @@ const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dial
 const abandonDialog = document.querySelector<HTMLDialogElement>("#abandon-dialog")!;
 const navSettingsButton = document.querySelector<HTMLButtonElement>("#nav-settings-button")!;
 const emojiView = document.querySelector<HTMLElement>("#emoji-view")!;
+const minolensView = document.querySelector<HTMLElement>("#minolens-view")!;
 
 function gameplayActive() {
   return !atHome && !activePlayback() && !document.hidden && !document.querySelector("dialog[open]")
@@ -203,7 +205,8 @@ function releaseSoloControls() {
 
 function focusView() {
   const gameView = document.querySelector<HTMLElement>("#game-view")!;
-  const heading = atHome ? (emojiView.hidden ? "#home-title" : "#emoji-title") : "#view-title";
+  const heading = !atHome ? "#view-title" : !emojiView.hidden ? "#emoji-title"
+    : !minolensView.hidden ? "#minolens-title" : "#home-title";
   (gameView.hidden ? document.querySelector<HTMLElement>(heading)! : gameView).focus({ preventScroll: true });
 }
 
@@ -445,20 +448,53 @@ async function enterOnline() {
   invite = null;
 }
 
-let editorMounted = false;
+const pendingBoardKey = "42tris.minolensBoard";
+let pasteEditorBoard: ReturnType<typeof mountEmojiEditor> | undefined;
 function mountEditor() {
-  if (editorMounted) return;
-  editorMounted = true;
-  // same sounds as zen, the main game ones stay quiet outside a game
-  const editorSounds = new GameSounds(() => sounds.preferences.enabled ? sounds.loaded?.pack : undefined, clips => {
-    if (sounds.preferences.enabled && sounds.loaded && !document.hidden && !emojiView.hidden && !settingsDialog.open) soundPlayer.play(clips, sounds.loaded);
-  }, () => finesseSoundOptions.zen.checked);
-  mountEmojiEditor(emojiView, skins, { bindings, handling: () => handling, ghost: () => showGhost, sounds: editorSounds });
+  if (!pasteEditorBoard) {
+    // same sounds as zen, the main game ones stay quiet outside a game
+    const editorSounds = new GameSounds(() => sounds.preferences.enabled ? sounds.loaded?.pack : undefined, clips => {
+      if (sounds.preferences.enabled && sounds.loaded && !document.hidden && !emojiView.hidden && !settingsDialog.open) soundPlayer.play(clips, sounds.loaded);
+    }, () => finesseSoundOptions.zen.checked);
+    pasteEditorBoard = mountEmojiEditor(emojiView, skins, { bindings, handling: () => handling, ghost: () => showGhost, sounds: editorSounds });
+  }
+  let board: string | null;
+  try {
+    board = sessionStorage.getItem(pendingBoardKey);
+    if (board !== null) sessionStorage.removeItem(pendingBoardKey);
+  } catch { return; }
+  if (board !== null) pasteEditorBoard(board);
 }
-document.querySelector("#editor-button")!.addEventListener("click", () => {
-  history.pushState(null, "", "/tetorisueditor");
-  showView("emoji");
-  mountEditor();
+
+let minolensMounted = false;
+function showTool(view: ToolView, push = true) {
+  if (push) history.pushState(null, "", toolPaths[view]);
+  showView(view);
+  if (view === "emoji") mountEditor();
+  else if (!minolensMounted) {
+    minolensMounted = true;
+    mountMinolens(minolensView, board => {
+      try { sessionStorage.setItem(pendingBoardKey, board); } catch { return false; }
+      showTool("emoji");
+      window.scrollTo(0, 0);
+      return true;
+    });
+  }
+}
+document.querySelector("#editor-button")!.addEventListener("click", () => showTool("emoji"));
+for (const [selector, view] of [["#emoji-screenshot", "minolens"], ["#minolens-back", "emoji"]] as const) {
+  document.querySelector<HTMLAnchorElement>(selector)!.addEventListener("click", event => {
+    if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    showTool(view);
+    window.scrollTo(0, 0);
+  });
+}
+window.addEventListener("popstate", () => {
+  if (!atHome) return;
+  const view = initialView(location.href, false);
+  if (view === "emoji" || view === "minolens") showTool(view, false);
+  else if (!emojiView.hidden || !minolensView.hidden) showHome();
 });
 document.querySelector("#online-button")!.addEventListener("click", enterOnline);
 for (const id of ["#home-button", "#solo-button", "#result-home-button", "#pause-home-button"]) document.querySelector(id)!.addEventListener("click", enterHome);
@@ -795,5 +831,5 @@ function frame(now: number) {
 let frameId = requestAnimationFrame(frame);
 window.addEventListener("pagehide", e => { holdExit.cancel(); modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { holdExit.dispose(); volumeOverlay.dispose(); unmountInput(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
-if (entryView === "emoji") mountEditor();
+if (entryView === "emoji" || entryView === "minolens") showTool(entryView, false);
 else if (!atHome) enterOnline();

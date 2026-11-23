@@ -1,6 +1,6 @@
 import type { LoadedSkin } from "./skin-loader";
 
-export interface PreparedSkin { blob: Blob; frames: number; delay: number; tile: number; tiles: Uint16Array; frameEnds?: number[] }
+export interface PreparedSkin { blob: Blob; frames: number; delay: number; tile: number; tiles: Uint16Array; frameEnds?: number[]; ghost?: boolean }
 let preparation = Promise.resolve();
 
 export function canPrepareSkin() {
@@ -32,7 +32,7 @@ export async function decodePreparedSkin(prepared: PreparedSkin): Promise<Omit<L
   try {
     image.decoding = "async"; image.src = url;
     await image.decode();
-    return { image, tile: prepared.tile, connected: true, tiles: prepared.tiles,
+    return { image, tile: prepared.tile, connected: true, tiles: prepared.tiles, ghost: prepared.ghost,
       ...(prepared.frames > 1 ? { animation: { frames: prepared.frames, delay: prepared.delay, frameEnds: prepared.frameEnds } } : {}) };
   } finally { URL.revokeObjectURL(url); }
 }

@@ -1,10 +1,12 @@
 import type { SkinState } from "./skin-state";
-import { animatedLook, ids, makeGif, timeline } from "./emoji-gif";
-import { animateSteps } from "./gif-pieces";
+import { blockNames, empty, ids } from "./board-emoji";
+import { mountBoardFocus } from "./board-focus";
+import { animatedLook, makeGif, tetrominoEdges, timeline } from "./emoji-gif";
+import type { GifPlanJob, GifPlanMessage } from "./gif-planner-worker";
 import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
 import { resolveSkin, type SkinPreferences } from "./skin-preferences";
 import type { LoadedSkin } from "./skin-loader";
-import { drawTile, skinFrame } from "./tile-renderer";
+import { connectionMask, drawTile, skinFrame } from "./tile-renderer";
 import type { Handling } from "@42tris/core";
 import type { Keybinds } from "./keybinds";
 import type { Singleplayer } from "./singleplayer";
@@ -150,9 +152,20 @@ const continuations: Record<string, string[][]> = {
   ],
 };
 
-const empty = "⬛";
 const cols = 10;
 const rows = 20;
+
+function planGif(job: GifPlanJob, onProgress: (step: number, total: number) => void) {
+  const worker = new Worker(new URL("./gif-planner-worker.ts", import.meta.url), { type: "module" });
+  return new Promise<Extract<GifPlanMessage, { kind: "done" }>["plan"]>((resolve, reject) => {
+    worker.onmessage = ({ data }: MessageEvent<GifPlanMessage>) => {
+      if (data.kind === "progress") onProgress(data.step, data.total);
+      else resolve(data.plan);
+    };
+    worker.onerror = () => reject(new Error("Could not plan the GIF animation."));
+    worker.postMessage(job);
+  }).finally(() => worker.terminate());
+}
 
 // boards sit side by side, so a row of boards wraps on narrow chat clients
 export function arrangeBoards(boards: string[][], perRow: number) {
@@ -166,10 +179,7 @@ export function arrangeBoards(boards: string[][], perRow: number) {
   return groups;
 }
 const mirrorPair: Record<string, string> = { "🟥": "🟩", "🟩": "🟥", "🟦": "🟧", "🟧": "🟦" };
-const blocks = [
-  ["⬜", "I piece"], ["🟪", "T piece"], ["🟥", "Z piece"], ["🟨", "O piece"],
-  ["🟩", "S piece"], ["🟦", "J piece"], ["🟧", "L piece"], [empty, "Erase"],
-] as const;
+const blocks = Object.entries(blockNames);
 
 export function mirrorRows(board: string[]) {
   return board.map(row => Array.from(row).reverse().map(value => mirrorPair[value] ?? value).join(""));
@@ -191,6 +201,19 @@ const maxSteps = 20;
 const known = new Set<string>(blocks.map(([emoji]) => emoji));
 const validBoard = (board: unknown) => Array.isArray(board) && board.length <= rows && board.every(row =>
   typeof row === "string" && Array.from(row).length === cols && Array.from(row).every(value => known.has(value)));
+
+export function parseBoardText(text: string): string[] | string {
+  const lines = text.split(/\r\n?|\n/).map(line => line.trim()).filter(Boolean)
+    .map(line => line.replace(/(.)[\uFE0E\uFE0F]/gu, "$1").replace(/[🔲◼]/gu, empty).replaceAll("◻", "⬜"));
+  if (lines.length > rows) return `A board can have at most ${rows} rows.`;
+  if (!lines.length || !validBoard(lines)) return `Each row needs ${cols} board emojis.`;
+  return lines;
+}
+
+export function boardCells(layout: string[]) {
+  const padding = Array<string>((rows - layout.length) * cols).fill(empty);
+  return padding.concat(layout.flatMap(row => [...row]));
+}
 
 // storage can hold anything, so keep only entries that look like what we wrote
 export function parseSavedOpeners(raw: string | null): SavedOpener[] {
@@ -293,16 +316,16 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   function paint(index: number, value: string) {
     const cell = cells[index];
     cell.textContent = value;
-    cell.setAttribute("aria-label", `Row ${Math.floor(index / cols) + 1}, column ${index % cols + 1}: ${value}`);
+    cell.setAttribute("aria-label", `Row ${Math.floor(index / cols) + 1}, column ${index % cols + 1}: ${value === empty ? "Empty" : blockNames[value]}`);
     redraw();
   }
 
   function drawCell(ctx: CanvasRenderingContext2D, id: number | undefined, x: number, y: number, size: number,
-    skin: LoadedSkin | undefined, frame: number, ghost = false) {
+    skin: LoadedSkin | undefined, frame: number, ghost = false, connections = 0) {
     ctx.fillStyle = "#111";
     ctx.fillRect(x, y, size, size);
     if (ghost) ctx.globalAlpha = .25;
-    if (id) drawTile(ctx, id, x, y, size, skin, 0, ghost, frame);
+    if (id) drawTile(ctx, id, x, y, size, skin, connections, ghost, frame);
     ctx.globalAlpha = 1;
     if (!id || !skin) {
       ctx.strokeStyle = "#333";
@@ -336,11 +359,14 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     ctx.clearRect(0, 0, board.clientWidth, board.clientHeight);
     const frame = skin ? skinFrame(skin) : 0;
     const origin = board.getBoundingClientRect();
-    for (const cell of cells) {
+    // ghosts are not part of the board, they must not join a piece
+    const edges = skin?.connected
+      ? tetrominoEdges(cells.map(cell => cell.classList.contains("ghost") ? 0 : ids[cell.textContent!] ?? 0)) : undefined;
+    cells.forEach((cell, index) => {
       const rect = cell.getBoundingClientRect();
       drawCell(ctx, ids[cell.textContent!], rect.left - origin.left, rect.top - origin.top, rect.width, skin, frame,
-        cell.classList.contains("ghost"));
-    }
+        cell.classList.contains("ghost"), edges ? connectionMask(edges[index]) : 0);
+    });
     if (skin?.animation && !frameRequest) frameRequest = requestAnimationFrame(() => {
       frameRequest = 0;
       draw();
@@ -389,6 +415,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   }
 
   cells.forEach((cell, index) => {
+    cell.tabIndex = index === 0 ? 0 : -1;
     paint(index, empty);
     cell.addEventListener("pointerdown", event => {
       if (event.button !== 0 || !event.isPrimary || stroke) return;
@@ -397,6 +424,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
         return;
       }
       event.preventDefault();
+      if (!play) cell.focus({ preventScroll: true });
       board.setPointerCapture(event.pointerId);
       startStroke(index, "pointer", event.pointerId);
     });
@@ -405,6 +433,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     });
   });
   board.append(canvas, ...cells);
+  mountBoardFocus(board, () => ({ cells: play && !play.paused ? [] : cells, cols }));
   new ResizeObserver(redraw).observe(board);
 
   function cellAt(x: number, y: number) {
@@ -494,19 +523,8 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     stroke = null;
   });
 
-  function mirrorBoard() {
-    const flipped = cells.map((_, index) => {
-      const value = cells[Math.floor(index / cols) * cols + cols - 1 - index % cols].textContent!;
-      return mirrorPair[value] ?? value;
-    });
-    flipped.forEach((value, index) => paint(index, value));
-  }
-
-  function setBoard(layout: string[]) {
-    const painted = layout.flatMap(row => Array.from(row));
-    const offset = cells.length - painted.length;
-    cells.forEach((_, index) => paint(index, painted[index - offset] ?? empty));
-    if (mirrored) mirrorBoard();
+  function setBoard(layout: string[], flip = mirrored) {
+    boardCells(flip ? mirrorRows(layout) : layout).forEach((value, index) => paint(index, value));
   }
 
   mirror.addEventListener("click", () => {
@@ -515,7 +533,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     if (play) {
       drawn = mirrorRows(drawn);
       play.mirror(drawn);
-    } else mirrorBoard();
+    } else setBoard(boardLines(), true);
     status.textContent = mirrored ? "Mirror mode on." : "Mirror mode off.";
   });
 
@@ -584,7 +602,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
 
   document.addEventListener("keydown", event => {
     const target = event.target as HTMLElement;
-    if (root.hidden || play || event.ctrlKey || event.altKey || event.metaKey || target.closest("input, select, textarea, [contenteditable]")) return;
+    if (event.defaultPrevented || root.hidden || play || event.ctrlKey || event.altKey || event.metaKey || target.closest("input, select, textarea, [contenteditable]")) return;
     const button = { ArrowLeft: stepBack, h: stepBack, ArrowRight: stepNext, l: stepNext }[event.key];
     if (!button) return;
     event.preventDefault();
@@ -776,6 +794,38 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
 
   copy.addEventListener("click", () => copyRows(0, copy));
   copyHalf.addEventListener("click", () => copyRows(rows / 2, copyHalf));
+  function pasteBoard(text: string) {
+    const parsed = parseBoardText(text);
+    if (typeof parsed === "string") {
+      status.textContent = parsed;
+      return false;
+    }
+    stopPlay();
+    if (sequence.length) {
+      sequence[step] = captureBoard(parsed);
+      draft = true;
+      seqTools.hidden = false;
+      goTo(step);
+      renderSplits();
+    } else setBoard(parsed, false);
+    status.textContent = "Board pasted.";
+    return true;
+  }
+  root.addEventListener("paste", event => {
+    if (root.hidden || play || !(event.target instanceof HTMLElement) ||
+      event.target.closest("input, select, textarea, [contenteditable]")) return;
+    if (pasteBoard(event.clipboardData?.getData("text") ?? "")) event.preventDefault();
+  });
+  root.querySelector("#emoji-paste")!.addEventListener("click", async () => {
+    const original = sequence, originalStep = step;
+    let text: string;
+    try { text = await navigator.clipboard.readText(); }
+    catch {
+      status.textContent = "Could not read the clipboard. Use the paste shortcut in the editor.";
+      return;
+    }
+    if (!root.hidden && !play && sequence === original && step === originalStep) pasteBoard(text);
+  });
   copySeq.addEventListener("click", () => copyMessage(0, copySeq));
   // names repeat across categories, so a repeat gets its category (or id) added to stay unique
   const skinKeys = new Map<string, string>();
@@ -845,14 +895,21 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
       const cell = Math.max(4, Math.min(Math.round(Number(gifBlock.value)) || 16, 64));
       const hold = Math.max(20, Math.min(Math.round((Number(gifSeconds.value) || 1) * 1000), 10000));
       const look = emojiMode.checked ? "emoji" : skin;
+      const build = gifBuild.checked;
       let boards = selectedBoards(), holds = boards.map(() => hold), frames = "", note = "";
-      if (gifAnimate.checked && (boards.length > 1 || gifBuild.checked)) {
-        const animated = animateSteps(boards, hold, gifBuild.checked);
+      if (gifAnimate.checked && (boards.length > 1 || build)) {
+        const animated = await planGif({ boards, hold, build }, (step, total) => {
+          status.textContent = `Animating step ${step} of ${total}...`;
+        });
         ({ boards, holds } = animated);
+        const stepList = (steps: number[]) => `GIF step${steps.length === 1 ? "" : "s"} ${steps.join(", ")}`;
+        if (animated.skipped.length) note += ` Could not animate ${stepList(animated.skipped)} in time.`;
+        else if (build && !animated.built) note += " The first board shows as drawn.";
+        if (animated.limited.length) note += ` Search limit reached for ${stepList(animated.limited)}.`;
         const count = timeline(holds, animatedLook(look)).length;
         if (count > maxGifFrames) throw new Error(`Animating needs ${count} frames, ${maxGifFrames} at most. Pick fewer steps or a non animated skin.`);
-        if (gifBuild.checked && !animated.built) note = " The first board cannot be built piece by piece, so it shows as drawn.";
-        status.textContent = `Animating: ${count} frames...${note}`;
+        if (count < 2) throw new Error(animated.skipped.length ? note.trim() : "The first board cannot be built piece by piece.");
+        status.textContent = `Encoding ${count} frames...`;
         frames = `${count} frames, `;
       }
       const gif = await makeGif(document.createElement("canvas"), boards, cell, look, holds);
@@ -866,7 +923,12 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     } finally { exportGif.disabled = false; }
   });
 
-  gifAnimate.addEventListener("change", () => { gifHint.hidden = gifBuildLabel.hidden = !gifAnimate.checked; });
+  gifAnimate.addEventListener("change", () => {
+    gifHint.hidden = gifBuildLabel.hidden = !gifAnimate.checked;
+    // leave a value the user typed alone
+    if (gifAnimate.checked && gifSeconds.value === "1") gifSeconds.value = "0.1";
+    else if (!gifAnimate.checked && gifSeconds.value === "0.1") gifSeconds.value = "1";
+  });
 
   gifDownload.addEventListener("click", () => {
     const link = document.createElement("a");
@@ -972,4 +1034,6 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     renderSplits();
     status.textContent = `Position kept as step ${step + 1}.`;
   });
+
+  return pasteBoard;
 }

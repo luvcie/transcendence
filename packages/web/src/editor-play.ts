@@ -1,5 +1,5 @@
 import { MINOS, ROWS, VISIBLE_ROWS, canPlace, type Handling, type InputId, type PieceId } from "@42tris/core";
-import { ids } from "./emoji-gif";
+import { emojis, empty, ids } from "./board-emoji";
 import type { GameDisplay } from "./game-display";
 import { mountGameplayInput } from "./gameplay-input";
 import type { GameSounds } from "./game-sounds";
@@ -9,10 +9,7 @@ import { Singleplayer } from "./singleplayer";
 import { drawPiecePreview, previewLayout } from "./tile-renderer";
 
 const cols = 10;
-const empty = "⬛";
 const hidden = ROWS - VISIBLE_ROWS;
-const emojis: string[] = [empty];
-for (const [emoji, id] of Object.entries(ids)) emojis[id] = emoji;
 // mirror swaps Z/S and L/J
 const mirrored = [0, 4, 6, 3, 1, 5, 2, 7, 8];
 

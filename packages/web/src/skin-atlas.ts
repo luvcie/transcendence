@@ -1,25 +1,30 @@
-import { TETRIO_PIECE_OFFSETS, TETRIO_SKIN_ROWS } from "./tetrio-skins";
+import { TETRIO_GARBAGE_OFFSET, TETRIO_PIECE_OFFSETS, TETRIO_SKIN_ROWS } from "./tetrio-skins";
 
 type SkinCanvas = HTMLCanvasElement | OffscreenCanvas;
 type SkinContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-export function drawTetrioFrame(ctx: SkinContext, image: CanvasImageSource, width: number, frame: number, frames: number, tile = 32) {
+export function drawTetrioFrame(ctx: SkinContext, image: CanvasImageSource, width: number, frame: number, frames: number, tile = 32,
+  ghost?: CanvasImageSource) {
   const columns = Math.min(frames, 16), cell = width * 3 / 64, padding = width >= 2048 ? 2 : 1;
+  // the ghost atlas is half as wide with the same cells
+  const crop = (x: number, y: number, column: number, row: number, source = image, size = width) => ctx.drawImage(source,
+    frame % columns * size + x * cell + padding, Math.floor(frame / columns) * size + y * cell + padding,
+    cell - padding * 2, cell - padding * 2, column * tile, row * tile, tile, tile);
   for (let row = 0; row < TETRIO_SKIN_ROWS; row++) {
-    TETRIO_PIECE_OFFSETS.forEach(([x, y], piece) => ctx.drawImage(image,
-      frame % columns * width + (x + row % 4) * cell + padding,
-      Math.floor(frame / columns) * width + (y + Math.floor(row / 4)) * cell + padding,
-      cell - padding * 2, cell - padding * 2, piece * tile, row * tile, tile, tile));
+    TETRIO_PIECE_OFFSETS.forEach(([x, y], piece) => crop(x + row % 4, y + Math.floor(row / 4), piece, row));
+    // garbage never joins, every row gets its lone tile
+    crop(TETRIO_GARBAGE_OFFSET[0], TETRIO_GARBAGE_OFFSET[1], 7, row);
+    if (ghost) crop(row % 4, Math.floor(row / 4), 8, row, ghost, width / 2);
   }
 }
 
 export async function packSkinFrames<T extends SkinCanvas>(frames: number, paint: (ctx: SkinContext, frame: number) => void | Promise<void>,
   makeCanvas: (width: number, height: number) => T, size = 32) {
-  const scratch = makeCanvas(7 * size, TETRIO_SKIN_ROWS * size);
+  const scratch = makeCanvas(9 * size, TETRIO_SKIN_ROWS * size);
   const ctx = scratch.getContext("2d", { willReadFrequently: true }) as SkinContext | null;
   if (!ctx) throw new Error("Skin conversion needs a 2D canvas.");
   ctx.imageSmoothingEnabled = false;
-  const tiles = new Uint16Array(frames * TETRIO_SKIN_ROWS * 7);
+  const tiles = new Uint16Array(frames * TETRIO_SKIN_ROWS * 9);
   const unique: Uint32Array[] = [], hashes = new Map<number, number[]>();
   try {
     for (let frame = 0; frame < frames; frame++) {
@@ -27,8 +32,8 @@ export async function packSkinFrames<T extends SkinCanvas>(frames: number, paint
       await paint(ctx, frame);
       const data = ctx.getImageData(0, 0, scratch.width, scratch.height).data;
       const pixels = new Uint32Array(data.buffer, data.byteOffset, data.byteLength / 4);
-      for (let tile = 0; tile < TETRIO_SKIN_ROWS * 7; tile++) {
-        const offset = Math.floor(tile / 7) * size * scratch.width + tile % 7 * size;
+      for (let tile = 0; tile < TETRIO_SKIN_ROWS * 9; tile++) {
+        const offset = Math.floor(tile / 9) * size * scratch.width + tile % 9 * size;
         let hash = 2166136261;
         for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) hash = Math.imul(hash ^ pixels[offset + y * scratch.width + x], 16777619);
         const matches = hashes.get(hash) ?? [];
@@ -39,7 +44,7 @@ export async function packSkinFrames<T extends SkinCanvas>(frames: number, paint
           for (let y = 0; y < size; y++) copy.set(pixels.subarray(offset + y * scratch.width, offset + y * scratch.width + size), y * size);
           unique.push(copy); matches.push(index); hashes.set(hash, matches);
         }
-        tiles[frame * TETRIO_SKIN_ROWS * 7 + tile] = index;
+        tiles[frame * TETRIO_SKIN_ROWS * 9 + tile] = index;
       }
     }
     const columns = Math.ceil(Math.sqrt(unique.length)), image = makeCanvas(columns * size, Math.ceil(unique.length / columns) * size);

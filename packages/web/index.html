@@ -38,9 +38,10 @@
       .playfield canvas { display: block; width: 100%; height: auto; outline: 1px solid #444; }
       .controls, .hint { color: #aaa; font-size: 12px; line-height: 1.6; }
       button, input, select { font: inherit; }
-      button { background: #252525; color: #eee; border: 1px solid #666; padding: 10px 16px; cursor: pointer; }
-      button:hover { background: #383838; }
+      button, .action-link { background: #252525; color: #eee; border: 1px solid #666; padding: 10px 16px; cursor: pointer; }
+      button:hover, .action-link:hover { background: #383838; }
       button:disabled { opacity: .5; cursor: default; }
+      .action-link { display: inline-flex; align-items: center; min-height: 40px; text-decoration: none; }
       #finesse-handling { display: inline-grid; }
       #finesse-handling span { grid-area: 1 / 1; transition: opacity 120ms ease; }
       #finesse-handling .applied-label { opacity: 0; }
@@ -225,15 +226,15 @@
 
       .app-header .brand { border: 0; background: transparent; padding-left: 0; }
       .app-header .brand:hover { color: #22d3ee; }
-      #home-title:focus, #emoji-title:focus, #sprint-result-title:focus { outline: none; }
+      #home-title:focus, #emoji-title:focus, #minolens-title:focus, #sprint-result-title:focus { outline: none; }
       main[data-view=solo] .game-footer { margin-top: 8px; }
       main[data-view=solo] #game-stats { gap: 4px 16px; }
       main[data-view=solo] .game-feedback { gap: 4px 16px; }
       main[data-view=solo] .game-footer summary { padding: 4px 0; }
-      #home-view, #emoji-view { width: min(800px, 100%); margin: 0 auto; }
+      #home-view, #emoji-view, #minolens-view { width: min(800px, 100%); margin: 0 auto; }
       #home-view { padding: 64px 0 32px; }
-      #emoji-view { padding: 24px 0 32px; }
-      main:is([data-view=home], [data-view=emoji]) .view-heading { display: none; }
+      #emoji-view, #minolens-view { padding: 24px 0 32px; }
+      main:is([data-view=home], [data-view=emoji], [data-view=minolens]) .view-heading { display: none; }
       .menu-label { color: #22d3ee; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; }
       #home-title { margin: 0 0 20px; }
       .mode-list { display: grid; gap: 12px; }
@@ -242,13 +243,17 @@
       .mode-name { display: flex; justify-content: space-between; gap: 16px; font-size: 20px; font-weight: bold; }
       .mode-name > span { color: #22d3ee; }
       .mode-description { line-height: 1.5; }
-      #emoji-title { margin: 0; font-size: 16px; }
+      #emoji-title, #minolens-title { margin: 0; font-size: 20px; }
       .emoji-layout { display: flex; flex-flow: row-reverse wrap; justify-content: flex-end; align-items: flex-start; gap: 20px 24px; }
       .emoji-tools { flex: 1 1 260px; min-width: 0; max-width: 360px; }
       .emoji-tools h2 { margin: 18px 0 8px; }
       .emoji-tools .actions { gap: 6px; margin-top: 8px; }
-      .emoji-tools button { padding: 8px 10px; }
-      #emoji-palette > div { display: contents; }
+      .emoji-tools :is(button, .action-link) { padding: 8px 10px; }
+      .emoji-import .action-link { min-height: 0; gap: 6px; }
+      .emoji-blocks { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+      .emoji-tools .emoji-blocks h2 { grid-column: 1 / -1; margin-bottom: 0; }
+      .emoji-tools #emoji-palette { gap: 4px; margin: 0; }
+      #emoji-palette > div, #emoji-board-scroll { display: contents; }
       #emoji-board { position: relative; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); width: min(100%, 356px); padding: 8px; border-radius: 12px; background: #2a2d2e; touch-action: none; user-select: none; }
       .emoji-cell, .emoji-color, #emoji-mirror { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
       #emoji-board canvas { display: none; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -257,17 +262,17 @@
       #emoji-board #emoji-hold { right: calc(100% + 12px); transform: translateX(72px); }
       #emoji-board #emoji-next { left: calc(100% + 12px); transform: translateX(-72px); }
       #emoji-view.playing .emoji-tools { transform: translateX(60px); }
-      #emoji-view.playing :is(#emoji-copy, #emoji-copy-half, #emoji-seq, .emoji-openers, .emoji-custom) { display: none; }
+      #emoji-view.playing :is(#emoji-copy, #emoji-copy-half, .emoji-import, #emoji-seq, .emoji-openers, .emoji-custom) { display: none; }
       #emoji-view.playing #emoji-board .emoji-side { opacity: 1; transform: none; }
       .emoji-cell.ghost { opacity: .3; }
-      #emoji-view.skin-look #emoji-board canvas { display: block; }
+      #emoji-view.skin-look #emoji-board canvas:not(.emoji-side) { display: block; }
       #emoji-view.skin-look .emoji-cell { font-size: 0; }
       #emoji-view.skin-look .emoji-color { position: relative; }
       #emoji-view.skin-look .emoji-color::after { content: ""; position: absolute; inset: 0; background-color: inherit; background-image: var(--tile); background-position: center; background-repeat: no-repeat; background-size: calc(100% - 10px); }
       .emoji-cell { position: relative; aspect-ratio: 1; overflow: hidden; padding: 0; border: 0; background: transparent; font-size: 30px; line-height: 1; }
       .emoji-cell:is(:hover, :focus-visible) { outline: 1px solid #22d3ee; outline-offset: -1px; }
-      .emoji-tools .emoji-color { padding: 5px; font-size: 20px; line-height: 1; }
-      #emoji-mirror { margin-top: 8px; width: 44px; height: 44px; padding: 0; font-size: 20px; line-height: 1; }
+      .emoji-tools .emoji-color { width: 28px; min-height: 34px; padding: 0; font-size: 19px; line-height: 1; }
+      #emoji-mirror { width: 44px; height: 44px; padding: 0; font-size: 20px; line-height: 1; }
       #emoji-mirror[aria-pressed=true], .emoji-color[aria-pressed=true] { border-color: #22d3ee; background-color: #163036; }
       #emoji-status { min-height: 1.6em; }
       #emoji-view { overflow-anchor: none; }
@@ -281,7 +286,7 @@
       .emoji-seq label { display: flex; align-items: center; gap: 6px; color: #aaa; font-size: 12px; }
       .emoji-seq input { accent-color: #22d3ee; }
       #emoji-splits:empty { display: none; }
-      .emoji-tools .emoji-look { column-gap: 28px; }
+      .emoji-tools .emoji-look { column-gap: 8px; }
       #emoji-skin { width: 14em; max-width: 100%; }
       #emoji-skin:disabled { opacity: .5; }
       #emoji-gif-seconds { width: 84px; }
@@ -289,53 +294,200 @@
       .emoji-seq :is(input[type=number], input[list], select) { background: #111; color: #eee; border: 1px solid #666; padding: 6px 8px; }
       .emoji-seq input[type=number] { width: 52px; }
       .emoji-gesture { display: none; }
+      main[data-view=minolens] { height: auto; min-height: 100dvh; }
+      #minolens-view {
+        --panel: #181b1d;
+        --line: #363e43;
+        --board-height: clamp(340px, 100dvh - 314px, 620px);
+        --source-height: clamp(220px, var(--board-height) - 210px, 440px);
+        width: min(1040px, 100%);
+        padding-top: 22px;
+      }
+      .minolens-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      #minolens-title { font-size: 30px; letter-spacing: -0.06em; }
+      #minolens-back { color: #c7cdd0; text-decoration: none; display: inline-flex; gap: 6px; align-items: center; min-height: 40px; }
+      #minolens-back:is(:hover, :focus-visible), #minolens-back span { color: #22d3ee; }
+      .minolens-intro { color: #b5bdc1; margin: 6px 0 20px; line-height: 1.65; }
+      #minolens-view .hint { margin: 0; color: #b5bdc1; }
+      #minolens-view:has(#minolens-work:not([hidden])) .minolens-intro { display: none; }
+      .minolens-toolbar:has(.minolens-actions:not([hidden])) {
+        position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center;
+        justify-content: space-between; gap: 6px 10px; padding: 8px 0; background: #111;
+        border-bottom: 1px solid var(--line);
+      }
+      #minolens-upload {
+        display: grid; justify-items: center; gap: 14px; padding: 52px 16px; text-align: center;
+        border: 1px dashed #5a6a73; border-radius: 10px; background: var(--panel);
+      }
+      .minolens-crop-icon {
+        width: 56px; height: 56px; border: 2px solid #22d3ee; border-radius: 5px;
+        background: repeating-linear-gradient(90deg, #22d3ee23 0 1px, transparent 1px 10px),
+          repeating-linear-gradient(#22d3ee23 0 1px, transparent 1px 10px), #14272c;
+        background-position: 1px 1px;
+      }
+      #minolens-upload:has(#minolens-pick:not(.primary)) {
+        order: -1; display: flex; align-items: center; gap: 10px; padding: 0;
+        border: 0; background: transparent; color: #b5bdc1; font-size: 12px;
+      }
+      #minolens-upload:has(#minolens-pick:not(.primary)) .minolens-crop-icon { display: none; }
+      #minolens-pick { order: -1; }
+      #minolens-pick.primary { order: 0; }
+      .minolens-toolbar button { min-height: 40px; padding: 8px 12px; border-radius: 5px; }
+      #minolens-view #minolens-upload.is-dragging { border-color: #22d3ee; outline: 2px solid #22d3ee; background: #163036; }
+      #minolens-view .minolens-actions { gap: 6px; margin: 0; }
+      #minolens-status:empty, .minolens-toolbar:has(.minolens-actions[hidden]) #minolens-export-status { position: absolute; }
+      #minolens-view :is(#minolens-status, #minolens-export-status) { flex-basis: 100%; }
+      #minolens-export-status { min-height: 1lh; }
+      #minolens-view #minolens-status[data-error] { color: #ffabab; }
+      #minolens-work {
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas: "source board" "text board"; grid-template-rows: auto 1fr;
+        align-items: start; gap: 12px; margin-top: 12px;
+      }
+      #minolens-work > * { min-width: 0; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+      #minolens-work :is(h2, summary) { margin: 0; color: #eef3f4; font-size: 14px; font-weight: bold; }
+      #minolens-screenshot-panel { grid-area: source; }
+      .minolens-source-frame {
+        display: grid; place-items: center; background: #101213; border: 1px solid var(--line);
+        border-radius: 5px; margin: 10px 0 8px; padding: 8px;
+      }
+      #minolens-source {
+        display: block; width: min(100%, var(--source-height) * var(--source-ratio, 1));
+        height: auto; cursor: crosshair; image-rendering: pixelated;
+      }
+      #minolens-crop { display: none; }
+      #minolens-crop[aria-pressed=true] { border-color: #22d3ee; background: #163036; }
+      #minolens-screenshot-panel:has(#minolens-crop[aria-pressed=true]) #minolens-source { touch-action: none; }
+      #minolens-crop-help .keyboard { display: block; }
+      #minolens-crop-help .touch { display: none; }
+      #minolens-result { grid-area: board; }
+      .minolens-panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 30px; }
+      :is(#minolens-crop, #minolens-reset) { padding: 5px 8px; border-radius: 4px; min-height: 30px; font-size: 12px; }
+      .minolens-correction { margin-top: 4px; }
+      #minolens-palette { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 4px; width: min(100%, 366px); margin: 8px auto 10px; }
+      #minolens-palette button { position: relative; min-height: 34px; border-radius: 4px; }
+      #minolens-board {
+        display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); margin-inline: auto;
+        width: min(100%, 344px, var(--board-height) * 10 / var(--rows, 20));
+        background: #111416; outline: 1px solid #46535a; border-radius: 3px; overflow: hidden;
+        user-select: none; touch-action: pan-y;
+      }
+      #minolens-view :is(.emoji-cell, .emoji-color) { padding: 0; font-size: 0; }
+      #minolens-view [data-piece="1"] { --tile: #e55764; }
+      #minolens-view [data-piece="2"] { --tile: #ef943a; }
+      #minolens-view [data-piece="3"] { --tile: #f0c94e; }
+      #minolens-view [data-piece="4"] { --tile: #6bb851; }
+      #minolens-view [data-piece="5"] { --tile: #45bad8; }
+      #minolens-view [data-piece="6"] { --tile: #527cdb; }
+      #minolens-view [data-piece="7"] { --tile: #b46bd9; }
+      #minolens-view [data-piece="8"] { --tile: #858e98; }
+      #minolens-board .emoji-cell { width: 100%; box-shadow: inset 0 0 0 1px #242b2f; }
+      #minolens-board .emoji-cell[data-piece]:not([data-piece="0"])::before,
+      #minolens-palette button:not([data-piece="0"])::before {
+        content: ""; position: absolute; inset: 1px; border-radius: 2px; background: var(--tile);
+        box-shadow: inset 0 2px #ffffff40, inset 0 -2px #0003;
+      }
+      #minolens-board .emoji-cell:is(:hover, :focus-visible) { outline: 2px solid #22d3ee; outline-offset: -2px; z-index: 1; }
+      #minolens-palette button:not([data-piece="0"])::before { width: 17px; height: 17px; inset: 0; margin: auto; }
+      #minolens-palette [data-piece="0"]::before { content: "×"; font: 20px monospace; color: #e2e9eb; }
+      #minolens-palette button[aria-pressed=true] { box-shadow: inset 0 0 0 1px #22d3ee; }
+      #minolens-board .emoji-cell[data-review]::after, #minolens-review[data-marked]::before {
+        content: ""; width: 7px; height: 7px; border: 1px solid #111; border-radius: 50%; background: #ffd166;
+      }
+      #minolens-board .emoji-cell[data-review]::after { position: absolute; right: 2px; top: 2px; }
+      #minolens-view #minolens-review:not(:empty) { display: flex; align-items: baseline; gap: 6px; margin-top: 8px; color: #ffd166; }
+      #minolens-review[data-marked]::before { flex: none; }
+      #minolens-text { grid-area: text; }
+      #minolens-text summary { padding: 0; min-height: 24px; }
+      #minolens-text label { display: flex; align-items: center; gap: 6px; margin-top: 5px; min-height: 24px; color: #c7cdd0; font-size: 12px; }
+      #minolens-text input { margin: 0; }
+      #minolens-output {
+        display: block; width: 100%; resize: vertical; background: #101213; color: #eee;
+        border: 1px solid #515e65; border-radius: 4px; padding: 6px 8px; font: 14px/1.35 monospace;
+      }
+      @media (min-width: 900px) {
+        .minolens-correction {
+          display: grid; grid-template-columns: minmax(0, 1fr) 116px; grid-template-areas: "board paint";
+          align-items: start; gap: 12px; margin-top: 8px;
+        }
+        #minolens-board { grid-area: board; }
+        .minolens-paint-controls { grid-area: paint; }
+        #minolens-palette { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 0; }
+      }
+      @media (900px <= width <= 1100px) {
+        #minolens-view { --source-height: clamp(220px, var(--board-height) - 74px, 440px); }
+      }
+      @media (forced-colors: active) {
+        #minolens-view :is(.emoji-cell, .emoji-color)::before { forced-color-adjust: none; }
+      }
+      @media (any-pointer: coarse) {
+        #minolens-crop { display: block; }
+        #minolens-crop-help :is(.desktop, .keyboard) { display: none; }
+        #minolens-crop-help .touch { display: inline; }
+        #minolens-screenshot-panel:has(#minolens-crop[aria-pressed=true]) #minolens-crop-help .touch { display: none; }
+        #minolens-screenshot-panel:has(#minolens-crop[aria-pressed=true]) #minolens-crop-help .desktop { display: inline; }
+      }
       @media (max-width: 663px), (pointer: coarse) {
+        .minolens-panel-heading, :is(#minolens-crop, #minolens-reset), #minolens-text summary { min-height: 44px; }
+        #minolens-text summary { align-content: center; }
         .emoji-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+        .emoji-tools :is(button, .action-link) { min-height: 44px; touch-action: manipulation; }
         .emoji-gesture { display: flex; gap: 4px; }
         .emoji-gesture label { display: flex; align-items: center; gap: 4px; min-height: 44px; padding-inline: 6px; border: 1px solid #666; touch-action: manipulation; }
         .emoji-gesture input { margin: 0; accent-color: #22d3ee; }
         .emoji-gesture label:has(:checked) { color: #22d3ee; border-color: #22d3ee; background: #163036; }
-        #emoji-view:has(#emoji-scroll:checked) #emoji-board { touch-action: pan-y pinch-zoom; }
+        #emoji-view:has(#emoji-scroll:checked) #emoji-board { touch-action: auto; }
         #emoji-view:has(#emoji-scroll:checked) .emoji-cell { pointer-events: none; }
       }
       @media (max-width: 663px) {
-        main[data-view=emoji] { height: auto; min-height: 100dvh; padding-inline: 16px; }
-        main[data-view=emoji] .app-header { gap: 6px 12px; padding: 4px 0 8px; }
-        main[data-view=emoji] .app-header nav { order: 1; flex-basis: 100%; }
-        main[data-view=emoji] .app-header button { min-height: 44px; }
-        main[data-view=emoji] #nav-settings-button { margin-left: auto; }
-        #emoji-view { padding: 14px 0 20px; }
+        main:is([data-view=emoji], [data-view=minolens]) { height: auto; min-height: 100dvh; padding-inline: 16px; }
+        main:is([data-view=emoji], [data-view=minolens]) .app-header { gap: 6px 12px; padding: 4px 0 8px; }
+        main:is([data-view=emoji], [data-view=minolens]) .app-header nav { order: 1; flex-basis: 100%; }
+        main:is([data-view=emoji], [data-view=minolens]) .app-header button { min-height: 44px; }
+        main:is([data-view=emoji], [data-view=minolens]) #nav-settings-button { margin-left: auto; }
+        #emoji-view, #minolens-view { padding: 14px 0 20px; }
+        #minolens-view { --board-height: 640px; --source-height: 65dvh; width: min(100%, 460px); }
+        #minolens-title { font-size: 26px; }
+        #minolens-upload:has(#minolens-pick:not(.primary)) #minolens-upload-hint { display: none; }
+        .minolens-toolbar button { min-height: 44px; padding-inline: 8px; }
+        #minolens-work { grid-template: "source" auto "board" auto "text" auto / minmax(0, 1fr); }
+        #minolens-board { max-width: 320px; }
+        #minolens-palette button { min-height: 40px; }
+        #minolens-text label { min-height: 36px; }
         .emoji-layout {
           display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px;
-          grid-template-areas: "title" "board" "mirror" "look" "play" "palette" "openers" "custom" "actions" "seq" "status";
+          grid-template-areas: "title" "import" "palette" "board" "actions" "look" "play" "openers" "custom" "seq" "status";
           width: min(100%, 420px); margin-inline: auto;
         }
         .emoji-tools { display: contents; }
-        #emoji-mirror { grid-area: mirror; justify-self: end; margin: 0; }
         .emoji-heading { grid-area: title; position: sticky; top: 0; z-index: 2; padding-block: 4px; background: #111; }
         .emoji-blocks { grid-area: palette; }
         .emoji-tools h2, .emoji-tools .emoji-openers-head { margin: 0 0 6px; }
         .emoji-tools .emoji-openers-head { display: grid; grid-template-columns: 1fr auto 1fr; }
-        #emoji-palette { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
-        .emoji-tools button { min-height: 44px; touch-action: manipulation; }
-        .emoji-seq :is(input[type=number], input[list], select) { min-height: 44px; }
+        #emoji-palette > div { display: flex; flex-wrap: wrap; gap: 4px; }
+        .emoji-seq :is(input[type=number], input[list], select), .emoji-seq label { min-height: 44px; }
+        .emoji-stepper button { min-width: 44px; }
         #emoji-seq { grid-area: seq; display: grid; gap: 10px; }
         .emoji-custom { grid-area: custom; display: grid; gap: 6px; margin: 0; }
-        .emoji-tools .emoji-color { padding-inline: 0; }
+        .emoji-tools .emoji-color { width: 40px; min-height: 40px; }
         .emoji-tools .actions { margin: 0; }
-        #emoji-board { grid-area: board; width: 100%; container-type: inline-size; }
-        #emoji-board .emoji-side { display: none; }
+        #emoji-board-scroll { display: block; grid-area: board; overflow-x: auto; }
+        #emoji-board { width: 100%; padding: 0; container-type: inline-size; }
         .emoji-cell { font-size: 8.8cqw; }
         .emoji-look { grid-area: look; }
+        .emoji-import { grid-area: import; }
         .emoji-actions { grid-area: actions; }
         .emoji-play { grid-area: play; }
         .emoji-openers { grid-area: openers; }
         #emoji-status { grid-area: status; margin: 0; }
       }
-      @media (460px <= width <= 663px) {
+      @media (max-width: 431px) {
+        #emoji-board-scroll { margin-inline: -16px; }
+      }
+      @media (540px <= width <= 663px) {
         .emoji-layout {
           grid-template-columns: 44px minmax(0, 1fr) 44px;
-          grid-template-areas: "title title title" "colors-left board colors-right" "look look look" "play play play" "openers openers openers" "custom custom custom" "actions actions actions" "seq seq seq" "status status status";
+          grid-template-areas: "title title title" "import import import" "colors-left board colors-right" "look look look" "play play play" "openers openers openers" "custom custom custom" "actions actions actions" "seq seq seq" "status status status";
           width: min(100%, 528px);
         }
         .emoji-blocks, #emoji-palette { display: contents; }
@@ -344,6 +496,11 @@
         #emoji-colors-left { grid-area: colors-left; }
         #emoji-colors-right { grid-area: colors-right; }
         #emoji-mirror { grid-area: colors-right; align-self: end; justify-self: center; }
+      }
+      /* hold and queue sit outside the 800px view, below this they overflow (scrollbar included) */
+      @media (max-width: 959px) {
+        #emoji-board .emoji-side { display: none; }
+        #emoji-view.playing .emoji-tools { transform: none; }
       }
       .mode-card { display: grid; }
       .mode-card > * { grid-area: 1 / 1; }
@@ -441,6 +598,10 @@
                 <label><input type="radio" name="emoji-gesture" id="emoji-scroll"> Scroll</label>
               </div>
             </div>
+            <div class="actions emoji-import" role="group" aria-label="Import board">
+              <button id="emoji-paste" type="button">Paste board</button>
+              <a class="action-link" id="emoji-screenshot" href="/minolens" aria-label="Minolens screenshot import" title="Import a board screenshot from four.lol, Hard Drop, TETR.IO, or a video">Minolens<span aria-hidden="true">↗</span></a>
+            </div>
             <div class="actions emoji-seq emoji-look">
               <label><input id="emoji-mode" type="checkbox" checked> Emoji mode</label>
               <label>Skin <input id="emoji-skin" list="emoji-skins" placeholder="Search skins" autocomplete="off" spellcheck="false"><datalist id="emoji-skins"></datalist></label>
@@ -454,7 +615,7 @@
             <div class="actions emoji-actions">
               <button class="primary" id="emoji-copy" type="button">Copy board</button>
               <button id="emoji-copy-half" type="button" aria-label="Copy bottom 10 rows">Copy bottom 10</button>
-              <button id="emoji-clear" type="button">Clear board</button>
+              <button id="emoji-clear" type="button" aria-label="Clear board">Clear</button>
             </div>
             <div id="emoji-seq" hidden>
               <div class="actions emoji-seq">
@@ -471,7 +632,7 @@
                 <label id="emoji-gif-build-label" hidden><input id="emoji-gif-build" type="checkbox"> Build the first board too</label>
                 <button id="emoji-export-gif" type="button">Export GIF</button>
               </div>
-              <p class="hint" id="emoji-gif-hint" hidden>Seconds per step is per input when animating, 0.1 is a good start.</p>
+              <p class="hint" id="emoji-gif-hint" hidden>When animating, the time is per key press.</p>
               <div class="actions emoji-seq" id="emoji-gif-result" hidden>
                 <img id="emoji-gif-preview" alt="Exported GIF">
                 <button id="emoji-gif-download" type="button">Download</button>
@@ -484,6 +645,7 @@
                 <div id="emoji-colors-left"></div>
                 <div id="emoji-colors-right"></div>
               </div>
+              <button id="emoji-mirror" type="button" aria-label="Mirror board" aria-pressed="false" title="Mirror board">🪞</button>
             </div>
             <div class="emoji-openers">
               <div class="emoji-openers-head">
@@ -505,13 +667,66 @@
                 <button id="emoji-delete" type="button" hidden>Delete</button>
               </div>
             </div>
-            <button id="emoji-mirror" type="button" aria-label="Toggle mirror" aria-pressed="false">🪞</button>
             <p class="hint" id="emoji-status" role="status"></p>
           </div>
-          <div id="emoji-board" role="group" aria-label="Emoji board">
-            <canvas class="emoji-side" id="emoji-hold" width="150" height="90" aria-label="Hold empty"></canvas>
-            <canvas class="emoji-side" id="emoji-next" width="150" height="450" aria-label="Next pieces"></canvas>
+          <div id="emoji-board-scroll">
+            <div id="emoji-board" role="group" aria-label="Emoji board" aria-description="Use arrow keys to move and Space to paint or erase a cell.">
+              <canvas class="emoji-side" id="emoji-hold" width="150" height="90" aria-label="Hold empty"></canvas>
+              <canvas class="emoji-side" id="emoji-next" width="150" height="450" aria-label="Next pieces"></canvas>
+            </div>
           </div>
+        </div>
+      </section>
+      <section id="minolens-view" hidden aria-labelledby="minolens-title">
+        <div class="minolens-heading">
+          <h1 id="minolens-title" tabindex="-1">Minolens</h1>
+          <a id="minolens-back" href="/tetorisueditor"><span aria-hidden="true">←</span> Back to editor</a>
+        </div>
+        <p class="minolens-intro">Turn a Tetris screenshot into an editable board you can share as emoji.</p>
+        <div class="minolens-toolbar">
+          <div id="minolens-upload">
+            <span class="minolens-crop-icon" aria-hidden="true"></span>
+            <span id="minolens-upload-hint">Paste or drop a board screenshot</span>
+            <button class="primary" id="minolens-pick" type="button" aria-describedby="minolens-upload-hint">Choose image</button>
+            <input id="minolens-file" type="file" accept="image/*" hidden>
+          </div>
+          <div class="actions minolens-actions" hidden>
+            <button id="minolens-copy" type="button">Copy emoji</button>
+            <button class="primary" id="minolens-open" type="button">Open in editor</button>
+          </div>
+          <p class="hint" id="minolens-status" role="status"></p>
+          <p class="hint" id="minolens-export-status" role="status"></p>
+        </div>
+        <div id="minolens-work" hidden>
+          <section id="minolens-screenshot-panel" aria-labelledby="minolens-source-title">
+            <div class="minolens-panel-heading">
+              <h2 id="minolens-source-title">Screenshot</h2>
+              <button id="minolens-crop" type="button" tabindex="-1" aria-pressed="false">Crop</button>
+            </div>
+            <div class="minolens-source-frame">
+              <canvas id="minolens-source" tabindex="0" aria-label="Screenshot with detected board" aria-describedby="minolens-crop-help"></canvas>
+            </div>
+            <p class="hint" id="minolens-crop-help"><span class="desktop">Drag a box around the board.</span> <span class="touch">Tap Crop, then drag a box around the board.</span> <span class="keyboard">Arrows move, Shift + arrows resize, Enter applies.</span></p>
+          </section>
+          <section id="minolens-result" aria-labelledby="minolens-result-title">
+            <div class="minolens-panel-heading">
+              <h2 id="minolens-result-title">Detected board</h2>
+              <button id="minolens-reset" type="button">Reset edits</button>
+            </div>
+            <div class="minolens-correction">
+              <div class="minolens-paint-controls">
+                <p class="hint" id="minolens-paint-help">Click or tap a cell to change it, or pick a color to paint.</p>
+                <div id="minolens-palette" role="group" aria-label="Paint color"></div>
+              </div>
+              <div id="minolens-board" role="group" aria-labelledby="minolens-result-title" aria-description="Use arrow keys to move and Space to change a cell."></div>
+            </div>
+            <p class="hint" id="minolens-review" role="status"></p>
+          </section>
+          <details id="minolens-text" open>
+            <summary>Emoji text</summary>
+            <textarea id="minolens-output" readonly rows="3" aria-label="Emoji board text" wrap="off"></textarea>
+            <label><input id="minolens-trim" type="checkbox" checked> Trim empty top rows</label>
+          </details>
         </div>
       </section>
       <section id="online" hidden aria-label="Online play"></section>

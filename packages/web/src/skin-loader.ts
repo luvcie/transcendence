@@ -7,7 +7,7 @@ import { drawTetrioFrame, packSkinFrames } from "./skin-atlas";
 import { skinSourceAnimation } from "./skin-animation";
 
 type SkinImage = HTMLImageElement | HTMLCanvasElement;
-interface SkinSheet { image: SkinImage; connected?: boolean; preview?: boolean; tiles?: Uint16Array; tile?: number; animation?: { frames: number; delay: number; frameEnds?: number[] } }
+interface SkinSheet { image: SkinImage; connected?: boolean; ghost?: boolean; preview?: boolean; tiles?: Uint16Array; tile?: number; animation?: { frames: number; delay: number; frameEnds?: number[] } }
 export interface LoadedSkin extends SkinSheet { def: SkinDef; tile: number }
 export const SKIN_CACHE_LIMIT = 96;
 export const SKIN_CACHE_BYTES = 64 * 1024 * 1024;
@@ -65,19 +65,20 @@ export function createSkinLoader(makeImage = () => new Image(), timeoutMs = 10_0
       : fetchExternalFile(url, MAX_SKIN_EXPORT_BYTES, new AbortController().signal, timeoutMs)
         .then(bytes => parseTetrioSkin(JSON.parse(new TextDecoder().decode(bytes))))
         .then(async data => {
-          const img = await loadImage(data.image);
+          const img = await loadImage(data.image), ghost = data.ghost ? await loadImage(data.ghost) : undefined;
           try {
-            if (data.frames === 1) return { image: await convertTetrioSkin(img, makeCanvas), connected: true };
+            if (data.frames === 1) return { image: await convertTetrioSkin(img, makeCanvas, 1, ghost), connected: true, ghost: !!ghost };
             const source = await skinSourceAnimation(url, data.frames);
             const sheet = await packSkinFrames(data.frames, async (ctx, frame) => {
               if (frame) await new Promise(resolve => setTimeout(resolve, 0));
-              drawTetrioFrame(ctx, img, img.naturalWidth / Math.min(data.frames, 16), frame, data.frames);
+              drawTetrioFrame(ctx, img, img.naturalWidth / Math.min(data.frames, 16), frame, data.frames, 32, ghost);
             }, (width, height) => { const canvas = makeCanvas(); canvas.width = width; canvas.height = height; return canvas; });
-            return { image: sheet.image, tiles: sheet.tiles, tile: sheet.tile, connected: true,
+            return { image: sheet.image, tiles: sheet.tiles, tile: sheet.tile, connected: true, ghost: !!ghost,
               animation: { frames: data.frames, delay: data.delay, frameEnds: source?.frameEnds } };
-          } finally { img.src = ""; }
+          } finally { img.src = ""; if (ghost) ghost.src = ""; }
         })
-      : loadImage(url).then(image => ({ image }));
+      // nine-column sheets always carry a ghost in column 1
+      : loadImage(url).then(image => ({ image, ghost: true }));
     const entry = { request, pending: true, bytes: 0 };
     images.set(url, entry);
     void request.then(({ image, tiles }) => {

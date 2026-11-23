@@ -27,7 +27,7 @@ test("preview workers deduplicate preparation, cache compressed results, and rel
   const revoke = spyOn(URL, "revokeObjectURL").mockImplementation(url => { revoked.push(url); });
   const blob = new Blob([new Uint8Array(12 * 1024 * 1024)]), def = customSkin("https://example.com/skin.tpse", 0);
   const flush = () => new Promise(resolve => setImmediate(resolve));
-  const finish = (index: number) => jobs[index].onmessage!({ data: { blob, frames: 22, delay: 30, tile: 32, tiles: new Uint16Array(22 * 168) } });
+  const finish = (index: number) => jobs[index].onmessage!({ data: { blob, frames: 22, delay: 30, tile: 32, tiles: new Uint16Array(22 * 216) } });
   let fallback = 0;
   const load = createSkinPreviewLoader(async () => { fallback++; return undefined; });
   try {
@@ -154,7 +154,7 @@ test("the worker validates exports, prepares compact frames, and closes decoded 
     `;
     const worker = new Worker("data:application/javascript;base64," + btoa(script));
     try {
-      return await new Promise<{ blob?: Blob; frames?: number; delay?: number; error?: string; closed: number; crops: number; released: boolean; exports: number; decoderClosed: number }>((resolve, reject) => {
+      return await new Promise<{ blob?: Blob; ghost?: boolean; frames?: number; delay?: number; error?: string; closed: number; crops: number; released: boolean; exports: number; decoderClosed: number }>((resolve, reject) => {
         worker.onmessage = ({ data: result }) => {
           if (result === "ready") worker.postMessage(gifDecoder ? sourceUrl : exportUrl);
           else resolve(result);
@@ -165,7 +165,9 @@ test("the worker validates exports, prepares compact frames, and closes decoded 
   }
   const skin = { skin: png(2048), skinAnim: png(16384, 2048), skinAnimMeta: { frames: 22, delay: 30 } };
   const prepared = await execute(skin);
-  expect(prepared).toMatchObject({ frames: 22, delay: 30, closed: 1, crops: 22 * 168, released: true });
+  expect(prepared).toMatchObject({ frames: 22, delay: 30, closed: 1, crops: 22 * 192, released: true, ghost: false });
+  expect(await execute({ ...skin, ghostAnim: png(8192, 1024), ghostAnimMeta: { frames: 22, delay: 30 } }))
+    .toMatchObject({ closed: 2, crops: 22 * 216, released: true, ghost: true });
   expect(await prepared.blob!.text()).toBe("prepared preview");
   expect(await execute(skin, true)).toMatchObject({ error: "Preview encoding failed", closed: 1, released: true });
   const malformed = await execute({});
@@ -173,7 +175,7 @@ test("the worker validates exports, prepares compact frames, and closes decoded 
   expect(malformed).toMatchObject({ crops: 0, closed: 0, released: true });
   const strip = { skin: png(2048), skinAnim: png(3072, 1024), skinAnimMeta: { frames: 3, delay: 30 } };
   expect(await execute(strip, false, "native"))
-    .toMatchObject({ frames: 3, frameEnds: [30, 70, 100], tile: 10, exports: 0, closed: 3, decoderClosed: 1, released: true });
+    .toMatchObject({ frames: 3, frameEnds: [30, 70, 100], tile: 10, exports: 0, closed: 3, decoderClosed: 1, released: true, ghost: true });
   for (const decoder of ["unsupported", "failed"] as const) {
     expect(await execute(strip, false, decoder)).toMatchObject({ frames: 3, frameEnds: [30, 70, 100],
       tile: 32, exports: 1, closed: 1, decoderClosed: decoder === "failed" ? 1 : 0, released: true });
