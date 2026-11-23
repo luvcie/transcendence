@@ -180,7 +180,7 @@ export function arrangeBoards(boards: string[][], perRow: number) {
 const mirrorPair: Record<string, string> = { "🟥": "🟩", "🟩": "🟥", "🟦": "🟧", "🟧": "🟦" };
 const blocks = [
   ["⬜", "I piece"], ["🟪", "T piece"], ["🟥", "Z piece"], ["🟨", "O piece"],
-  ["🟩", "S piece"], ["🟦", "J piece"], ["🟧", "L piece"], [empty, "Erase"],
+  ["🟩", "S piece"], ["🟦", "J piece"], ["🟧", "L piece"], ["🟫", "Garbage"], [empty, "Erase"],
 ] as const;
 
 export function mirrorRows(board: string[]) {

@@ -1,4 +1,4 @@
-import { Game, MINOS, Move, Piece, ROWS, SPAWN_Y, VISIBLE_ROWS, kicksFor, spawnX, targetPlacements, toInputs,
+import { GARBAGE, Game, MINOS, Move, Piece, ROWS, SPAWN_Y, VISIBLE_ROWS, kicksFor, spawnX, targetPlacements, toInputs,
   type MoveId, type PieceId, type Placement } from "@42tris/core";
 import { boardToGame, gameToLines } from "./editor-play";
 
@@ -13,7 +13,7 @@ type Candidate = { piece: PieceId; placement: Placement; blocks: boolean };
 type Shape = { cells: number[]; mask: bigint; supports: number[]; minCost: number };
 type StepResult =
   | { status: "animated"; frames: string[][] }
-  | { status: "clear/edit" | "unchanged" | "partial" | "unreachable" | "deadline" };
+  | { status: "clear/edit" | "garbage" | "unchanged" | "partial" | "unreachable" | "deadline" };
 type Search = { deadline: number; nodes: number; limited: boolean };
 
 const pieceIds = Object.values(Piece);
@@ -168,6 +168,7 @@ function searchStep(from: string[], to: string[], rows: number, search: Search):
     if (board[i]) {
       if (target[i] !== board[i]) return { status: "clear/edit" };
     } else if (target[i]) {
+      if (target[i] === GARBAGE) return { status: "garbage" };
       left[i] = target[i];
       counts[target[i]]++;
     }

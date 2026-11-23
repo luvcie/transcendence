@@ -22,7 +22,7 @@ test("mirroring flips a board and swaps S/Z and J/L", () => {
 });
 
 test("saved openers ignore anything that is not valid", () => {
-  const good = { name: "mine", steps: [[row("🟦")], []] };
+  const good = { name: "mine", steps: [[row("🟦"), row("🟫")], []] };
   expect(parseSavedOpeners(JSON.stringify([good]))).toEqual([good]);
   expect(parseSavedOpeners(null)).toEqual([]);
   expect(parseSavedOpeners("not json")).toEqual([]);

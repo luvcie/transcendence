@@ -56,6 +56,14 @@ test("a t-spin double slot animates into place", () => {
   check(from, to);
 });
 
+test("added garbage jumps to the board and later pieces can land on it", () => {
+  const floor = "🟫".repeat(9) + "⬛";
+  const from = pad([floor]), to = pad(["⬜⬜⬜⬜⬛⬛⬛⬛⬛⬛", floor]);
+  expect(animateSteps([from], 100, true)).toEqual({ boards: [from], holds: [300], built: false, skipped: [], limited: [] });
+  expect(planStep([], to)).toBeNull();
+  check(from, to);
+});
+
 test("line clears, edits and partial pieces fall back to a jump", () => {
   expect(planStep(pad(["🟦🟦🟦🟦🟦🟦🟦🟦🟦⬛"]), pad([]))).toBeNull();
   expect(planStep(pad(["🟦⬛⬛⬛⬛⬛⬛⬛⬛⬛"]), pad(["🟥⬛⬛⬛⬛⬛⬛⬛⬛⬛"]))).toBeNull();
