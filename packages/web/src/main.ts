@@ -476,6 +476,7 @@ function showTool(view: ToolView, push = true) {
     mountMinolens(minolensView, board => {
       try { sessionStorage.setItem(pendingBoardKey, board); } catch { return false; }
       showTool("emoji");
+      window.scrollTo(0, 0);
       return true;
     });
   }
