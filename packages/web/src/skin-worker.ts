@@ -6,7 +6,7 @@ import { skinSourceAnimation } from "./skin-animation";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 scope.onmessage = async ({ data: url }: MessageEvent<string>) => {
-  let image: ImageBitmap | undefined, canvas: OffscreenCanvas | undefined;
+  let image: ImageBitmap | undefined, ghost: ImageBitmap | undefined, canvas: OffscreenCanvas | undefined;
   let decoder: ImageDecoder | undefined;
   try {
     let source = await skinSourceAnimation(url);
@@ -16,15 +16,15 @@ scope.onmessage = async ({ data: url }: MessageEvent<string>) => {
       const tile = decoder ? Math.min(source!.height, 32) : Math.min(width * 3 / 64 - (width >= 2048 ? 4 : 2), 32);
       return packSkinFrames(frames, async (ctx, frame) => {
         if (!decoder) {
-          drawTetrioFrame(ctx, image!, width, frame, frames, tile);
+          drawTetrioFrame(ctx, image!, width, frame, frames, tile, ghost);
           return;
         }
         const { image: decoded } = await decoder.decode({ frameIndex: frame });
         try {
           // the strip goes Z L O S I J T, ghost, hold, garbage
-          [0, 1, 2, 3, 4, 5, 6, 9].forEach((strip, column) => ctx.drawImage(decoded, strip * source!.width / 12, 0,
+          [0, 1, 2, 3, 4, 5, 6, 9, 7].forEach((strip, column) => ctx.drawImage(decoded, strip * source!.width / 12, 0,
             source!.width / 12.4, source!.height, column * tile, 0, tile, tile));
-          for (let row = 1; row < TETRIO_SKIN_ROWS; row++) ctx.drawImage(ctx.canvas, 0, 0, 8 * tile, tile, 0, row * tile, 8 * tile, tile);
+          for (let row = 1; row < TETRIO_SKIN_ROWS; row++) ctx.drawImage(ctx.canvas, 0, 0, 9 * tile, tile, 0, row * tile, 9 * tile, tile);
         } finally { decoded.close(); }
       }, (width, height) => new OffscreenCanvas(width, height), tile);
     };
@@ -49,15 +49,18 @@ scope.onmessage = async ({ data: url }: MessageEvent<string>) => {
       else if (source?.frameEnds.length !== frames) source = await skinSourceAnimation(url, frames);
       const blob = await fetch(skin.image).then(response => response.blob());
       image = await createImageBitmap(blob);
+      if (skin.ghost) ghost = await createImageBitmap(await fetch(skin.ghost).then(response => response.blob()));
       packed = await pack();
     }
     canvas = packed.image;
     const preview = await canvas.convertToBlob({ type: "image/png" });
-    scope.postMessage({ blob: preview, tiles: packed.tiles, tile: packed.tile, frames, delay, frameEnds: source?.frameEnds }, [packed.tiles.buffer]);
+    scope.postMessage({ blob: preview, tiles: packed.tiles, tile: packed.tile, frames, delay, frameEnds: source?.frameEnds,
+      ghost: !!decoder || !!ghost }, [packed.tiles.buffer]);
   } catch (error) {
     scope.postMessage({ error: (error as Error).message });
   } finally {
     image?.close();
+    ghost?.close();
     decoder?.close();
     if (canvas) canvas.width = 0;
   }

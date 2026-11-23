@@ -80,7 +80,7 @@ describe("sheet layout and rendering", () => {
     expect(pieceConnections([0, 0, 0, 1, 1, 1, 2, 1], 2) & 8).toBe(8);
     expect(pieceConnections([0, 0, 0, 1, 1, 1, 2, 1], 4) & 8).toBe(0);
   });
-  test("maps garbage to column 0 and Z2 through T8, uses joined rows, never sprites ghosts", () => {
+  test("maps garbage to column 0, ghosts to column 1 and Z2 through T8, uses joined rows", () => {
     const sprites: unknown[][] = [], fills: unknown[][] = [];
     const ctx = { fillStyle: "", globalAlpha: 0.25, drawImage: (...args: unknown[]) => sprites.push(args),
       fillRect: (...args: unknown[]) => fills.push(args) } as unknown as CanvasRenderingContext2D;
@@ -95,6 +95,8 @@ describe("sheet layout and rendering", () => {
     expect(sprites.at(-1)!.slice(1)).toEqual([0, 32, 32, 32, 10, 20, 30, 30]);
     drawTile(ctx, 8, 0, 0, 30);
     expect(ctx.fillStyle).toBe("#6b7280");
+    drawTile(ctx, 3, 10, 20, 30, { ...skin, ghost: true }, 8, true);
+    expect(sprites.pop()!.slice(1)).toEqual([32, 32, 32, 32, 10, 20, 30, 30]);
     expect(ctx.globalAlpha).toBe(0.25);
     expect(sprites).toHaveLength(8);
     expect(fills).toHaveLength(8);
@@ -123,7 +125,7 @@ describe("image loader", () => {
     const retry = load(four);
     expect(images).toHaveLength(2);
     images[1].onload!(new Event("load"));
-    expect((await retry)!.image).toBe(images[1]);
+    expect(await retry).toMatchObject({ image: images[1], ghost: true });
   });
   test("invalid dimensions are evicted so a corrected same-URL image can retry", async () => {
     const images: HTMLImageElement[] = [];

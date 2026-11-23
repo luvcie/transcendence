@@ -46,6 +46,44 @@ describe("TETR.IO+ skins", () => {
       { skin: png(), skinAnim: "data:image/png;base64,AQID" }, { skin: png(), skinAnimMeta: { frames: 2 } },
     ]) expect(() => parseTetrioSkin(value)).toThrow();
   });
+  test("keeps a half-size ghost atlas and drops a mismatched one without failing the skin", () => {
+    expect(parseTetrioSkin({ skin: png(), ghost: png(1024) })).toEqual({ image: png(), frames: 1, delay: 0, ghost: png(1024) });
+    for (const ghost of [png(2048), png(1024, 512), "data:image/png;base64,AQID", 7]) {
+      expect(parseTetrioSkin({ skin: png(), ghost })).toEqual({ image: png(), frames: 1, delay: 0 });
+    }
+    const animated = { skin: png(), ghost: png(1024), skinAnim: png(16384, 2048), skinAnimMeta: { frames: 22, delay: 30 },
+      ghostAnim: png(8192, 1024), ghostAnimMeta: { frames: 22, delay: 30 } };
+    expect(parseTetrioSkin(animated).ghost).toBe(animated.ghostAnim);
+    expect(parseTetrioSkin({ ...animated, ghostAnimMeta: { frames: 11, delay: 30 } }).ghost).toBeUndefined();
+  });
+  test("crops the ghost atlas into column 1 for every connection, frame by frame", async () => {
+    const output = canvas();
+    await convertTetrioSkin(image(), () => output.element, 1, image(1024));
+    expect(output.draws).toHaveLength(216);
+    expect(output.draws[12 * 9 + 8].slice(1)).toEqual([2, 290, 92, 92, 32, 384, 32, 32]);
+    const packed = canvas();
+    drawTetrioFrame(packed.context as unknown as CanvasRenderingContext2D, image(16384, 2048), 1024, 17, 22, 32, image(8192, 1024));
+    expect(packed.draws).toHaveLength(216);
+    expect(packed.draws[8].slice(1)).toEqual([513, 513, 46, 46, 256, 0, 32, 32]);
+    expect(packed.draws[13 * 9 + 8].slice(1)).toEqual([513 + 48, 513 + 144, 46, 46, 256, 13 * 32, 32, 32]);
+  });
+  test("ghosts use the skin's ghost tiles with their connections, flat colors without them", () => {
+    const draws: unknown[][] = [], fills: unknown[] = [];
+    const ctx = { set fillStyle(color: string) { fills.push(color); }, fillRect: (...args: unknown[]) => fills.push(args),
+      drawImage: (...args: unknown[]) => draws.push(args) } as unknown as CanvasRenderingContext2D;
+    const sheet: LoadedSkin = { def: customSkin(url, 0), image: canvas().element, tile: 32, connected: true };
+    drawTile(ctx, 6, 5, 6, 30, sheet, 22, true);
+    expect(draws).toHaveLength(0);
+    expect(fills).toEqual(["#3b82f6", [5, 6, 30, 30]]);
+    drawTile(ctx, 6, 5, 6, 30, { ...sheet, ghost: true }, 22, true);
+    expect(draws[0].slice(1)).toEqual([32, 512, 32, 32, 5, 6, 30, 30]);
+    const tiles = new Uint16Array(216).map((_, i) => i);
+    drawTile(ctx, 6, 0, 0, 30, { ...sheet, image: { width: 32 * 15 } as HTMLCanvasElement, tiles, ghost: true }, 22, true);
+    expect(draws[1].slice(1, 3)).toEqual([(16 * 9 + 8) % 15 * 32, Math.floor((16 * 9 + 8) / 15) * 32]);
+    drawTile(ctx, 6, 0, 0, 30, { ...sheet, tiles }, 22, true);
+    expect(draws).toHaveLength(2);
+    expect(fills).toHaveLength(4);
+  });
   test("crops the seven piece colors and the lone garbage tile into the nine-column layout without texture borders", async () => {
     const atlas = image(), output = canvas();
     expect(await convertTetrioSkin(atlas, () => output.element)).toBe(output.element);
@@ -178,6 +216,7 @@ describe("TETR.IO+ skins", () => {
       expect(a!.image).toBe(b!.image);
       expect(a!.tile).toBe(32);
       expect(a!.connected).toBe(true);
+      expect(a!.ghost).toBe(false);
       expect(fetch).toHaveBeenCalledTimes(1);
       expect(fetch.mock.calls[0][1]).toMatchObject({ credentials: "omit", referrerPolicy: "no-referrer" });
       await load(customSkin(url, 1));
@@ -187,6 +226,25 @@ describe("TETR.IO+ skins", () => {
       const ctx = { drawImage: (...args: unknown[]) => drawn.push(args) } as unknown as CanvasRenderingContext2D;
       drawTile(ctx, 1, 0, 0, 30, a);
       expect(drawn[0]).toEqual([output.element, 64, 384, 32, 32, 0, 0, 30, 30]);
+    } finally { fetch.mockRestore(); }
+  });
+  test("an export with a ghost atlas loads it next to the skin and draws ghosts from it", async () => {
+    const fetch = spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({ skin: png(), ghost: png(1024) })));
+    const images: HTMLImageElement[] = [], output = canvas();
+    const load = createSkinLoader(() => {
+      const img = image(images.length ? 1024 : 2048);
+      images.push(img);
+      queueMicrotask(() => img.onload!(new Event("load")));
+      return img;
+    }, 1000, () => output.element);
+    try {
+      const skin = await load(customSkin(url, 0));
+      expect(images.map(img => img.src)).toEqual(["", ""]);
+      expect(output.draws.filter(call => call[0] === images[1])).toHaveLength(24);
+      expect(skin!.ghost).toBe(true);
+      const drawn: unknown[][] = [];
+      drawTile({ drawImage: (...args: unknown[]) => drawn.push(args) } as unknown as CanvasRenderingContext2D, 1, 0, 0, 30, skin, 0, true);
+      expect(drawn[0].slice(0, 3)).toEqual([output.element, 32, 384]);
     } finally { fetch.mockRestore(); }
   });
   test("failed exports are evicted and a corrected link can be retried", async () => {
