@@ -449,7 +449,11 @@ let editorMounted = false;
 function mountEditor() {
   if (editorMounted) return;
   editorMounted = true;
-  mountEmojiEditor(emojiView, skins);
+  // same sounds as zen, the main game ones stay quiet outside a game
+  const editorSounds = new GameSounds(() => sounds.preferences.enabled ? sounds.loaded?.pack : undefined, clips => {
+    if (sounds.preferences.enabled && sounds.loaded && !document.hidden && !emojiView.hidden && !settingsDialog.open) soundPlayer.play(clips, sounds.loaded);
+  }, () => finesseSoundOptions.zen.checked);
+  mountEmojiEditor(emojiView, skins, { bindings, handling: () => handling, ghost: () => showGhost, sounds: editorSounds });
 }
 document.querySelector("#editor-button")!.addEventListener("click", () => {
   history.pushState(null, "", "/tetorisueditor");

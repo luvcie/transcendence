@@ -1,9 +1,14 @@
 import type { SkinState } from "./skin-state";
 import { ids, makeGif } from "./emoji-gif";
 import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
-import { resolveSkin } from "./skin-preferences";
+import { resolveSkin, type SkinPreferences } from "./skin-preferences";
 import type { LoadedSkin } from "./skin-loader";
 import { drawTile, skinFrame } from "./tile-renderer";
+import type { Handling } from "@42tris/core";
+import type { Keybinds } from "./keybinds";
+import type { Singleplayer } from "./singleplayer";
+import type { GameSounds } from "./game-sounds";
+import { drawQueue, gameToLines, playBoard, playCells, type PlayRun } from "./editor-play";
 
 const openers = {
   "TKI": [
@@ -170,8 +175,12 @@ export function mirrorRows(board: string[]) {
 }
 
 const modeKey = "tetorisueditor.emojiMode";
-// anything but an explicit "false" keeps the default, emoji mode
 export const parseEmojiMode = (raw: string | null) => raw !== "false";
+
+const skinKey = "tetorisueditor.skin";
+// the editor keeps its own skin and starts from the game's
+export const editorSkin = (saved: string | null, preferences: SkinPreferences) =>
+  resolveSkin({ ...preferences, active: saved ?? preferences.active });
 
 export type SavedOpener = { name: string; steps: string[][] };
 const storeKey = "tetorisueditor.openers";
@@ -203,7 +212,8 @@ function readSaved() {
   }
 }
 
-export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
+export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
+  gameplay: { bindings: Keybinds; handling(): Handling; ghost(): boolean; sounds: GameSounds }) {
   const { ownerDocument: document } = root;
   const board = root.querySelector<HTMLElement>("#emoji-board")!;
   const palette = root.querySelector<HTMLElement>("#emoji-palette")!;
@@ -239,16 +249,24 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   const copy = root.querySelector<HTMLButtonElement>("#emoji-copy")!;
   const mirror = root.querySelector<HTMLButtonElement>("#emoji-mirror")!;
   const copyHalf = root.querySelector<HTMLButtonElement>("#emoji-copy-half")!;
+  const playButton = root.querySelector<HTMLButtonElement>("#emoji-play")!;
+  const keep = root.querySelector<HTMLButtonElement>("#emoji-keep")!;
+  const stopButton = root.querySelector<HTMLButtonElement>("#emoji-stop")!;
+  const holdCtx = root.querySelector<HTMLCanvasElement>("#emoji-hold")!.getContext("2d")!;
+  const nextCtx = root.querySelector<HTMLCanvasElement>("#emoji-next")!.getContext("2d")!;
   const cells = Array.from({ length: cols * rows }, () => makeButton(empty, "emoji-cell"));
   const canvas = document.createElement("canvas");
   const swatches: [HTMLButtonElement, number][] = [];
   let swatchSkin: LoadedSkin | undefined | null = null;
+  let skin: LoadedSkin | undefined;
   let frameRequest = 0;
   let queued = false;
   let selected: string = blocks[0][0];
   let mirrored = false;
   type StrokeSource = "pointer" | "touch-pointer" | "touch";
   let stroke: { source: StrokeSource; id: number; value: string; lastCell: number } | null = null;
+  let play: PlayRun | null = null;
+  let drawn: string[] = [];
 
   for (const label of root.querySelectorAll<HTMLLabelElement>(".emoji-gesture label")) {
     const mode = label.querySelector<HTMLInputElement>("input")!;
@@ -274,10 +292,12 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   }
 
   function drawCell(ctx: CanvasRenderingContext2D, id: number | undefined, x: number, y: number, size: number,
-    skin: LoadedSkin | undefined, frame: number) {
+    skin: LoadedSkin | undefined, frame: number, ghost = false) {
     ctx.fillStyle = "#111";
     ctx.fillRect(x, y, size, size);
-    if (id) drawTile(ctx, id, x, y, size, skin, 0, false, frame);
+    if (ghost) ctx.globalAlpha = .25;
+    if (id) drawTile(ctx, id, x, y, size, skin, 0, ghost, frame);
+    ctx.globalAlpha = 1;
     if (!id || !skin) {
       ctx.strokeStyle = "#333";
       ctx.strokeRect(x + .5, y + .5, size - 1, size - 1);
@@ -298,7 +318,6 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   // the grid stays the source of truth, the canvas only repaints it from the real cell rects
   function draw() {
     if (emojiMode.checked || !board.clientWidth) return;
-    const skin = skins.loaded;
     if (skin !== swatchSkin) paintSwatches(skin);
     const dpr = window.devicePixelRatio || 1;
     const width = Math.round(board.clientWidth * dpr), height = Math.round(board.clientHeight * dpr);
@@ -313,7 +332,8 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     const origin = board.getBoundingClientRect();
     for (const cell of cells) {
       const rect = cell.getBoundingClientRect();
-      drawCell(ctx, ids[cell.textContent!], rect.left - origin.left, rect.top - origin.top, rect.width, skin, frame);
+      drawCell(ctx, ids[cell.textContent!], rect.left - origin.left, rect.top - origin.top, rect.width, skin, frame,
+        cell.classList.contains("ghost"));
     }
     if (skin?.animation && !frameRequest) frameRequest = requestAnimationFrame(() => {
       frameRequest = 0;
@@ -331,10 +351,16 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     });
   }
 
+  function brush(index: number, value: string) {
+    if (play) play.paint(index, value);
+    else paint(index, value);
+  }
+
   function startStroke(index: number, source: StrokeSource, id: number) {
-    const value = cells[index].textContent === empty ? selected : empty;
+    const cell = cells[index];
+    const value = cell.textContent === empty || cell.classList.contains("ghost") ? selected : empty;
     stroke = { source, id, value, lastCell: index };
-    paint(index, value);
+    brush(index, value);
   }
 
   for (const [index, [emoji, name]] of blocks.entries()) {
@@ -369,7 +395,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
       startStroke(index, "pointer", event.pointerId);
     });
     cell.addEventListener("click", event => {
-      if (event.detail === 0) paint(index, cell.textContent === empty ? selected : empty);
+      if (event.detail === 0) brush(index, cell.textContent === empty ? selected : empty);
     });
   });
   board.append(canvas, ...cells);
@@ -387,7 +413,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     stroke.lastCell = index;
     if (index < 0 || index === previous) return;
     if (previous < 0) {
-      paint(index, stroke.value);
+      brush(index, stroke.value);
       return;
     }
 
@@ -399,7 +425,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     for (let step = 1; step <= steps; step++) {
       const row = Math.round(fromRow + rowDelta * step / steps);
       const col = Math.round(fromCol + colDelta * step / steps);
-      paint(row * cols + col, stroke.value);
+      brush(row * cols + col, stroke.value);
     }
   }
 
@@ -480,7 +506,10 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   mirror.addEventListener("click", () => {
     mirrored = !mirrored;
     mirror.setAttribute("aria-pressed", String(mirrored));
-    mirrorBoard();
+    if (play) {
+      drawn = mirrorRows(drawn);
+      play.mirror(drawn);
+    } else mirrorBoard();
     status.textContent = mirrored ? "Mirror mode on." : "Mirror mode off.";
   });
 
@@ -497,8 +526,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   }
 
   // steps are stored unmirrored and without the empty rows on top
-  function captureBoard() {
-    const lines = boardLines();
+  function captureBoard(lines = boardLines()) {
     const first = lines.findIndex(line => line !== empty.repeat(cols));
     const board = first < 0 ? [] : lines.slice(first);
     return mirrored ? mirrorRows(board) : board;
@@ -550,7 +578,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
 
   document.addEventListener("keydown", event => {
     const target = event.target as HTMLElement;
-    if (root.hidden || event.ctrlKey || event.altKey || event.metaKey || target.closest("input, select, textarea, [contenteditable]")) return;
+    if (root.hidden || play || event.ctrlKey || event.altKey || event.metaKey || target.closest("input, select, textarea, [contenteditable]")) return;
     const button = { ArrowLeft: stepBack, h: stepBack, ArrowRight: stepNext, l: stepNext }[event.key];
     if (!button) return;
     event.preventDefault();
@@ -661,8 +689,9 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   });
 
   root.querySelector("#emoji-clear")!.addEventListener("click", () => {
-    setBoard([]);
-    if (!draft) {
+    if (play) play.clear();
+    else setBoard([]);
+    if (!draft && !play) {
       seqTools.hidden = stepBack.disabled = stepNext.disabled = true;
       stepLabel.textContent = "";
     }
@@ -761,15 +790,31 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
     }));
     return keys;
   }
-  const activeSkinKey = () => fillSkins().get(skins.preferences.active) ?? "";
-  skinInput.value = activeSkinKey();
-  skinInput.addEventListener("focus", () => { skinInput.value = activeSkinKey(); skinInput.select(); });
-  skinInput.addEventListener("change", async () => {
-    const id = skinKeys.get(skinInput.value.trim());
-    if (id) await skins.select(id);
-    skinInput.value = activeSkinKey();
+  let skinId = "";
+  let skinRequest = 0;
+  async function loadSkin(id: string | null) {
+    const def = editorSkin(id, skins.preferences);
+    skinId = def.id;
+    const request = ++skinRequest;
+    let loaded: LoadedSkin | undefined;
+    try { loaded = await skins.load(def); } catch { /* flat colors until another pick */ }
+    if (request !== skinRequest) return;
+    skin = loaded;
     redraw();
+  }
+  const activeSkinKey = () => fillSkins().get(skinId) ?? "";
+  try { void loadSkin(localStorage.getItem(skinKey)); } catch { void loadSkin(null); }
+  skinInput.value = activeSkinKey();
+  // the list filters by what is typed, so focus empties the box (the current name moves to the placeholder) to show every skin
+  skinInput.addEventListener("focus", () => { skinInput.placeholder = activeSkinKey(); skinInput.value = ""; });
+  skinInput.addEventListener("input", () => {
+    const id = skinKeys.get(skinInput.value.trim());
+    if (!id) return;
+    void loadSkin(id);
+    try { localStorage.setItem(skinKey, id); } catch { /* the pick lasts for the session */ }
+    skinInput.blur();
   });
+  skinInput.addEventListener("blur", () => { skinInput.value = activeSkinKey(); skinInput.placeholder = "Search skins"; });
 
   try { emojiMode.checked = parseEmojiMode(localStorage.getItem(modeKey)); } catch { /* keep the default */ }
   function applyMode() {
@@ -779,11 +824,11 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   }
   emojiMode.addEventListener("change", () => {
     applyMode();
+    // space would toggle it again instead of hard dropping
+    if (play) emojiMode.blur();
     try { localStorage.setItem(modeKey, String(emojiMode.checked)); } catch { /* the choice lasts for the session */ }
   });
   applyMode();
-  // the first skin may still be loading, draw again once it has settled
-  if (!skins.loaded) skins.load(resolveSkin(skins.preferences)).catch(() => {}).then(() => setTimeout(redraw));
 
   let gifBlob: Blob | undefined;
   exportGif.addEventListener("click", async () => {
@@ -793,7 +838,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
       const cell = Math.max(4, Math.min(Math.round(Number(gifBlock.value)) || 16, 64));
       const hold = Math.max(20, Math.min(Math.round((Number(gifSeconds.value) || 1) * 1000), 10000));
       const gif = await makeGif(document.createElement("canvas"), selectedBoards(), cell,
-        emojiMode.checked ? "emoji" : skins.loaded, hold);
+        emojiMode.checked ? "emoji" : skin, hold);
       gifBlob = new Blob([gif as Uint8Array<ArrayBuffer>], { type: "image/gif" });
       URL.revokeObjectURL(gifPreview.src);
       gifPreview.src = URL.createObjectURL(gifBlob);
@@ -812,4 +857,93 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState) {
   });
   for (const input of [seqFrom, seqTo]) input.addEventListener("input", renderSplits);
   for (const input of [perRow, autoSplit]) input.addEventListener("change", renderSplits);
+
+  function showRun(run: Singleplayer) {
+    if (root.hidden) {
+      stopPlay();
+      return;
+    }
+    const { cells: values, ghosts } = playCells(run.game, gameplay.ghost());
+    values.forEach((value, index) => {
+      if (cells[index].textContent !== value) cells[index].textContent = value;
+      cells[index].classList.toggle("ghost", ghosts.has(index));
+    });
+    const look = emojiMode.checked ? "emoji" : skin;
+    drawQueue(holdCtx, run.game.held === null ? [] : [run.game.held], look);
+    drawQueue(nextCtx, run.game.previews, look);
+    draw();
+  }
+
+  function syncPlay() {
+    root.classList.toggle("playing", !!play);
+    playButton.textContent = !play ? "Play" : play.paused ? "Resume" : "Pause";
+    stopButton.hidden = keep.hidden = !play;
+  }
+
+  function togglePause() {
+    if (!play) return;
+    play.setPaused(!play.paused);
+    status.textContent = play.paused ? "Paused. You can still paint the board." : "Playing.";
+    syncPlay();
+  }
+
+  function startPlay() {
+    drawn = boardLines();
+    // space must hard drop, not press whatever was clicked
+    (document.activeElement as HTMLElement | null)?.blur();
+    play = playBoard(drawn, {
+      bindings: gameplay.bindings, handling: gameplay.handling(), sounds: gameplay.sounds, render: showRun,
+      stuck: () => stopPlay("No room to spawn a piece on this board."),
+      pause: togglePause,
+      restart() {
+        stopPlay();
+        startPlay();
+      },
+    });
+    syncPlay();
+    status.textContent = "Zen on this board. Ctrl+Z undoes a piece, Escape pauses.";
+  }
+
+  function stopPlay(message?: string) {
+    const run = play?.run;
+    if (!play) return run;
+    play.stop();
+    play = null;
+    syncPlay();
+    drawn.flatMap(line => Array.from(line)).forEach((value, index) => {
+      cells[index].classList.remove("ghost");
+      paint(index, value);
+    });
+    if (message) status.textContent = message;
+    return run;
+  }
+
+  playButton.addEventListener("click", () => {
+    if (play) togglePause();
+    else startPlay();
+    playButton.blur();
+  });
+  stopButton.addEventListener("click", () => stopPlay("Stopped."));
+
+  keep.addEventListener("click", () => {
+    const run = stopPlay();
+    if (!run) return;
+    saveCurrent();
+    if (!draft) {
+      sequence = [captureBoard()];
+      step = 0;
+      draft = true;
+      draftName = "";
+    }
+    if (sequence.length >= maxSteps) {
+      status.textContent = `A sequence can have ${maxSteps} steps at most.`;
+      return;
+    }
+    sequence.splice(step + 1, 0, captureBoard(gameToLines(run.game.board)));
+    seqTools.hidden = false;
+    syncRange();
+    goTo(step + 1);
+    renderSplits();
+    status.textContent = `Position kept as step ${step + 1}.`;
+  });
 }
