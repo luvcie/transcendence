@@ -5,6 +5,7 @@ export * from "./rng";
 export * from "./bag";
 export * from "./game";
 export * from "./finesse";
+export * from "./movegen";
 export { GAME_STATE_VERSION, type GameState } from "./game-state";
 export * from "./handling";
 export * from "./rules";
