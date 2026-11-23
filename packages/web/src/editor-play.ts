@@ -91,6 +91,44 @@ export function mirrorPiece(game: Piece) {
   return game;
 }
 
+// a whole piece per 4 cells of a colour, garbage and leftovers do not count
+export function boardPieces(board: ArrayLike<number>) {
+  const cells = new Array(8).fill(0);
+  for (let index = 0; index < board.length; index++) if (board[index] >= 1 && board[index] <= 7) cells[board[index]]++;
+  return cells.map(count => Math.floor(count / 4));
+}
+
+// types placed as often as the most placed one are used up in the current bag
+export function bagLeft(board: ArrayLike<number>) {
+  const counts = boardPieces(board).slice(1);
+  const most = Math.max(...counts);
+  const left = [1, 2, 3, 4, 5, 6, 7].filter(id => counts[id - 1] < most);
+  return (left.length ? left : [1, 2, 3, 4, 5, 6, 7]) as PieceId[];
+}
+
+const randomIndex = (n: number) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
+
+export function shuffled(pieces: PieceId[], random = randomIndex) {
+  const out = [...pieces];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = random(i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// the rest of the board's bag, then fresh bags for the rest of the practice
+export function boardQueue(board: ArrayLike<number>, random = randomIndex) {
+  const left = shuffled(bagLeft(board), random);
+  const bags = Array.from({ length: 40 }, () => shuffled([1, 2, 3, 4, 5, 6, 7], random));
+  return { left, queue: [...left, ...bags.flat()] };
+}
+
+// the previews follow the queue until it runs out, then the bag carries on
+export function followQueue(game: { previews: Uint8Array; dealt: number }, queue: ArrayLike<number>) {
+  for (let i = 0; i < game.previews.length && game.dealt + i < queue.length; i++) game.previews[i] = queue[game.dealt + i];
+}
+
 export function drawQueue(ctx: CanvasRenderingContext2D, pieces: ArrayLike<number>, look: LoadedSkin | undefined | "emoji") {
   const cell = 30, { width } = ctx.canvas;
   ctx.clearRect(0, 0, width, ctx.canvas.height);
@@ -117,6 +155,7 @@ export function playBoard(drawn: string[], options: {
   bindings: Keybinds;
   handling: Handling;
   sounds: GameSounds;
+  queue: PieceId[];
   render(run: Singleplayer): void;
   stuck(): void;
   pause(): void;
@@ -127,6 +166,7 @@ export function playBoard(drawn: string[], options: {
   crypto.getRandomValues(random);
   const run = new Singleplayer("zen", random[0], performance.now(), options.handling);
   boardToGame(lines, run.game.board);
+  followQueue(run.game, options.queue);
   let game = run.game;
   let sounded = run.game;
   let frameId = 0;
@@ -134,6 +174,7 @@ export function playBoard(drawn: string[], options: {
   const pressed = new Map<string, Action>();
   options.sounds.reset();
   const sync = (input?: InputId) => {
+    followQueue(run.game, options.queue);
     if (sounded !== run.game && sounded.topOut) options.sounds.observe(sounded, sounded, input);
     options.sounds.observe(run.game, run.game, input);
     sounded = run.game;

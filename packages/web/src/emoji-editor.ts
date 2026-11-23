@@ -8,7 +8,7 @@ import type { Handling } from "@42tris/core";
 import type { Keybinds } from "./keybinds";
 import type { Singleplayer } from "./singleplayer";
 import type { GameSounds } from "./game-sounds";
-import { drawQueue, gameToLines, playBoard, playCells, type PlayRun } from "./editor-play";
+import { drawQueue, gameToLines, playBoard, playCells, boardQueue, boardToGame, type PlayRun } from "./editor-play";
 
 const openers = {
   "TKI": [
@@ -252,6 +252,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   const playButton = root.querySelector<HTMLButtonElement>("#emoji-play")!;
   const keep = root.querySelector<HTMLButtonElement>("#emoji-keep")!;
   const stopButton = root.querySelector<HTMLButtonElement>("#emoji-stop")!;
+  const matchBag = root.querySelector<HTMLInputElement>("#emoji-match-bag")!;
   const holdCtx = root.querySelector<HTMLCanvasElement>("#emoji-hold")!.getContext("2d")!;
   const nextCtx = root.querySelector<HTMLCanvasElement>("#emoji-next")!.getContext("2d")!;
   const cells = Array.from({ length: cols * rows }, () => makeButton(empty, "emoji-cell"));
@@ -878,6 +879,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     root.classList.toggle("playing", !!play);
     playButton.textContent = !play ? "Play" : play.paused ? "Resume" : "Pause";
     stopButton.hidden = keep.hidden = !play;
+    matchBag.parentElement!.hidden = !!play;
   }
 
   function togglePause() {
@@ -889,10 +891,14 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
 
   function startPlay() {
     drawn = boardLines();
+    // the board as shown, mirrored colours included, is what gets played
+    const board = new Uint8Array(cols * 40);
+    boardToGame(drawn, board);
+    const bag = matchBag.checked ? boardQueue(board) : null;
     // space must hard drop, not press whatever was clicked
     (document.activeElement as HTMLElement | null)?.blur();
     play = playBoard(drawn, {
-      bindings: gameplay.bindings, handling: gameplay.handling(), sounds: gameplay.sounds, render: showRun,
+      bindings: gameplay.bindings, handling: gameplay.handling(), sounds: gameplay.sounds, queue: bag?.queue ?? [], render: showRun,
       stuck: () => stopPlay("No room to spawn a piece on this board."),
       pause: togglePause,
       restart() {
@@ -901,7 +907,9 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
       },
     });
     syncPlay();
-    status.textContent = "Zen on this board. Ctrl+Z undoes a piece, Escape pauses.";
+    status.textContent = !bag ? "Zen on this board. Ctrl+Z undoes a piece, Escape pauses."
+      : bag.left.length === 7 ? "Fresh bag."
+      : `Bag continues from the board: ${bag.left.length} left (${bag.left.map(id => "_ZLOSIJT"[id]).join(" ")}).`;
   }
 
   function stopPlay(message?: string) {

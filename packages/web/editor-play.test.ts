@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { Input } from "@42tris/core";
-import { boardToGame, gameToLines, mirrorBoard, mirrorPiece, paintGame, playCells } from "./src/editor-play";
+import { bagLeft, boardQueue, boardToGame, followQueue, gameToLines, mirrorBoard, mirrorPiece, paintGame, playCells } from "./src/editor-play";
+import { mirrorRows } from "./src/emoji-editor";
 import { editorSkin } from "./src/emoji-editor";
 import { Singleplayer } from "./src/singleplayer";
 
@@ -79,4 +80,60 @@ test("the editor skin starts from the game skin and keeps its own pick", () => {
   const other = editorSkin("effect", preferences);
   expect(other.id).toBe("effect");
   expect(preferences.active).toBe("classic");
+});
+
+const drawn = (...lines: string[]) => {
+  const board = new Uint8Array(400);
+  boardToGame(lines, board);
+  return board;
+};
+const T = "🟪🟪🟪🟪⬛⬛⬛⬛⬛⬛", I = "⬜⬜⬜⬜⬛⬛⬛⬛⬛⬛";
+
+test("the bag left is what the board has not used yet", () => {
+  expect(bagLeft(drawn())).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  expect(bagLeft(drawn(T, I))).toEqual([1, 2, 3, 4, 6]);
+  expect(bagLeft(drawn(T, T, I))).toEqual([1, 2, 3, 4, 5, 6]);
+  expect(bagLeft(drawn("🟥🟥🟥🟥🟧🟧🟧🟧🟨🟨", "🟨🟨🟩🟩🟩🟩⬜⬜⬜⬜", "🟦🟦🟦🟦🟪🟪🟪🟪⬛⬛"))).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  expect(bagLeft(drawn(T, "🟥🟥🟥⬛⬛⬛⬛⬛⬛⬛"))).toEqual([1, 2, 3, 4, 5, 6]);
+  const board = drawn(T);
+  board.fill(8, 300, 310);
+  expect(bagLeft(board)).toEqual([1, 2, 3, 4, 5, 6]);
+});
+
+test("a mirrored board counts the swapped colours it shows", () => {
+  const z = "🟥🟥🟥🟥⬛⬛⬛⬛⬛⬛";
+  expect(bagLeft(drawn(z))).not.toContain(1);
+  expect(bagLeft(drawn(...mirrorRows([z])))).toEqual([1, 2, 3, 5, 6, 7]);
+});
+
+test("the queue finishes the board's bag then deals whole bags", () => {
+  const { left, queue } = boardQueue(drawn(T, I));
+  expect(left).toHaveLength(5);
+  expect(new Set(queue.slice(0, 5))).toEqual(new Set([1, 2, 3, 4, 6]));
+  const rest = queue.slice(5);
+  expect(rest.length).toBe(280);
+  for (let i = 0; i < rest.length; i += 7) expect([...rest.slice(i, i + 7)].sort()).toEqual([1, 2, 3, 4, 5, 6, 7]);
+});
+
+test("a zen run deals the board queue through hold and keeps it through undo", () => {
+  const { queue } = boardQueue(drawn(T, I), n => n - 1);
+  const run = new Singleplayer("zen", 108, 0);
+  followQueue(run.game, queue);
+  expect([...run.game.previews]).toEqual(queue.slice(0, 5));
+  const dealt: number[] = [];
+  let now = 1000;
+  run.tick(now);
+  followQueue(run.game, queue);
+  run.apply(Input.Hold, ++now);
+  followQueue(run.game, queue);
+  expect(run.game.held).toBe(queue[0]);
+  for (let i = 0; i < 8; i++) {
+    dealt.push(run.game.piece);
+    run.apply(Input.HardDrop, ++now);
+    followQueue(run.game, queue);
+  }
+  expect(dealt).toEqual(queue.slice(1, 9));
+  run.undo(++now);
+  followQueue(run.game, queue);
+  expect(run.game.piece).toBe(dealt[7]);
 });

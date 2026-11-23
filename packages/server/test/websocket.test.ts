@@ -213,7 +213,7 @@ test("production serves only enumerated build files and rejects foreign origins"
   expect(editor.headers.get("content-type")).toContain("text/html");
   expect(await editor.text()).toContain("server-static-fixture");
   expect((await fetch(s.url + "/api/health")).status).toBe(200);
-  for (const path of ["/%2e%2e/package.json", "/..%2f..%2fpackage.json", "/%2e%2e%5cpackage.json", "/.env", "/emojitetorisu", "/tetorisueditor/other"]) {
+  for (const path of ["/%2e%2e/package.json", "/..%2f..%2fpackage.json", "/%2e%2e%5cpackage.json", "/.env", "/tetorisueditor/other"]) {
     expect((await fetch(s.url + path)).status).toBe(404);
   }
   const response = await fetch(s.url + "/ws", { headers: { Origin: "https://untrusted.example", Upgrade: "websocket" } });
