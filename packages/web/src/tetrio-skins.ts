@@ -1,6 +1,8 @@
 export const MAX_SKIN_EXPORT_BYTES = 16 * 1024 * 1024;
 export const TETRIO_SKIN_ROWS = 24;
 export const TETRIO_PIECE_OFFSETS = [[0, 0], [4, 0], [8, 0], [12, 0], [0, 6], [4, 6], [8, 6]];
+// the unconnected tile of the garbage block, top right of the atlas
+export const TETRIO_GARBAGE_OFFSET = [16, 3];
 // TETR.IO+ atlas rows for top/right/bottom/left bits 8/4/2/1, plus bit 16 for an inner corner.
 export const TETRIO_CONNECTION_ROWS = [12, 15, 0, 3, 13, 14, 1, 2, 8, 11, 4, 7, 9, 10, 5, 6,
   12, 15, 0, 17, 13, 14, 16, 22, 8, 21, 4, 23, 20, 18, 19, 6];
@@ -50,6 +52,8 @@ export async function convertTetrioSkin(image: HTMLImageElement, makeCanvas = ()
       TETRIO_PIECE_OFFSETS.forEach(([x, y], i) => ctx.drawImage(image,
         fx * width + (x + row % 4) * cell + padding, fy * width + (y + Math.floor(row / 4)) * cell + padding,
         sourceTile, sourceTile, (fx * 9 + i + 2) * tile, (fy * TETRIO_SKIN_ROWS + row) * tile, tile, tile));
+      ctx.drawImage(image, fx * width + TETRIO_GARBAGE_OFFSET[0] * cell + padding, fy * width + TETRIO_GARBAGE_OFFSET[1] * cell + padding,
+        sourceTile, sourceTile, fx * 9 * tile, (fy * TETRIO_SKIN_ROWS + row) * tile, tile, tile);
     }
   }
   return canvas;

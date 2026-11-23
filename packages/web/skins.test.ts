@@ -80,7 +80,7 @@ describe("sheet layout and rendering", () => {
     expect(pieceConnections([0, 0, 0, 1, 1, 1, 2, 1], 2) & 8).toBe(8);
     expect(pieceConnections([0, 0, 0, 1, 1, 1, 2, 1], 4) & 8).toBe(0);
   });
-  test("maps Z2 through T8, uses joined rows, never sprites ghosts or garbage", () => {
+  test("maps garbage to column 0 and Z2 through T8, uses joined rows, never sprites ghosts", () => {
     const sprites: unknown[][] = [], fills: unknown[][] = [];
     const ctx = { fillStyle: "", globalAlpha: 0.25, drawImage: (...args: unknown[]) => sprites.push(args),
       fillRect: (...args: unknown[]) => fills.push(args) } as unknown as CanvasRenderingContext2D;
@@ -91,10 +91,12 @@ describe("sheet layout and rendering", () => {
       drawTile(ctx, id, 10, 20, 30, skin, 8, true);
       expect(ctx.fillStyle).toBe(COLORS[id]);
     }
-    drawTile(ctx, 8, 0, 0, 30, skin);
+    drawTile(ctx, 8, 10, 20, 30, skin, 8);
+    expect(sprites.at(-1)!.slice(1)).toEqual([0, 32, 32, 32, 10, 20, 30, 30]);
+    drawTile(ctx, 8, 0, 0, 30);
     expect(ctx.fillStyle).toBe("#6b7280");
     expect(ctx.globalAlpha).toBe(0.25);
-    expect(sprites).toHaveLength(7);
+    expect(sprites).toHaveLength(8);
     expect(fills).toHaveLength(8);
     expect(COLORS[Piece.L]).toBe("#f97316");
     expect(COLORS[Piece.O]).toBe("#eab308");

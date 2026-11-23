@@ -21,9 +21,10 @@ scope.onmessage = async ({ data: url }: MessageEvent<string>) => {
         }
         const { image: decoded } = await decoder.decode({ frameIndex: frame });
         try {
-          for (let piece = 0; piece < 7; piece++) ctx.drawImage(decoded, piece * source!.width / 12, 0,
-            source!.width / 12.4, source!.height, piece * tile, 0, tile, tile);
-          for (let row = 1; row < TETRIO_SKIN_ROWS; row++) ctx.drawImage(ctx.canvas, 0, 0, 7 * tile, tile, 0, row * tile, 7 * tile, tile);
+          // the strip goes Z L O S I J T, ghost, hold, garbage
+          [0, 1, 2, 3, 4, 5, 6, 9].forEach((strip, column) => ctx.drawImage(decoded, strip * source!.width / 12, 0,
+            source!.width / 12.4, source!.height, column * tile, 0, tile, tile));
+          for (let row = 1; row < TETRIO_SKIN_ROWS; row++) ctx.drawImage(ctx.canvas, 0, 0, 8 * tile, tile, 0, row * tile, 8 * tile, tile);
         } finally { decoded.close(); }
       }, (width, height) => new OffscreenCanvas(width, height), tile);
     };

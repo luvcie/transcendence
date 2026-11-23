@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
-import { MINOS, pieceEdges } from "@42tris/core";
+import { GARBAGE, MINOS, pieceEdges } from "@42tris/core";
 import { arrangeBoards, boardCells, mirrorRows, parseBoardText, parseEmojiMode, parseSavedOpeners } from "./src/emoji-editor";
-import { gifSize, tetrominoEdges, timeline } from "./src/emoji-gif";
+import { gifSize, ids, tetrominoEdges, timeline } from "./src/emoji-gif";
+import { BUILTIN_SKINS } from "./src/skin-catalog";
+import type { LoadedSkin } from "./src/skin-loader";
+import { COLORS, drawTile } from "./src/tile-renderer";
 
 const row = (emoji: string) => emoji.repeat(10);
 
@@ -101,4 +104,18 @@ test("a different colour next to a piece never joins it", () => {
   expect(edges[2] & 15).toBe(1);
   expect(edges[3] & 15).toBe(2);
   expect(edges[11] & 15).toBe(8);
+});
+
+test("garbage uses the skin's own tile like the game, gray without a skin", () => {
+  const image = { width: 288, height: 32 } as HTMLCanvasElement;
+  const skins = [{ def: BUILTIN_SKINS.find(def => def.id === "four")!, image, tile: 32 },
+    { def: { id: "t", name: "t", url: "t.tpse" }, image, tile: 32, connected: true }] as LoadedSkin[];
+  for (const skin of [...skins, undefined]) {
+    const calls: unknown[] = [];
+    const ctx = { set fillStyle(color: string) { calls.push(color); }, fillRect() {},
+      drawImage: (...args: unknown[]) => calls.push(args.slice(1, 3)) } as unknown as CanvasRenderingContext2D;
+    drawTile(ctx, ids["🟫"], 0, 0, 32, skin, 0, false, 0);
+    expect(ids["🟫"]).toBe(GARBAGE);
+    expect(calls).toEqual([skin ? [0, skin.connected ? 12 * 32 : 0] : COLORS[GARBAGE]]);
+  }
 });

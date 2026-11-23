@@ -27,7 +27,7 @@ test("preview workers deduplicate preparation, cache compressed results, and rel
   const revoke = spyOn(URL, "revokeObjectURL").mockImplementation(url => { revoked.push(url); });
   const blob = new Blob([new Uint8Array(12 * 1024 * 1024)]), def = customSkin("https://example.com/skin.tpse", 0);
   const flush = () => new Promise(resolve => setImmediate(resolve));
-  const finish = (index: number) => jobs[index].onmessage!({ data: { blob, frames: 22, delay: 30, tile: 32, tiles: new Uint16Array(22 * 168) } });
+  const finish = (index: number) => jobs[index].onmessage!({ data: { blob, frames: 22, delay: 30, tile: 32, tiles: new Uint16Array(22 * 192) } });
   let fallback = 0;
   const load = createSkinPreviewLoader(async () => { fallback++; return undefined; });
   try {
@@ -165,7 +165,7 @@ test("the worker validates exports, prepares compact frames, and closes decoded 
   }
   const skin = { skin: png(2048), skinAnim: png(16384, 2048), skinAnimMeta: { frames: 22, delay: 30 } };
   const prepared = await execute(skin);
-  expect(prepared).toMatchObject({ frames: 22, delay: 30, closed: 1, crops: 22 * 168, released: true });
+  expect(prepared).toMatchObject({ frames: 22, delay: 30, closed: 1, crops: 22 * 192, released: true });
   expect(await prepared.blob!.text()).toBe("prepared preview");
   expect(await execute(skin, true)).toMatchObject({ error: "Preview encoding failed", closed: 1, released: true });
   const malformed = await execute({});

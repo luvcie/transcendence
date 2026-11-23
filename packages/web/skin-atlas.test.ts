@@ -16,7 +16,7 @@ function raster(width: number, height: number) {
     },
     paint(frame: number, connected: boolean) {
       for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-        pixels[y * width + x] = 0xff000000 | (frame * 168 + Math.floor(x / 32) + (connected ? Math.floor(y / 32) * 7 : 0));
+        pixels[y * width + x] = 0xff000000 | (frame * 192 + Math.floor(x / 32) + (connected ? Math.floor(y / 32) * 8 : 0));
       }
     },
   };
@@ -28,11 +28,11 @@ test("flat animation tiles share storage across all 24 connection variants", asy
   const packed = await packSkinFrames(60, (ctx, frame) => (ctx as unknown as ReturnType<typeof raster>["context"]).paint(frame, false),
     (width, height) => { const canvas = raster(width, height); canvases.push(canvas); return canvas as unknown as HTMLCanvasElement; });
   expect(canvases[0].width).toBe(0);
-  expect(packed.tiles).toHaveLength(60 * 168);
-  expect(new Set(packed.tiles).size).toBe(60 * 7);
+  expect(packed.tiles).toHaveLength(60 * 192);
+  expect(new Set(packed.tiles).size).toBe(60 * 8);
   expect(packed.image.width * packed.image.height * 4).toBeLessThan(2 * 1024 * 1024);
-  for (let frame = 0; frame < 60; frame++) for (let row = 0; row < 24; row++) for (let piece = 0; piece < 7; piece++) {
-    expect(packed.tiles[(frame * 24 + row) * 7 + piece]).toBe(packed.tiles[frame * 168 + piece]);
+  for (let frame = 0; frame < 60; frame++) for (let row = 0; row < 24; row++) for (let piece = 0; piece < 8; piece++) {
+    expect(packed.tiles[(frame * 24 + row) * 8 + piece]).toBe(packed.tiles[frame * 192 + piece]);
   }
 });
 
@@ -41,7 +41,7 @@ test("packing retains distinct pixels for every connected tile and animation fra
   const packed = await packSkinFrames(2, (ctx, frame) => (ctx as unknown as ReturnType<typeof raster>["context"]).paint(frame, true),
     (width, height) => { const canvas = raster(width, height); canvases.push(canvas); return canvas as unknown as HTMLCanvasElement; });
   const output = canvases[1];
-  expect(new Set(packed.tiles).size).toBe(2 * 168);
+  expect(new Set(packed.tiles).size).toBe(2 * 192);
   for (let i = 0; i < packed.tiles.length; i++) {
     const slot = packed.tiles[i], columns = output.width / 32;
     expect(output.pixels[Math.floor(slot / columns) * 32 * output.width + slot % columns * 32]).toBe((0xff000000 | i) >>> 0);
@@ -52,7 +52,7 @@ test("packing retains distinct pixels for every connected tile and animation fra
   try {
     for (let mask = 0; mask < 32; mask++) {
       drawTile({ drawImage: (...args: unknown[]) => draws.push(args) } as CanvasRenderingContext2D, 1, 0, 0, 30, skin, mask);
-      const slot = packed.tiles[(24 + TETRIO_CONNECTION_ROWS[mask]) * 7];
+      const slot = packed.tiles[(24 + TETRIO_CONNECTION_ROWS[mask]) * 8];
       expect(draws.at(-1)!.slice(1, 5)).toEqual([slot % (output.width / 32) * 32, Math.floor(slot / (output.width / 32)) * 32, 32, 32]);
     }
   } finally { clock.mockRestore(); }
