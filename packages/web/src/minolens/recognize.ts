@@ -91,7 +91,7 @@ const combScore = (prof: Float32Array, p: number, o: number) => {
 };
 
 // refine the size and find the offsets: grid lines should catch more edges than the lines halfway between
-function fitGrid(im: RGBAImage, lum = lumOf(im)) {
+function fitGrid(im: RGBAImage, lum: Float32Array) {
   const p0 = cellSize(im.width, im.height, lum), r = Math.max(0.5, 0.05 * p0);
   const [px, py] = profiles(im, lum);
   let best = { cell: p0, ox: 0, oy: 0, score: -Infinity };
@@ -162,6 +162,7 @@ const MAX_ROWS = 20;
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
 
 type Cell = { id: number; conf: number; light: number };
+type CellColors = { background: number[]; frames: number[][]; dim: number };
 
 const mode = (cs: number[][]) => {
   let best = cs[0], count = -1;
@@ -172,7 +173,7 @@ const mode = (cs: number[][]) => {
   return best;
 };
 
-function classify(im: RGBAImage, ox: number, oy: number, p: number, cols: number, rows: number) {
+function classify(im: RGBAImage, ox: number, oy: number, p: number, cols: number, rows: number, colors?: CellColors) {
   const centres: number[][] = [], rings: number[][] = [];
   for (let j = 0; j < rows; j++)
     for (let i = 0; i < cols; i++) {
@@ -182,9 +183,9 @@ function classify(im: RGBAImage, ox: number, oy: number, p: number, cols: number
       rings.push(sampleCell(im, x, y, p, 0.12, 0.88, 0.27, 0.73));
     }
   // empty colour: most common centre colour in the top half, gravity keeps blocks low
-  const bg = mode(centres.slice(0, Math.max(cols, Math.floor(rows / 2) * cols)));
+  const background = colors?.background ?? mode(centres.slice(0, Math.max(cols, Math.floor(rows / 2) * cols)));
   const cells: Cell[] = centres.map((c, k) => {
-    const d = Math.min(diff(c, bg), diff(rings[k], bg));
+    const d = Math.min(diff(c, background), diff(rings[k], background));
     if (d <= NEAR) return { id: 0, conf: clamp(1 - d / (2 * NEAR)), light: 0 };
     // blocks are about uniform, a centre unlike its ring is a ghost outline or a marker
     const spread = diff(c, rings[k]);
@@ -199,23 +200,28 @@ function classify(im: RGBAImage, ox: number, oy: number, p: number, cols: number
     return { id, conf: Math.min(sure, clamp(margin * chroma / 0.8), clamp(chroma / 0.08)), light };
   });
   // a frame (like the harddrop wiki one) is one colour along a whole row, or down from the top longer than an I piece
-  const frames: number[][] = [];
-  const same = (k: number, prev: number) => cells[k].id > 0 && diff(centres[k], centres[prev]) <= 12;
-  for (let j = 0; j < rows; j++)
-    for (let i = 1, n = 1; i < cols; i++) if ((n = same(j * cols + i, j * cols + i - 1) ? n + 1 : 1) === 10) frames.push(centres[j * cols + i]);
-  for (let i = 0; i < cols && rows > 5; i++) {
-    let j = 1;
-    while (j < rows && cells[i].id > 0 && same(j * cols + i, (j - 1) * cols + i)) j++;
-    if (j > 5) frames.push(centres[i]);
+  const frames: number[][] = colors?.frames ?? [];
+  if (!colors) {
+    const same = (k: number, prev: number) => cells[k].id > 0 && diff(centres[k], centres[prev]) <= 12;
+    for (let j = 0; j < rows; j++)
+      for (let i = 1, n = 1; i < cols; i++) if ((n = same(j * cols + i, j * cols + i - 1) ? n + 1 : 1) === 10) frames.push(centres[j * cols + i]);
+    for (let i = 0; i < cols && rows > 5; i++) {
+      let j = 1;
+      while (j < rows && cells[i].id > 0 && same(j * cols + i, (j - 1) * cols + i)) j++;
+      if (j > 5) frames.push(centres[i]);
+    }
   }
   cells.forEach((c, k) => {
     if (c.id > 0 && frames.some((f) => diff(centres[k], f) <= 12)) [c.id, c.conf] = [0, 0.5];
   });
   // glow and afterimages are saturated but much darker than real blocks
-  const lights = cells.filter((c) => c.id > 0 && c.id < 8).map((c) => c.light).sort((a, b) => a - b);
-  const dim = 0.6 * (lights[lights.length >> 1] ?? 0);
+  let dim = colors?.dim;
+  if (dim === undefined) {
+    const lights = cells.filter((c) => c.id > 0 && c.id < 8).map((c) => c.light).sort((a, b) => a - b);
+    dim = 0.6 * (lights[lights.length >> 1] ?? 0);
+  }
   for (const c of cells) if (c.id > 0 && c.id < 8 && c.light < dim) [c.id, c.conf] = [0, 0.5];
-  return cells;
+  return { cells, colors: { background, frames, dim } };
 }
 
 const result = (cells: Cell[], p: number, bounds: Rect): Recognition => ({
@@ -229,8 +235,24 @@ const result = (cells: Cell[], p: number, bounds: Rect): Recognition => ({
 
 const noBoard = () => result([], 0, { x: 0, y: 0, width: 0, height: 0 });
 
+function hasGridRow(lum: Float32Array, width: number, x: number, y: number, p: number) {
+  const offset = Math.floor(y + p / 2) * width;
+  if (offset < 0 || offset >= lum.length) return false;
+  const edge = (x: number) => {
+    const i = Math.round(x);
+    let peak = 0;
+    for (let j = Math.max(1, i - 2); j <= Math.min(width - 1, i + 2); j++) {
+      peak = Math.max(peak, Math.abs(lum[offset + j] - lum[offset + j - 1]));
+    }
+    return peak;
+  };
+  let lines = 0;
+  for (let i = 1; i < 10; i++) if (edge(x + i * p) - edge(x + (i - 0.5) * p) > 10) lines++;
+  return lines >= 5;
+}
+
 export function recognizeBoard(im: RGBAImage, { bounds }: { bounds?: Rect } = {}): Recognition {
-  if (!bounds) return fitBoard(im);
+  if (!bounds) return fitBoard(im)?.board ?? noBoard();
   const x = Math.max(0, Math.round(bounds.x));
   const y = Math.max(0, Math.round(bounds.y));
   const width = Math.min(im.width, Math.round(bounds.x + bounds.width)) - x;
@@ -243,8 +265,9 @@ export function recognizeBoard(im: RGBAImage, { bounds }: { bounds?: Rect } = {}
     data.set(im.data.subarray(start, start + width * 4), row * width * 4);
   }
   const cropped = { width, height, data };
-  const fitted = fitBoard(cropped, true);
-  if (fitted.cells.some(id => id > 0)) {
+  const colors = fitBoard(im)?.colors;
+  const fitted = fitBoard(cropped, { crop: true, colors })?.board;
+  if (fitted) {
     return { ...fitted, bounds: { ...fitted.bounds, x: fitted.bounds.x + x, y: fitted.bounds.y + y } };
   }
 
@@ -253,13 +276,14 @@ export function recognizeBoard(im: RGBAImage, { bounds }: { bounds?: Rect } = {}
   // a literal crop still needs evidence of a cell edge in each direction
   const [px, py] = profiles(cropped, lumOf(cropped));
   if (combScore(px, p, 0) * 10 < p - 1 || (rows > 1 && combScore(py, p, 0) * rows < p - 1)) return noBoard();
-  const cells = classify(cropped, 0, 0, p, 10, rows);
+  const { cells } = classify(cropped, 0, 0, p, 10, rows, colors);
   if (!cells.some(c => c.id > 0 && c.conf > 0.5)) return noBoard();
   return result(cells, p, { x, y, width, height: rows * p });
 }
 
-function fitBoard(im: RGBAImage, requireFullWidth = false): Recognition {
-  const g = fitGrid(im);
+function fitBoard(im: RGBAImage, { crop = false, colors }: { crop?: boolean; colors?: CellColors } = {}) {
+  const lum = lumOf(im);
+  const g = fitGrid(im, lum);
   const p = g.cell;
   // keep all ten columns of a tight crop, including edge cells clipped near their centres
   const span = 10 * p;
@@ -274,8 +298,9 @@ function fitBoard(im: RGBAImage, requireFullWidth = false): Recognition {
   const nx = tight ? 10 : Math.floor((im.width - g.ox) / p - 0.5) - i0 + 1;
   const ny = Math.floor((im.height - g.oy) / p - 0.5) - j0 + 1;
   const ox = g.ox + i0 * p, oy = g.oy + j0 * p;
-  if (nx < 1 || ny < 1 || (requireFullWidth && (nx < 10 || g.score <= 0))) return noBoard();
-  const cells = classify(im, ox, oy, p, nx, ny);
+  if (nx < 1 || ny < 1 || (crop && (nx < 10 || g.score <= 0))) return;
+  const classified = classify(im, ox, oy, p, nx, ny, colors);
+  const { cells } = classified;
   const filled = (i: number, j: number) => i >= 0 && i < nx && cells[j * nx + i].id > 0;
 
   // the board is the 10 column window holding the most blocks, ties go to the most centred
@@ -292,14 +317,23 @@ function fitBoard(im: RGBAImage, requireFullWidth = false): Recognition {
   };
   let bottom = ny - 1;
   while (bottom > 0 && !rowFilled(bottom)) bottom--;
+  if (crop && !rowFilled(bottom)) return;
   // the visible playfield has at most 20 rows; a gap also separates spawn previews
   let top = bottom;
-  for (let j = bottom, gap = 0; j >= Math.max(0, bottom - MAX_ROWS + 1) && gap < 3; j--) {
+  const first = Math.max(0, bottom - MAX_ROWS + 1);
+  for (let j = bottom, gap = 0; j >= first && gap < 3; j--) {
     if (rowFilled(j)) [top, gap] = [j, 0];
     else gap++;
+  }
+  if (crop) {
+    // distinguish empty playfield rows from margins in a loose selection
+    const gridRow = (j: number) => hasGridRow(lum, im.width, ox + c0 * p, oy + j * p, p);
+    while (bottom + 1 < ny && bottom - top + 1 < MAX_ROWS && gridRow(bottom + 1)) bottom++;
+    while (top > 0 && bottom - top + 1 < MAX_ROWS && !rowFilled(top - 1) && gridRow(top - 1)) top--;
   }
   const out: Cell[] = [];
   for (let j = top; j <= bottom; j++)
     for (let i = c0; i < c0 + 10; i++) out.push(i >= 0 && i < nx ? cells[j * nx + i] : { id: 0, conf: 0, light: 0 });
-  return result(out, p, { x: ox + c0 * p, y: oy + top * p, width: 10 * p, height: (bottom - top + 1) * p });
+  const board = result(out, p, { x: ox + c0 * p, y: oy + top * p, width: 10 * p, height: (bottom - top + 1) * p });
+  return { board, colors: best > 0 ? classified.colors : undefined };
 }

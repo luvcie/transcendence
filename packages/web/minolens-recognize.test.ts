@@ -25,8 +25,32 @@ test.each([
 test("manual crop reads the selected area", () => {
   const first = recognizeBoard(load("harddrop-1"), { bounds: { x: 11, y: 15, width: 274, height: 219 } });
   expect(toEmoji(first.cells, first.cols)).toEqual(expected("harddrop-1"));
-  const second = recognizeBoard(load("youtube-2"), { bounds: { x: 175, y: 100, width: 231, height: 462 } });
-  expect(toEmoji(second.cells, second.cols)).toEqual(expected("youtube-2"));
+});
+
+test.each([
+  { name: "tetrio-panels", rows: 7, x: 125, y: 249, width: 149, height: 109 },
+  { name: "harddrop-1", rows: 4, x: 11, y: 124, width: 274, height: 110 },
+])("bottom crop matches the last $rows rows of $name", ({ name, rows, ...bounds }) => {
+  const image = load(name);
+  const full = recognizeBoard(image);
+  const crop = recognizeBoard(image, { bounds });
+  expect(crop.rows).toBe(rows);
+  expect(crop.cells).toEqual(full.cells.slice(-rows * full.cols));
+});
+
+test.each([
+  { x: 175, y: 100, width: 231, height: 462 },
+  { x: 161, y: 74, width: 260, height: 510 },
+])("keeps the selected empty rows of a 20-row manual crop at $x, $y", bounds => {
+  const image = load("youtube-2");
+  const full = recognizeBoard(image);
+  const crop = recognizeBoard(image, { bounds });
+  const emptyRows = 20 - full.rows;
+  expect(crop.rows).toBe(20);
+  expect(crop.cells.slice(0, emptyRows * crop.cols)).toEqual(new Uint8Array(emptyRows * crop.cols));
+  expect(crop.cells.slice(emptyRows * crop.cols)).toEqual(full.cells);
+  expect(toEmoji(crop.cells, crop.cols, false)).toHaveLength(20);
+  expect(toEmoji(crop.cells, crop.cols, true)).toEqual(expected("youtube-2"));
 });
 
 test.each([

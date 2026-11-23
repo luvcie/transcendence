@@ -358,7 +358,8 @@
       #minolens-crop { display: none; }
       #minolens-crop[aria-pressed=true] { border-color: #22d3ee; background: #163036; }
       #minolens-screenshot-panel:has(#minolens-crop[aria-pressed=true]) #minolens-source { touch-action: none; }
-      #minolens-crop-help span { display: block; }
+      #minolens-crop-help .keyboard { display: block; }
+      #minolens-crop-help .touch { display: none; }
       #minolens-result { grid-area: board; }
       .minolens-panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 30px; }
       :is(#minolens-crop, #minolens-reset) { padding: 5px 8px; border-radius: 4px; min-height: 30px; font-size: 12px; }
@@ -413,12 +414,18 @@
         .minolens-paint-controls { grid-area: paint; }
         #minolens-palette { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 0; }
       }
+      @media (900px <= width <= 1100px) {
+        #minolens-view { --source-height: clamp(220px, var(--board-height) - 74px, 440px); }
+      }
       @media (forced-colors: active) {
         #minolens-view :is(.emoji-cell, .emoji-color)::before { forced-color-adjust: none; }
       }
       @media (any-pointer: coarse) {
         #minolens-crop { display: block; }
-        #minolens-crop-help span { display: none; }
+        #minolens-crop-help :is(.desktop, .keyboard) { display: none; }
+        #minolens-crop-help .touch { display: inline; }
+        #minolens-screenshot-panel:has(#minolens-crop[aria-pressed=true]) #minolens-crop-help .touch { display: none; }
+        #minolens-screenshot-panel:has(#minolens-crop[aria-pressed=true]) #minolens-crop-help .desktop { display: inline; }
       }
       @media (max-width: 663px), (pointer: coarse) {
         .minolens-panel-heading, :is(#minolens-crop, #minolens-reset), #minolens-text summary { min-height: 44px; }
@@ -699,7 +706,7 @@
             <div class="minolens-source-frame">
               <canvas id="minolens-source" tabindex="0" aria-label="Screenshot with detected board" aria-describedby="minolens-crop-help"></canvas>
             </div>
-            <p class="hint" id="minolens-crop-help">Drag a box around the board to crop. <span>Arrows move, Shift + arrows resize, Enter applies.</span></p>
+            <p class="hint" id="minolens-crop-help"><span class="desktop">Drag a box around the board.</span> <span class="touch">Tap Crop, then drag a box around the board.</span> <span class="keyboard">Arrows move, Shift + arrows resize, Enter applies.</span></p>
           </section>
           <section id="minolens-result" aria-labelledby="minolens-result-title">
             <div class="minolens-panel-heading">
@@ -708,7 +715,7 @@
             </div>
             <div class="minolens-correction">
               <div class="minolens-paint-controls">
-                <p class="hint" id="minolens-paint-help">Click or tap a cell to cycle. Pick a color to paint.</p>
+                <p class="hint" id="minolens-paint-help">Click or tap a cell to cycle. Pick a color to paint. Pick it again to cycle.</p>
                 <div id="minolens-palette" role="group" aria-label="Paint color"></div>
               </div>
               <div id="minolens-board" role="group" aria-labelledby="minolens-result-title" aria-description="Use arrow keys to move and Space to change a cell."></div>

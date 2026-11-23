@@ -14,6 +14,7 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
   const toolbar = root.querySelector<HTMLElement>(".minolens-toolbar")!;
   const actions = root.querySelector<HTMLElement>(".minolens-actions")!;
   const cropButton = root.querySelector<HTMLButtonElement>("#minolens-crop")!;
+  const screenshot = root.querySelector<HTMLElement>("#minolens-screenshot-panel")!;
   const source = root.querySelector<HTMLCanvasElement>("#minolens-source")!;
   const ctx = source.getContext("2d");
   const board = root.querySelector<HTMLElement>("#minolens-board")!;
@@ -130,14 +131,28 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     update();
   }
 
-  function recognize(bounds: Rect) {
+  function revealScreenshot() {
+    const viewport = document.defaultView;
+    if (!viewport) return;
+    const panel = screenshot.getBoundingClientRect();
+    const bar = toolbar.getBoundingClientRect();
+    const gap = 8;
+    const topOffset = panel.top - bar.bottom - gap;
+    const bottomOffset = panel.bottom - viewport.innerHeight + gap;
+    if (topOffset < 0) viewport.scrollBy(0, topOffset);
+    else if (bottomOffset > 0) viewport.scrollBy(0, Math.min(bottomOffset, panel.top - bar.height - gap));
+  }
+
+  function recognize(bounds: Rect, touch = false) {
     if (!image) return;
     keyboardCrop = undefined;
     const next = recognizeBoard(image, { bounds });
-    const emojiText = toEmoji(next.cells, next.cols).join("\n");
-    if (typeof parseBoardText(emojiText) === "string") {
+    if (!next.cells.some(id => id !== 0)) {
       message.setAttribute("data-error", "");
-      message.textContent = "Could not read a board in that crop. Drag around the full board and try again.";
+      message.textContent = touch
+        ? "Could not read a board in that crop. Tap Crop, then drag around the full board."
+        : "Could not read a board in that crop. Drag around the full board and try again.";
+      if (touch) revealScreenshot();
       drawSource();
       return;
     }
@@ -248,7 +263,9 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     };
   }
   cropButton.addEventListener("click", () => {
-    cropButton.setAttribute("aria-pressed", String(cropButton.getAttribute("aria-pressed") === "false"));
+    const armed = cropButton.getAttribute("aria-pressed") === "false";
+    cropButton.setAttribute("aria-pressed", String(armed));
+    if (armed) revealScreenshot();
   });
   source.addEventListener("pointerdown", event => {
     if (!event.isPrimary || event.button !== 0) return;
@@ -265,7 +282,7 @@ export function mountMinolens(root: HTMLElement, openEditor: (text: string) => b
     const rect = crop(event);
     if (rect && rect.width >= 20 && rect.height >= 4) {
       cropButton.setAttribute("aria-pressed", "false");
-      recognize(rect);
+      recognize(rect, event.pointerType === "touch");
     }
   });
   source.addEventListener("lostpointercapture", () => {
