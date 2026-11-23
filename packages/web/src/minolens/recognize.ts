@@ -190,6 +190,15 @@ function classify(im: RGBAImage, ox: number, oy: number, p: number, cols: number
     // blocks are about uniform, a centre unlike its ring is a ghost outline or a marker
     const spread = diff(c, rings[k]);
     if (spread > 60) return { id: 0, conf: 0.5, light: 0 };
+    // text banners can cover the centre without filling the cell vertically
+    const x = ox + (k % cols) * p, y = oy + Math.floor(k / cols) * p;
+    for (const offset of [y - 0.3 * p, y + 0.3 * p]) {
+      const first = Math.max(0, Math.round(offset + 0.3 * p));
+      const last = Math.min(im.height, Math.round(offset + 0.7 * p));
+      if (first >= last) continue;
+      const face = sampleCell(im, x, offset, p, 0.3, 0.7);
+      if (diff(face, background) <= NEAR) return { id: 0, conf: 0.5, light: 0 };
+    }
     const [light, chroma, hue] = oklch(c);
     if (chroma < 0.04) {
       const contrast = clamp((d - NEAR) / (NEAR / 2 + spread));

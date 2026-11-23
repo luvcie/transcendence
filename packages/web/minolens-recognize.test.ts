@@ -27,6 +27,18 @@ test("manual crop reads the selected area", () => {
   expect(toEmoji(first.cells, first.cols)).toEqual(expected("harddrop-1"));
 });
 
+test("full-image crop of youtube-1 keeps all 20 playfield rows", () => {
+  const image = load("youtube-1");
+  const automatic = recognizeBoard(image);
+  const tight = recognizeBoard(image, { bounds: { x: 10, y: 1, width: 220, height: 460 } });
+  const loose = recognizeBoard(image, { bounds: { x: 0, y: 0, width: image.width, height: image.height } });
+  const text = toEmoji(loose.cells, loose.cols);
+  expect(toEmoji(loose.cells, loose.cols, false)).toHaveLength(20);
+  expect(loose.cells).toEqual(tight.cells);
+  expect(text).toEqual(toEmoji(automatic.cells, automatic.cols));
+  expect(text).toEqual(expected("youtube-1"));
+});
+
 test.each([
   { name: "tetrio-panels", rows: 7, x: 125, y: 249, width: 149, height: 109 },
   { name: "harddrop-1", rows: 4, x: 11, y: 124, width: 274, height: 110 },
