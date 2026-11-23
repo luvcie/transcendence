@@ -204,6 +204,19 @@ const known = new Set<string>(blocks.map(([emoji]) => emoji));
 const validBoard = (board: unknown) => Array.isArray(board) && board.length <= rows && board.every(row =>
   typeof row === "string" && Array.from(row).length === cols && Array.from(row).every(value => known.has(value)));
 
+export function parseBoardText(text: string): string[] | string {
+  const lines = text.split(/\r\n?|\n/).map(line => line.trim()).filter(Boolean)
+    .map(line => line.replace(/(.)[\uFE0E\uFE0F]/gu, "$1").replace(/[🔲◼]/gu, empty).replaceAll("◻", "⬜"));
+  if (lines.length > rows) return `A board can have at most ${rows} rows.`;
+  if (!lines.length || !validBoard(lines)) return `Each row needs ${cols} board emojis.`;
+  return lines;
+}
+
+export function boardCells(layout: string[]) {
+  const padding = Array<string>((rows - layout.length) * cols).fill(empty);
+  return padding.concat(layout.flatMap(row => [...row]));
+}
+
 // storage can hold anything, so keep only entries that look like what we wrote
 export function parseSavedOpeners(raw: string | null): SavedOpener[] {
   try {
@@ -412,6 +425,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
         return;
       }
       event.preventDefault();
+      if (!play) cell.focus({ preventScroll: true });
       board.setPointerCapture(event.pointerId);
       startStroke(index, "pointer", event.pointerId);
     });
@@ -509,19 +523,8 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     stroke = null;
   });
 
-  function mirrorBoard() {
-    const flipped = cells.map((_, index) => {
-      const value = cells[Math.floor(index / cols) * cols + cols - 1 - index % cols].textContent!;
-      return mirrorPair[value] ?? value;
-    });
-    flipped.forEach((value, index) => paint(index, value));
-  }
-
-  function setBoard(layout: string[]) {
-    const painted = layout.flatMap(row => Array.from(row));
-    const offset = cells.length - painted.length;
-    cells.forEach((_, index) => paint(index, painted[index - offset] ?? empty));
-    if (mirrored) mirrorBoard();
+  function setBoard(layout: string[], flip = mirrored) {
+    boardCells(flip ? mirrorRows(layout) : layout).forEach((value, index) => paint(index, value));
   }
 
   mirror.addEventListener("click", () => {
@@ -530,7 +533,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     if (play) {
       drawn = mirrorRows(drawn);
       play.mirror(drawn);
-    } else mirrorBoard();
+    } else setBoard(boardLines(), true);
     status.textContent = mirrored ? "Mirror mode on." : "Mirror mode off.";
   });
 
@@ -791,6 +794,37 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
 
   copy.addEventListener("click", () => copyRows(0, copy));
   copyHalf.addEventListener("click", () => copyRows(rows / 2, copyHalf));
+  function pasteBoard(text: string) {
+    const parsed = parseBoardText(text);
+    if (typeof parsed === "string") {
+      status.textContent = parsed;
+      return false;
+    }
+    if (sequence.length) {
+      sequence[step] = captureBoard(parsed);
+      draft = true;
+      seqTools.hidden = false;
+      goTo(step);
+      renderSplits();
+    } else setBoard(parsed, false);
+    status.textContent = "Board pasted.";
+    return true;
+  }
+  root.addEventListener("paste", event => {
+    if (root.hidden || play || !(event.target instanceof HTMLElement) ||
+      event.target.closest("input, select, textarea, [contenteditable]")) return;
+    if (pasteBoard(event.clipboardData?.getData("text") ?? "")) event.preventDefault();
+  });
+  root.querySelector("#emoji-paste")!.addEventListener("click", async () => {
+    const original = sequence, originalStep = step;
+    let text: string;
+    try { text = await navigator.clipboard.readText(); }
+    catch {
+      status.textContent = "Could not read the clipboard. Use the paste shortcut in the editor.";
+      return;
+    }
+    if (!root.hidden && !play && sequence === original && step === originalStep) pasteBoard(text);
+  });
   copySeq.addEventListener("click", () => copyMessage(0, copySeq));
   // names repeat across categories, so a repeat gets its category (or id) added to stay unique
   const skinKeys = new Map<string, string>();

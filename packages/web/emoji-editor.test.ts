@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { MINOS, pieceEdges } from "@42tris/core";
-import { arrangeBoards, mirrorRows, parseEmojiMode, parseSavedOpeners } from "./src/emoji-editor";
+import { arrangeBoards, boardCells, mirrorRows, parseBoardText, parseEmojiMode, parseSavedOpeners } from "./src/emoji-editor";
 import { gifSize, tetrominoEdges, timeline } from "./src/emoji-gif";
 
 const row = (emoji: string) => emoji.repeat(10);
@@ -19,6 +19,25 @@ test("boards are split into rows of the given size", () => {
 
 test("mirroring flips a board and swaps S/Z and J/L", () => {
   expect(mirrorRows(["🟦🟦🟦⬛⬛⬛⬛⬛⬛🟩"])).toEqual(["🟥⬛⬛⬛⬛⬛⬛🟧🟧🟧"]);
+});
+
+test("pasted rows keep their order at the bottom of the board", () => {
+  const top = "⬛🟥🟧🟨🟩⬜🟦🟪🟫⬛";
+  const parsed = parseBoardText(`\t${top} \r\n \r\n 🔲◼️◼◻️◻⬛️⬜︎🟫🟦🟨\r`);
+  const bottom = "⬛⬛⬛⬜⬜⬛⬜🟫🟦🟨";
+  expect(parsed).toEqual([top, bottom]);
+  if (typeof parsed === "string") throw new Error(parsed);
+  expect(boardCells(parsed)).toEqual([...row("⬛").repeat(18), ...top, ...bottom]);
+});
+
+test("paste accepts up to 20 rows and rejects malformed boards", () => {
+  const full = Array<string>(20).fill(row("⬛"));
+  expect(parseBoardText(full.join("\n"))).toEqual(full);
+  expect(parseBoardText([...full, row("⬛")].join("\n"))).toContain("at most 20 rows");
+  for (const text of ["", " \n ", "hello", row("🍎"), row("🟫") + "⬛", "⬜".repeat(9),
+    row("⬛") + "\n" + "🟩".repeat(5) + " " + "🟦".repeat(5)]) {
+    expect(typeof parseBoardText(text)).toBe("string");
+  }
 });
 
 test("saved openers ignore anything that is not valid", () => {

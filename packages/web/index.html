@@ -257,7 +257,7 @@
       #emoji-board #emoji-hold { right: calc(100% + 12px); transform: translateX(72px); }
       #emoji-board #emoji-next { left: calc(100% + 12px); transform: translateX(-72px); }
       #emoji-view.playing .emoji-tools { transform: translateX(60px); }
-      #emoji-view.playing :is(#emoji-copy, #emoji-copy-half, #emoji-seq, .emoji-openers, .emoji-custom) { display: none; }
+      #emoji-view.playing :is(#emoji-copy, #emoji-copy-half, #emoji-paste, #emoji-seq, .emoji-openers, .emoji-custom) { display: none; }
       #emoji-view.playing #emoji-board .emoji-side { opacity: 1; transform: none; }
       .emoji-cell.ghost { opacity: .3; }
       #emoji-view.skin-look #emoji-board canvas:not(.emoji-side) { display: block; }
@@ -459,6 +459,7 @@
             <div class="actions emoji-actions">
               <button class="primary" id="emoji-copy" type="button">Copy board</button>
               <button id="emoji-copy-half" type="button" aria-label="Copy bottom 10 rows">Copy bottom 10</button>
+              <button id="emoji-paste" type="button">Paste board</button>
               <button id="emoji-clear" type="button">Clear board</button>
             </div>
             <div id="emoji-seq" hidden>
