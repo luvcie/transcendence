@@ -1,20 +1,20 @@
 import { DEFAULT_HANDLING, FRAME_MS, HANDLING_MAX, validateHandling, type Handling } from "@42tris/core";
 
 const storageKey = "42tris.handling";
-const note = document.querySelector<HTMLParagraphElement>("#storage-note")!;
 
-export function setupGhost(onChange: (enabled: boolean) => void): boolean {
-  const toggle = document.querySelector<HTMLInputElement>("#ghost-preview")!;
+export function setupDisplayToggle(id: string, key: string, onChange: (enabled: boolean) => void): boolean {
+  const toggle = document.querySelector<HTMLInputElement>(id)!;
   const note = document.querySelector<HTMLParagraphElement>("#display-note")!;
   try {
-    toggle.checked = localStorage.getItem("42tris.ghost") !== "false";
+    const saved = localStorage.getItem(key);
+    toggle.checked = toggle.defaultChecked ? saved !== "false" : saved === "true";
   } catch {
     note.textContent = "Saved display settings could not be loaded. Using defaults.";
   }
   toggle.addEventListener("change", () => {
     onChange(toggle.checked);
     try {
-      localStorage.setItem("42tris.ghost", String(toggle.checked));
+      localStorage.setItem(key, String(toggle.checked));
       note.textContent = "Display settings saved on this device.";
     } catch {
       note.textContent = "Display settings apply for this session; browser storage is unavailable.";
@@ -32,12 +32,13 @@ export function loadHandling(): Handling {
       return value;
     }
   } catch {
-    note.textContent = "Saved settings could not be loaded. Using defaults.";
+    document.querySelector<HTMLParagraphElement>("#storage-note")!.textContent = "Saved settings could not be loaded. Using defaults.";
   }
   return { ...DEFAULT_HANDLING };
 }
 
 export function setupHandling(handling: Handling, onChange: (value: Handling) => void): void {
+  const note = document.querySelector<HTMLParagraphElement>("#storage-note")!;
   const container = document.querySelector<HTMLDivElement>("#handling-controls")!;
   const rows: { key: keyof Handling; label: string; help: string }[] = [
     { key: "das", label: "DAS", help: "Delay before a held direction starts repeating." },

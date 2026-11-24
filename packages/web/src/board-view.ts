@@ -1,5 +1,5 @@
 import { ROWS, VISIBLE_ROWS, MINOS, boardEdges, canPlace, cellAt, type GameState } from "@42tris/core";
-import { fitCanvas } from "./canvas-resolution";
+import { fastSkins, fitCanvas } from "./canvas-resolution";
 import type { LoadedSkin } from "./skin-loader";
 import { connectionMask, drawTile, pieceConnections, skinFrame } from "./tile-renderer";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
@@ -7,7 +7,7 @@ import { snapshotDisplay, type GameDisplay } from "./game-display";
 type BoardView = Pick<GameDisplay, "board" | "piece" | "rot" | "x" | "y" | "starting" | "topOut">;
 type BoardPaint = { -readonly [K in Exclude<keyof BoardView, "board">]: BoardView[K] } & {
   board: Uint8Array; edges: Uint8Array; cell: number;
-  skin?: LoadedSkin; frame: number; ghost: boolean;
+  skin?: LoadedSkin; frame: number; ghost: boolean; fast: boolean;
 };
 
 const painted = new WeakMap<HTMLCanvasElement, BoardPaint>();
@@ -45,7 +45,7 @@ export function drawBoard(ctx: CanvasRenderingContext2D, game: BoardView, skin?:
   const frame = skin ? skinFrame(skin) : 0;
   let last = painted.get(canvas);
   if (last && oldWidth === width * cell && oldHeight === VISIBLE_ROWS * cell
-    && last.cell === cell && last.skin === skin && last.frame === frame && last.ghost === ghost
+    && last.cell === cell && last.skin === skin && last.frame === frame && last.ghost === ghost && last.fast === fastSkins
     && last.piece === game.piece && last.rot === game.rot && last.x === game.x && last.y === game.y
     && last.starting === game.starting && last.topOut === game.topOut
     && last.board.length === game.board.length && sameCells(last.board, game.board)
@@ -53,11 +53,11 @@ export function drawBoard(ctx: CanvasRenderingContext2D, game: BoardView, skin?:
   if (!last || last.board.length !== game.board.length) {
     if (!last) canvas.addEventListener?.("contextrestored", forgetBoard);
     last = { board: new Uint8Array(game.board.length), edges: new Uint8Array(game.board.length),
-      cell, skin, frame, ghost, piece: game.piece, rot: game.rot, x: game.x, y: game.y,
+      cell, skin, frame, ghost, fast: fastSkins, piece: game.piece, rot: game.rot, x: game.x, y: game.y,
       starting: game.starting, topOut: game.topOut };
     painted.set(canvas, last);
   }
-  last.cell = cell; last.skin = skin; last.frame = frame; last.ghost = ghost;
+  last.cell = cell; last.skin = skin; last.frame = frame; last.ghost = ghost; last.fast = fastSkins;
   last.piece = game.piece; last.rot = game.rot; last.x = game.x; last.y = game.y;
   last.starting = game.starting; last.topOut = game.topOut;
   last.board.set(game.board);

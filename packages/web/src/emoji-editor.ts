@@ -446,7 +446,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   const observer = new ResizeObserver(redraw);
   observer.observe(board);
   observer.observe(swatches[0][0]);
-  onResolutionChange(redraw);
+  onResolutionChange(() => { swatchSize = 0; redraw(); });
 
   function cellAt(x: number, y: number) {
     const hit = document.elementFromPoint(x, y);

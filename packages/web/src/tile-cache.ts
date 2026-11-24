@@ -39,6 +39,10 @@ export function releaseSkinTiles(skin?: LoadedSkin) {
   if (sizes) for (const atlas of sizes.values()) release(atlas);
 }
 
+export function clearSkinTiles() {
+  for (const page of pages) drop(page);
+}
+
 function newPage(document: Document, atlas: Atlas, size: number) {
   const side = Math.max(1, Math.min(4, Math.floor(1024 / size)));
   const width = side * size, cost = width * width * 4;

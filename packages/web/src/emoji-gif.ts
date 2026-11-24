@@ -42,7 +42,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, board: string[], rows: number,
     if (look === "emoji") {
       if (emoji !== "⬛") ctx.fillText(emoji, (x + .5) * cell, (y + offset + .55) * cell);
     } else if (id) drawTile(ctx, id, x * cell, (y + offset) * cell, cell, look,
-      edges ? connectionMask(edges[y * cols + x]) : 0, false, frame);
+      edges ? connectionMask(edges[y * cols + x]) : 0, false, frame, true);
   }));
 }
 

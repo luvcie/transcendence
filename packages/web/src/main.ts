@@ -9,7 +9,7 @@ import {
   type PieceId,
   type InputId,
 } from "@42tris/core";
-import { loadHandling, setupHandling, setupGhost } from "./settings";
+import { loadHandling, setupDisplayToggle, setupHandling } from "./settings";
 import { ACTIONS, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 import { SkinState } from "./skin-state";
@@ -23,7 +23,7 @@ import { mountVolumeOverlay } from "./volume-overlay";
 import { GameSounds } from "./game-sounds";
 import { withMatchReplaySounds, withSprintReplaySounds, type ReplaySoundOutput } from "./replay-sounds";
 import { drawPiecePreview } from "./tile-renderer";
-import { fitCanvas, pixelRatio } from "./canvas-resolution";
+import { fitCanvas, pixelRatio, setFastSkins } from "./canvas-resolution";
 import { drawBoard } from "./board-view";
 import { mountOnline } from "./online-view";
 import { mountGuestName } from "./guest-name";
@@ -127,7 +127,8 @@ const unlockSounds = () => {
 };
 window.addEventListener("pointerdown", unlockSounds);
 window.addEventListener("keydown", unlockSounds);
-let showGhost = setupGhost(enabled => { showGhost = enabled; });
+let showGhost = setupDisplayToggle("#ghost-preview", "42tris.ghost", enabled => { showGhost = enabled; });
+setFastSkins(setupDisplayToggle("#fast-skins", "42tris.fastSkins", setFastSkins));
 // Zen is selected per game; old preferences no longer control gameplay.
 try { localStorage.removeItem("42tris.zen"); } catch { /* Storage is optional. */ }
 

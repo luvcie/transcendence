@@ -1,8 +1,11 @@
+import { clearSkinTiles } from "./tile-cache";
+
 const sizes = new WeakMap<HTMLCanvasElement, { columns: number; width: number; ratio: number }>();
 let observer: ResizeObserver | undefined;
 let resolution: MediaQueryList | undefined;
 const listeners = new Set<() => void>();
 let ratio = 1;
+export let fastSkins = false;
 
 function watchResolution() {
   const next = window.devicePixelRatio || 1;
@@ -24,9 +27,16 @@ export function onResolutionChange(redraw: () => void) {
   listeners.add(redraw);
 }
 
+export function setFastSkins(enabled: boolean) {
+  if (fastSkins === enabled) return;
+  fastSkins = enabled;
+  if (enabled) clearSkinTiles();
+  listeners.forEach(redraw => redraw());
+}
+
 export function pixelRatio() {
   if (resolution) watchResolution();
-  return ratio;
+  return fastSkins ? 1 : ratio;
 }
 
 export function cellPixels(cssCell: number, ratio: number) {
@@ -51,7 +61,7 @@ export function fitCanvas(canvas: HTMLCanvasElement, columns: number, rows: numb
       size = { columns, width: canvas.getBoundingClientRect().width, ratio };
       sizes.set(canvas, size);
     }
-    if (size.width > 0) cell = cellPixels(size.width / columns, ratio);
+    if (!fastSkins && size.width > 0) cell = cellPixels(size.width / columns, ratio);
   }
   if (canvas.width !== columns * cell) canvas.width = columns * cell;
   if (canvas.height !== rows * cell) canvas.height = rows * cell;

@@ -1,4 +1,5 @@
 import { MINOS, pieceEdges, type PieceId } from "@42tris/core";
+import { fastSkins } from "./canvas-resolution";
 import type { LoadedSkin } from "./skin-loader";
 import { scaledTile } from "./tile-cache";
 import { TETRIO_CONNECTION_ROWS, TETRIO_SKIN_ROWS } from "./tetrio-skins";
@@ -15,7 +16,7 @@ export function skinFrame(skin: LoadedSkin, now = performance.now()): number {
 }
 
 export function drawTile(ctx: CanvasRenderingContext2D, id: number, x: number, y: number,
-  size: number, skin?: LoadedSkin, connections = 0, ghost = false, frame = skin ? skinFrame(skin) : 0) {
+  size: number, skin?: LoadedSkin, connections = 0, ghost = false, frame = skin ? skinFrame(skin) : 0, sharp = !fastSkins) {
   // without the skin's own ghost, ghosts stay flat colors
   if (skin && (!ghost || skin.ghost) && id >= 1 && id <= 8) {
     const row = skin.connected ? TETRIO_CONNECTION_ROWS[connections]
@@ -25,8 +26,8 @@ export function drawTile(ctx: CanvasRenderingContext2D, id: number, x: number, y
     const slot = skin.tiles ? skin.tiles[(frame * TETRIO_SKIN_ROWS + row) * 9 + (ghost ? 8 : id - 1)]
       : row * 9 + (ghost ? 1 : (id + 1) % 9);
     const sx = slot % columns * skin.tile, sy = Math.floor(slot / columns) * skin.tile;
-    const cached = scaledTile(ctx, skin, size, slot, sx, sy);
-    if (ctx.imageSmoothingEnabled) ctx.imageSmoothingEnabled = false;
+    const cached = sharp ? scaledTile(ctx, skin, size, slot, sx, sy) : undefined;
+    if (ctx.imageSmoothingEnabled === sharp) ctx.imageSmoothingEnabled = !sharp;
     if (cached) ctx.drawImage(cached.page.bitmap ?? cached.page.ctx.canvas, cached.x, cached.y, size, size, x, y, size, size);
     else ctx.drawImage(skin.image, sx, sy, skin.tile, skin.tile, x, y, size, size);
   } else {
