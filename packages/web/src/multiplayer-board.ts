@@ -1,4 +1,5 @@
 import type { GameState, PieceId } from "@42tris/core";
+import { fitCanvas } from "./canvas-resolution";
 import { drawSnapshot } from "./board-view";
 import { drawPiecePreview } from "./tile-renderer";
 import type { LoadedSkin } from "./skin-loader";
@@ -45,8 +46,10 @@ export function drawMultiplayerBoard(board: MultiplayerBoard, game: GameState, s
   drawSnapshot(board.canvas.getContext("2d")!, game, skin, ghost);
   const hold = board.hold.getContext("2d")!;
   const next = board.next.getContext("2d")!;
+  const holdCell = fitCanvas(board.hold, 5, 3);
+  const nextCell = fitCanvas(board.next, 5, 15);
   hold.clearRect(0, 0, board.hold.width, board.hold.height);
   next.clearRect(0, 0, board.next.width, board.next.height);
-  if (game.state.held !== null) drawPiecePreview(hold, game.state.held, 30, 150, 90, 0, skin);
-  game.previews.forEach((piece, i) => drawPiecePreview(next, piece as PieceId, 30, 150, 90, i * 90, skin));
+  if (game.state.held !== null) drawPiecePreview(hold, game.state.held, holdCell, board.hold.width, board.hold.height, 0, skin);
+  game.previews.forEach((piece, i) => drawPiecePreview(next, piece as PieceId, nextCell, board.next.width, nextCell * 3, i * nextCell * 3, skin));
 }

@@ -7,6 +7,15 @@ export const TETRIO_GARBAGE_OFFSET = [16, 3];
 export const TETRIO_CONNECTION_ROWS = [12, 15, 0, 3, 13, 14, 1, 2, 8, 11, 4, 7, 9, 10, 5, 6,
   12, 15, 0, 17, 13, 14, 16, 22, 8, 21, 4, 23, 20, 18, 19, 6];
 
+export function tetrioSourceTile(width: number) {
+  return width * 3 / 64 - (width >= 2048 ? 4 : 2);
+}
+
+export function packedTileSize(source: number, frames: number) {
+  // bound the decoded atlas even if every tile is different
+  return Math.min(source, Math.floor(Math.sqrt(64 * 1024 * 1024 / (frames * TETRIO_SKIN_ROWS * 9 * 4))));
+}
+
 function pngSize(value: unknown): [number, number] {
   if (typeof value !== "string" || value.length > MAX_SKIN_EXPORT_BYTES
     || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error("This export does not contain a PNG skin.");
@@ -41,32 +50,26 @@ export function parseTetrioSkin(value: unknown): { image: string; frames: number
   return { image: data.skinAnim as string, frames, delay, ghost };
 }
 
-export async function convertTetrioSkin(image: HTMLImageElement, makeCanvas = () => document.createElement("canvas"), frames = 1,
-  ghost?: HTMLImageElement): Promise<HTMLCanvasElement> {
-  const columns = Math.min(frames, 16), rows = Math.ceil(frames / 16);
-  const width = image.naturalWidth / columns;
-  if (!Number.isInteger(frames) || frames < 1 || frames > 64 || width !== image.naturalHeight / rows
-    || width < 64 || width > 2048 || width % 64) throw new Error("Unsupported TETR.IO+ skin atlas dimensions.");
-  const cell = width * 3 / 64, padding = width >= 2048 ? 2 : 1;
-  const sourceTile = cell - padding * 2, tile = Math.min(sourceTile, 32);
+export function convertTetrioSkin(image: HTMLImageElement, makeCanvas: () => HTMLCanvasElement, ghost?: HTMLImageElement) {
+  const width = image.naturalWidth;
+  if (width !== image.naturalHeight || width < 64 || width > 2048 || width % 64) {
+    throw new Error("Unsupported TETR.IO+ skin atlas dimensions.");
+  }
+  const cell = width * 3 / 64, tile = tetrioSourceTile(width);
+  const padding = (cell - tile) / 2;
   const canvas = makeCanvas();
-  canvas.width = tile * 9 * columns; canvas.height = tile * TETRIO_SKIN_ROWS * rows;
+  canvas.width = tile * 9; canvas.height = tile * TETRIO_SKIN_ROWS;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Skin conversion needs a 2D canvas.");
   ctx.imageSmoothingEnabled = false;
-  for (let frame = 0; frame < frames; frame++) {
-    // Let input and scrolling run between animation frames.
-    if (frame > 0) await new Promise(resolve => setTimeout(resolve, 0));
-    const fx = frame % columns, fy = Math.floor(frame / columns);
-    for (let row = 0; row < TETRIO_SKIN_ROWS; row++) {
-      TETRIO_PIECE_OFFSETS.forEach(([x, y], i) => ctx.drawImage(image,
-        fx * width + (x + row % 4) * cell + padding, fy * width + (y + Math.floor(row / 4)) * cell + padding,
-        sourceTile, sourceTile, (fx * 9 + i + 2) * tile, (fy * TETRIO_SKIN_ROWS + row) * tile, tile, tile));
-      ctx.drawImage(image, fx * width + TETRIO_GARBAGE_OFFSET[0] * cell + padding, fy * width + TETRIO_GARBAGE_OFFSET[1] * cell + padding,
-        sourceTile, sourceTile, fx * 9 * tile, (fy * TETRIO_SKIN_ROWS + row) * tile, tile, tile);
-      if (ghost) ctx.drawImage(ghost, fx * width / 2 + row % 4 * cell + padding, fy * width / 2 + Math.floor(row / 4) * cell + padding,
-        sourceTile, sourceTile, (fx * 9 + 1) * tile, (fy * TETRIO_SKIN_ROWS + row) * tile, tile, tile);
-    }
+  for (let row = 0; row < TETRIO_SKIN_ROWS; row++) {
+    TETRIO_PIECE_OFFSETS.forEach(([x, y], i) => ctx.drawImage(image,
+      (x + row % 4) * cell + padding, (y + Math.floor(row / 4)) * cell + padding,
+      tile, tile, (i + 2) * tile, row * tile, tile, tile));
+    ctx.drawImage(image, TETRIO_GARBAGE_OFFSET[0] * cell + padding, TETRIO_GARBAGE_OFFSET[1] * cell + padding,
+      tile, tile, 0, row * tile, tile, tile);
+    if (ghost) ctx.drawImage(ghost, row % 4 * cell + padding, Math.floor(row / 4) * cell + padding,
+      tile, tile, tile, row * tile, tile, tile);
   }
   return canvas;
 }

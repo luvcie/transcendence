@@ -1,5 +1,7 @@
 import { MINOS, pieceEdges, type PieceId } from "@42tris/core";
+import { fastSkins } from "./canvas-resolution";
 import type { LoadedSkin } from "./skin-loader";
+import { scaledTile } from "./tile-cache";
 import { TETRIO_CONNECTION_ROWS, TETRIO_SKIN_ROWS } from "./tetrio-skins";
 
 export const COLORS = ["", "#ef4444", "#f97316", "#eab308", "#22c55e", "#22d3ee", "#3b82f6", "#a855f7", "#6b7280"];
@@ -14,22 +16,20 @@ export function skinFrame(skin: LoadedSkin, now = performance.now()): number {
 }
 
 export function drawTile(ctx: CanvasRenderingContext2D, id: number, x: number, y: number,
-  size: number, skin?: LoadedSkin, connections = 0, ghost = false, frame = skin ? skinFrame(skin) : 0) {
+  size: number, skin?: LoadedSkin, connections = 0, ghost = false, frame = skin ? skinFrame(skin) : 0, sharp = !fastSkins) {
   // without the skin's own ghost, ghosts stay flat colors
   if (skin && (!ghost || skin.ghost) && id >= 1 && id <= 8) {
     const row = skin.connected ? TETRIO_CONNECTION_ROWS[connections]
       : skin.def.join ? (connections & 8 ? skin.def.join.joined : skin.def.join.open) : 0;
-    if (skin.tiles) {
-      const tile = skin.tiles[(frame * TETRIO_SKIN_ROWS + row) * 9 + (ghost ? 8 : id - 1)];
-      const columns = skin.image.width / skin.tile;
-      ctx.drawImage(skin.image, tile % columns * skin.tile, Math.floor(tile / columns) * skin.tile,
-        skin.tile, skin.tile, x, y, size, size);
-      return;
-    }
-    const columns = Math.min(skin.animation?.frames ?? 1, 16);
+    const columns = skin.tiles ? skin.image.width / skin.tile : 9;
     // sheets keep the jstris order: garbage, ghost, then Z to T
-    ctx.drawImage(skin.image, (frame % columns * 9 + (ghost ? 1 : (id + 1) % 9)) * skin.tile,
-      (Math.floor(frame / columns) * TETRIO_SKIN_ROWS + row) * skin.tile, skin.tile, skin.tile, x, y, size, size);
+    const slot = skin.tiles ? skin.tiles[(frame * TETRIO_SKIN_ROWS + row) * 9 + (ghost ? 8 : id - 1)]
+      : row * 9 + (ghost ? 1 : (id + 1) % 9);
+    const sx = slot % columns * skin.tile, sy = Math.floor(slot / columns) * skin.tile;
+    const cached = sharp ? scaledTile(ctx, skin, size, slot, sx, sy) : undefined;
+    if (ctx.imageSmoothingEnabled === sharp) ctx.imageSmoothingEnabled = !sharp;
+    if (cached) ctx.drawImage(cached.page.bitmap ?? cached.page.ctx.canvas, cached.x, cached.y, size, size, x, y, size, size);
+    else ctx.drawImage(skin.image, sx, sy, skin.tile, skin.tile, x, y, size, size);
   } else {
     ctx.fillStyle = COLORS[id];
     ctx.fillRect(x, y, size, size);
@@ -55,8 +55,8 @@ export function previewLayout(piece: PieceId, width: number, height: number, cel
     minX = Math.min(minX, minos[i]); maxX = Math.max(maxX, minos[i]);
     minY = Math.min(minY, minos[i + 1]); maxY = Math.max(maxY, minos[i + 1]);
   }
-  return { x: (width - (maxX - minX + 1) * cell) / 2 - minX * cell,
-    y: (height - (maxY - minY + 1) * cell) / 2 - minY * cell };
+  return { x: Math.round((width - (maxX - minX + 1) * cell) / 2) - minX * cell,
+    y: Math.round((height - (maxY - minY + 1) * cell) / 2) - minY * cell };
 }
 
 export function drawPiecePreview(ctx: CanvasRenderingContext2D, piece: PieceId, cell: number,

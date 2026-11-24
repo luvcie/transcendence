@@ -5,6 +5,8 @@ import { drawPiecePreview, skinFrame } from "./tile-renderer";
 import { resolveSkin } from "./skin-preferences";
 import { createSettingsGroup, setupSettingsSearch } from "./settings-search";
 import { SKIN_CACHE_LIMIT, type LoadedSkin } from "./skin-loader";
+import { cellPixels, onResolutionChange, pixelRatio } from "./canvas-resolution";
+import { releaseSkinTiles } from "./tile-cache";
 import { createSkinPreviewLoader } from "./skin-preview-loader";
 
 export function setupSkins(state: SkinState, loadPreview = createSkinPreviewLoader(state.load)) {
@@ -18,7 +20,7 @@ export function setupSkins(state: SkinState, loadPreview = createSkinPreviewLoad
   const add = form.querySelector<HTMLButtonElement>("button")!;
   let visible = false;
   let generation = 0;
-  const previews = new Map<Element, (visible: boolean) => void>();
+  const previews = new Map<Element, (visible?: boolean) => void>();
   const retained = new Map<Element, () => boolean>();
   const pending = new Set<() => Promise<void>>();
   let loading = 0;
@@ -31,7 +33,10 @@ export function setupSkins(state: SkinState, loadPreview = createSkinPreviewLoad
     }
   }
   function releasePreview(skin?: LoadedSkin) {
-    if (skin?.preview && "src" in skin.image) skin.image.src = "";
+    if (skin?.preview && "src" in skin.image) {
+      releaseSkinTiles(skin);
+      skin.image.src = "";
+    }
   }
   const observer = typeof IntersectionObserver === "undefined" ? undefined : new IntersectionObserver(entries => {
     for (const entry of entries) previews.get(entry.target)?.(entry.isIntersecting);
@@ -90,22 +95,25 @@ export function setupSkins(state: SkinState, loadPreview = createSkinPreviewLoad
     const canvases: HTMLCanvasElement[] = [];
     for (let piece = 1; piece <= 7; piece++) {
       const canvas = document.createElement("canvas");
-      canvas.width = 136; canvas.height = 80;
+      canvas.width = 0; canvas.height = 0;
       canvases.push(canvas); row.append(canvas);
     }
     const status = document.createElement("p");
     status.className = "hint";
-    const paint = (skin?: Awaited<ReturnType<typeof state.load>>) => {
+    const paint = (skin?: LoadedSkin) => {
+      const ratio = pixelRatio(), cell = cellPixels(16, ratio);
+      const width = cellPixels(68, ratio), height = cellPixels(40, ratio);
       canvases.forEach((canvas, i) => {
-        if (!canvas.width) canvas.width = 136;
+        if (canvas.width !== width) canvas.width = width;
+        if (canvas.height !== height) canvas.height = height;
         const ctx = canvas.getContext("2d")!;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawPiecePreview(ctx, (i + 1) as PieceId, 32, canvas.width, canvas.height, 0, skin);
+        drawPiecePreview(ctx, (i + 1) as PieceId, cell, canvas.width, canvas.height, 0, skin);
       });
     };
     const current = generation;
     let onScreen = false, started = false, ready = false, animated = false, frame = 0, revision = 0, paintedFrame = -1;
-    let previewSkin: Awaited<ReturnType<typeof state.load>>;
+    let previewSkin: LoadedSkin | undefined;
     const remember = () => {
       retained.delete(item);
       retained.set(item, () => {
@@ -114,8 +122,9 @@ export function setupSkins(state: SkinState, loadPreview = createSkinPreviewLoad
         ready = started = false;
         return true;
       });
+      const limit = SKIN_CACHE_LIMIT / Math.max(1, (pixelRatio() / 2) ** 2);
       for (const [item, release] of retained) {
-        if (retained.size <= SKIN_CACHE_LIMIT) break;
+        if (retained.size <= limit) break;
         if (release()) retained.delete(item);
       }
     };
@@ -149,18 +158,19 @@ export function setupSkins(state: SkinState, loadPreview = createSkinPreviewLoad
       if (def.credit) source.append(`Art by ${def.credit}. `);
       source.append(link(def.source, "Source")); item.append(source);
     }
-    const show = (show: boolean) => {
+    const show = (show = onScreen) => {
       onScreen = show;
       cancelAnimationFrame(frame);
-      if (!show) {
+      const resized = canvases[0].width > 0 && canvases[0].width !== cellPixels(68, pixelRatio());
+      if (!onScreen || resized) {
         pending.delete(load);
         revision++; releasePreview(previewSkin); previewSkin = undefined; paintedFrame = -1;
-        if (!ready || current !== generation) {
+        if (!ready || resized || current !== generation) {
           canvases.forEach(canvas => { canvas.width = 0; });
           ready = false; retained.delete(item);
         }
         started = ready && !animated;
-        return;
+        if (!onScreen) return;
       }
       if (ready) remember();
       if (!started) { started = true; pending.add(load); loadPreviews(); }
@@ -196,6 +206,7 @@ export function setupSkins(state: SkinState, loadPreview = createSkinPreviewLoad
     filter();
     refreshSelection();
   }
+  onResolutionChange(() => previews.forEach(show => show()));
   form.addEventListener("submit", event => {
     event.preventDefault();
     if (add.disabled) return;

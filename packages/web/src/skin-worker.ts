@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { fetchExternalFile } from "./external-file";
-import { MAX_SKIN_EXPORT_BYTES, parseTetrioSkin, TETRIO_SKIN_ROWS } from "./tetrio-skins";
+import { MAX_SKIN_EXPORT_BYTES, packedTileSize, parseTetrioSkin, tetrioSourceTile, TETRIO_SKIN_ROWS } from "./tetrio-skins";
 import { drawTetrioFrame, packSkinFrames } from "./skin-atlas";
 import { skinSourceAnimation } from "./skin-animation";
 
@@ -11,9 +11,9 @@ scope.onmessage = async ({ data: url }: MessageEvent<string>) => {
   try {
     let source = await skinSourceAnimation(url);
     let frames = source?.frameEnds.length ?? 0, delay = (source?.frameEnds[0] ?? 0) * 60 / 1000;
-    const pack = async () => {
+    const pack = () => {
       const width = decoder ? source!.width : image!.width / Math.min(frames, 16);
-      const tile = decoder ? Math.min(source!.height, 32) : Math.min(width * 3 / 64 - (width >= 2048 ? 4 : 2), 32);
+      const tile = packedTileSize(decoder ? source!.height : tetrioSourceTile(width), frames);
       return packSkinFrames(frames, async (ctx, frame) => {
         if (!decoder) {
           drawTetrioFrame(ctx, image!, width, frame, frames, tile, ghost);
