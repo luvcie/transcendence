@@ -472,7 +472,7 @@
         .emoji-tools .emoji-color { width: 40px; min-height: 40px; }
         .emoji-tools .actions { margin: 0; }
         #emoji-board-scroll { display: block; grid-area: board; overflow-x: auto; }
-        #emoji-board { width: 100%; padding: 0; container-type: inline-size; }
+        #emoji-board { width: clamp(240px, calc((100svh - 100px) / 2), 100%); margin-inline: auto; padding: 0; container-type: inline-size; }
         .emoji-cell { font-size: 8.8cqw; }
         .emoji-look { grid-area: look; }
         .emoji-import { grid-area: import; }
@@ -480,9 +480,6 @@
         .emoji-play { grid-area: play; }
         .emoji-openers { grid-area: openers; }
         #emoji-status { grid-area: status; margin: 0; }
-      }
-      @media (max-width: 431px) {
-        #emoji-board-scroll { margin-inline: -16px; }
       }
       @media (540px <= width <= 663px) {
         .emoji-layout {
