@@ -6,6 +6,7 @@ import type { GameSounds } from "./game-sounds";
 import type { Action, Keybinds } from "./keybinds";
 import type { LoadedSkin } from "./skin-loader";
 import { Singleplayer } from "./singleplayer";
+import { fitCanvas } from "./canvas-resolution";
 import { drawPiecePreview, previewLayout } from "./tile-renderer";
 
 const cols = 10;
@@ -126,8 +127,8 @@ export function followQueue(game: { previews: Uint8Array; dealt: number }, queue
   for (let i = 0; i < game.previews.length && game.dealt + i < queue.length; i++) game.previews[i] = queue[game.dealt + i];
 }
 
-export function drawQueue(ctx: CanvasRenderingContext2D, pieces: ArrayLike<number>, look: LoadedSkin | undefined | "emoji") {
-  const cell = 30, { width } = ctx.canvas;
+export function drawQueue(ctx: CanvasRenderingContext2D, pieces: ArrayLike<number>, look: LoadedSkin | undefined | "emoji", slots: number) {
+  const cell = fitCanvas(ctx.canvas, 5, slots * 3), { width } = ctx.canvas;
   ctx.clearRect(0, 0, width, ctx.canvas.height);
   for (let slot = 0; slot < pieces.length; slot++) {
     const piece = pieces[slot] as PieceId;

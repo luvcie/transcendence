@@ -6,6 +6,8 @@ import type { GifPlanJob, GifPlanMessage } from "./gif-planner-worker";
 import { BUILTIN_SKINS, customSkin } from "./skin-catalog";
 import { resolveSkin, type SkinPreferences } from "./skin-preferences";
 import type { LoadedSkin } from "./skin-loader";
+import { cellPixels, onResolutionChange, pixelRatio } from "./canvas-resolution";
+import { releaseSkinTiles } from "./tile-cache";
 import { connectionMask, drawTile, skinFrame } from "./tile-renderer";
 import type { Handling } from "@42tris/core";
 import type { Keybinds } from "./keybinds";
@@ -285,10 +287,13 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   const nextCtx = root.querySelector<HTMLCanvasElement>("#emoji-next")!.getContext("2d")!;
   const cells = Array.from({ length: cols * rows }, () => makeButton(empty, "emoji-cell"));
   const canvas = document.createElement("canvas");
-  const swatches: [HTMLButtonElement, number][] = [];
-  let swatchSkin: LoadedSkin | undefined | null = null;
+  const ctx = canvas.getContext("2d")!;
+  const swatches: [HTMLCanvasElement, number][] = [];
+  let swatchSkin: LoadedSkin | undefined;
+  let swatchSize = 0;
   let skin: LoadedSkin | undefined;
   let frameRequest = 0;
+  let paintedFrame = -1;
   let queued = false;
   let selected: string = blocks[0][0];
   let mirrored = false;
@@ -333,44 +338,45 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     }
   }
 
-  function paintSwatches(skin: LoadedSkin | undefined) {
+  function paintSwatches(dpr: number) {
+    const size = cellPixels(swatches[0][0].getBoundingClientRect().width, dpr);
+    if (skin === swatchSkin && size === swatchSize) return;
     swatchSkin = skin;
-    const tile = document.createElement("canvas");
-    tile.width = tile.height = 32;
-    const ctx = tile.getContext("2d")!;
-    for (const [button, id] of swatches) {
-      drawCell(ctx, id, 0, 0, 32, skin, 0);
-      button.style.setProperty("--tile", `url(${tile.toDataURL()})`);
+    swatchSize = size;
+    for (const [tile, id] of swatches) {
+      if (tile.width !== size) tile.width = size;
+      if (tile.height !== size) tile.height = size;
+      drawCell(tile.getContext("2d")!, id, 0, 0, size, skin, 0);
     }
   }
 
-  // the grid stays the source of truth, the canvas only repaints it from the real cell rects
   function draw() {
     if (emojiMode.checked || !board.clientWidth) return;
-    if (skin !== swatchSkin) paintSwatches(skin);
-    const dpr = window.devicePixelRatio || 1;
-    const width = Math.round(board.clientWidth * dpr), height = Math.round(board.clientHeight * dpr);
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-    const ctx = canvas.getContext("2d")!;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, board.clientWidth, board.clientHeight);
-    const frame = skin ? skinFrame(skin) : 0;
-    const origin = board.getBoundingClientRect();
-    // ghosts are not part of the board, they must not join a piece
+    const dpr = pixelRatio();
+    paintSwatches(dpr);
+    const origin = board.getBoundingClientRect(), first = cells[0].getBoundingClientRect();
+    const size = cellPixels(first.width, dpr);
+    const left = Math.round((first.left - origin.left) * dpr), top = Math.round((first.top - origin.top) * dpr);
+    const width = Math.round(origin.width * dpr), height = Math.round(origin.height * dpr);
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+    ctx.clearRect(0, 0, width, height);
+    const frame = paintedFrame = skin ? skinFrame(skin) : 0;
+    // ghosts don't join placed pieces
     const edges = skin?.connected
       ? tetrominoEdges(cells.map(cell => cell.classList.contains("ghost") ? 0 : ids[cell.textContent!] ?? 0)) : undefined;
     cells.forEach((cell, index) => {
-      const rect = cell.getBoundingClientRect();
-      drawCell(ctx, ids[cell.textContent!], rect.left - origin.left, rect.top - origin.top, rect.width, skin, frame,
+      drawCell(ctx, ids[cell.textContent!], left + index % cols * size, top + Math.floor(index / cols) * size, size, skin, frame,
         cell.classList.contains("ghost"), edges ? connectionMask(edges[index]) : 0);
     });
-    if (skin?.animation && !frameRequest) frameRequest = requestAnimationFrame(() => {
-      frameRequest = 0;
-      draw();
-    });
+    if (skin?.animation && !play && !frameRequest) frameRequest = requestAnimationFrame(animateSkin);
+  }
+
+  function animateSkin() {
+    frameRequest = 0;
+    if (!skin?.animation || play || root.hidden || emojiMode.checked) return;
+    if (skinFrame(skin) !== paintedFrame) draw();
+    else frameRequest = requestAnimationFrame(animateSkin);
   }
 
   // paints call this per cell, so batch them into one draw before the next frame
@@ -397,7 +403,10 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
 
   for (const [index, [emoji, name]] of blocks.entries()) {
     const button = makeButton(emoji, "emoji-color");
-    swatches.push([button, ids[emoji]]);
+    const tile = document.createElement("canvas");
+    tile.setAttribute("aria-hidden", "true");
+    button.append(tile);
+    swatches.push([tile, ids[emoji]]);
     button.setAttribute("aria-label", name);
     button.setAttribute("aria-pressed", String(emoji === selected));
     function selectColor() {
@@ -434,7 +443,10 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   });
   board.append(canvas, ...cells);
   mountBoardFocus(board, () => ({ cells: play && !play.paused ? [] : cells, cols }));
-  new ResizeObserver(redraw).observe(board);
+  const observer = new ResizeObserver(redraw);
+  observer.observe(board);
+  observer.observe(swatches[0][0]);
+  onResolutionChange(redraw);
 
   function cellAt(x: number, y: number) {
     const hit = document.elementFromPoint(x, y);
@@ -856,6 +868,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     let loaded: LoadedSkin | undefined;
     try { loaded = await skins.load(def); } catch { /* flat colors until another pick */ }
     if (request !== skinRequest) return;
+    if (skin?.image !== loaded?.image) releaseSkinTiles(skin);
     skin = loaded;
     redraw();
   }
@@ -950,8 +963,8 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
       cells[index].classList.toggle("ghost", ghosts.has(index));
     });
     const look = emojiMode.checked ? "emoji" : skin;
-    drawQueue(holdCtx, run.game.held === null ? [] : [run.game.held], look);
-    drawQueue(nextCtx, run.game.previews, look);
+    drawQueue(holdCtx, run.game.held === null ? [] : [run.game.held], look, 1);
+    drawQueue(nextCtx, run.game.previews, look, 5);
     draw();
   }
 

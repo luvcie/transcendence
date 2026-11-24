@@ -178,6 +178,6 @@ test("the worker validates exports, prepares compact frames, and closes decoded 
     .toMatchObject({ frames: 3, frameEnds: [30, 70, 100], tile: 10, exports: 0, closed: 3, decoderClosed: 1, released: true, ghost: true });
   for (const decoder of ["unsupported", "failed"] as const) {
     expect(await execute(strip, false, decoder)).toMatchObject({ frames: 3, frameEnds: [30, 70, 100],
-      tile: 32, exports: 1, closed: 1, decoderClosed: decoder === "failed" ? 1 : 0, released: true });
+      tile: 46, exports: 1, closed: 1, decoderClosed: decoder === "failed" ? 1 : 0, released: true });
   }
 });

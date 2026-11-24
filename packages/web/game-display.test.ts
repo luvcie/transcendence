@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Game, Input, INITIAL_STATS, type GameState } from "@42tris/core";
+import { boardEdges, Game, Input, INITIAL_STATS, type GameState } from "@42tris/core";
 import { snapshotDisplay } from "./src/game-display";
 import { drawBoard } from "./src/board-view";
 import { drawPiecePreview } from "./src/tile-renderer";
@@ -99,4 +99,22 @@ test("snapshot display draws the same board, flat ghost, hold and next previews 
     expect(actual.calls).toEqual(reference.calls);
   }
   expect(snapshot).toEqual(before);
+});
+
+test("board drawing skips unchanged frames and paints mutable cells and connections", () => {
+  const { ctx, calls } = context();
+  const game = playedGame();
+  const skin = { def: BUILTIN_SKINS[0], tile: 30, image: {} as HTMLCanvasElement, connected: true };
+  const paints = () => calls.filter(call => call[0] === "clear").length;
+  drawBoard(ctx, game, skin);
+  drawBoard(ctx, game, skin);
+  expect(paints()).toBe(1);
+  const last = game.board.length - 1;
+  game.board[last] = 1;
+  drawBoard(ctx, game, skin);
+  boardEdges(game.board)[last] = 1;
+  drawBoard(ctx, game, skin);
+  ctx.canvas.width = 0;
+  drawBoard(ctx, game, skin);
+  expect(paints()).toBe(4);
 });

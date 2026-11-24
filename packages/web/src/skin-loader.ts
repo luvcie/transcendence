@@ -1,7 +1,7 @@
 import type { SkinDef } from "./skin-catalog";
 import { fetchExternalFile } from "./external-file";
 import { isTetrioExportUrl } from "./tetrio-sounds";
-import { convertTetrioSkin, MAX_SKIN_EXPORT_BYTES, parseTetrioSkin } from "./tetrio-skins";
+import { convertTetrioSkin, MAX_SKIN_EXPORT_BYTES, packedTileSize, parseTetrioSkin, tetrioSourceTile } from "./tetrio-skins";
 import { canPrepareSkin, decodePreparedSkin, prepareSkin } from "./skin-worker-client";
 import { drawTetrioFrame, packSkinFrames } from "./skin-atlas";
 import { skinSourceAnimation } from "./skin-animation";
@@ -67,13 +67,15 @@ export function createSkinLoader(makeImage = () => new Image(), timeoutMs = 10_0
         .then(async data => {
           const img = await loadImage(data.image), ghost = data.ghost ? await loadImage(data.ghost) : undefined;
           try {
-            if (data.frames === 1) return { image: await convertTetrioSkin(img, makeCanvas, 1, ghost), connected: true, ghost: !!ghost };
+            if (data.frames === 1) return { image: convertTetrioSkin(img, makeCanvas, ghost), connected: true, ghost: !!ghost };
             const source = await skinSourceAnimation(url, data.frames);
+            const width = img.naturalWidth / Math.min(data.frames, 16);
+            const tile = packedTileSize(tetrioSourceTile(width), data.frames);
             const sheet = await packSkinFrames(data.frames, async (ctx, frame) => {
               if (frame) await new Promise(resolve => setTimeout(resolve, 0));
-              drawTetrioFrame(ctx, img, img.naturalWidth / Math.min(data.frames, 16), frame, data.frames, 32, ghost);
-            }, (width, height) => { const canvas = makeCanvas(); canvas.width = width; canvas.height = height; return canvas; });
-            return { image: sheet.image, tiles: sheet.tiles, tile: sheet.tile, connected: true, ghost: !!ghost,
+              drawTetrioFrame(ctx, img, width, frame, data.frames, tile, ghost);
+            }, (width, height) => { const canvas = makeCanvas(); canvas.width = width; canvas.height = height; return canvas; }, tile);
+            return { ...sheet, connected: true, ghost: !!ghost,
               animation: { frames: data.frames, delay: data.delay, frameEnds: source?.frameEnds } };
           } finally { img.src = ""; if (ghost) ghost.src = ""; }
         })
@@ -95,8 +97,7 @@ export function createSkinLoader(makeImage = () => new Image(), timeoutMs = 10_0
     try {
       const width = "naturalWidth" in img ? img.naturalWidth : img.width;
       const height = "naturalHeight" in img ? img.naturalHeight : img.height;
-      const columns = Math.min(sheet.animation?.frames ?? 1, 16);
-      return { def, ...sheet, tile: sheet.tile ?? sheetTile(width / columns, height, def) };
+      return { def, ...sheet, tile: sheet.tile ?? sheetTile(width, height, def) };
     } catch (error) {
       discard(def.url, request);
       throw error;

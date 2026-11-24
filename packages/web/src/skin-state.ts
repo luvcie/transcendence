@@ -1,3 +1,4 @@
+import { releaseSkinTiles } from "./tile-cache";
 import { customSkin, type SkinDef } from "./skin-catalog";
 import { createSkinLoader, type LoadedSkin } from "./skin-loader";
 import { MAX_CUSTOM_SKINS, parseCustomSkinUrl, parseSkinPreferences, removeCustom, resolveSkin, SKIN_STORAGE_KEY, type SkinPreferences } from "./skin-preferences";
@@ -25,6 +26,7 @@ export class SkinState {
     this.preferences = { ...this.preferences, active };
     const def = resolveSkin(this.preferences);
     this.preferences.active = def.id;
+    releaseSkinTiles(this.loaded);
     this.loaded = undefined;
     if (persist) this.save();
     try {
@@ -45,6 +47,7 @@ export class SkinState {
       if (revision !== this.addRevision) return false;
       ++this.revision;
       this.preferences = { active: `custom:${this.preferences.customs.length}`, customs: [...this.preferences.customs, url] };
+      releaseSkinTiles(this.loaded);
       this.loaded = loaded;
       this.save();
       return true;

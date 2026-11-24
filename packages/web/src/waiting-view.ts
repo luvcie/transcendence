@@ -11,7 +11,7 @@ export function renderOnlineWaiting(document: Document, session: Session): boole
     canvas.setAttribute("aria-label", id === "board" ? "Waiting for a match" : "Empty preview");
     if (id === "board") {
       ctx.fillStyle = "#aaa";
-      ctx.font = "16px monospace";
+      ctx.font = `${16 * canvas.height / 600}px monospace`;
       ctx.textAlign = "center";
       ctx.fillText("Waiting for a match", canvas.width / 2, canvas.height / 2);
     }

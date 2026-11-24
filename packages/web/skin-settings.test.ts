@@ -65,9 +65,9 @@ test("skin previews limit work, retain recent rows, and release older previews",
     expect(draws()).toBe(painted + 28);
     visible(false);
     expect(frames.size).toBe(0);
-    expect(canvases.every(canvas => canvas.width === 136)).toBe(true);
+    expect(canvases.every(canvas => canvas.width === 68)).toBe(true);
     visible(true);
-    expect(canvases.every(canvas => canvas.width === 136)).toBe(true);
+    expect(canvases.every(canvas => canvas.width === 68)).toBe(true);
     expect(draws()).toBe(painted + 28);
     expect(row.children[2].textContent).toBe("");
     expect(pending).toHaveLength(3);
@@ -108,7 +108,7 @@ test("skin previews limit work, retain recent rows, and release older previews",
       intersect([{ target, isIntersecting: false }]);
     }
     expect(standard[0].children[1].children.every(canvas => canvas.width === 0)).toBe(true);
-    expect(standard[96].children[1].children.every(canvas => canvas.width === 136)).toBe(true);
+    expect(standard[96].children[1].children.every(canvas => canvas.width === 68)).toBe(true);
     const loaded = pending.length;
     intersect([{ target: standard[96], isIntersecting: true }]);
     expect(pending).toHaveLength(loaded);

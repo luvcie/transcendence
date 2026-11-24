@@ -5,7 +5,7 @@ import { parseSkinPreferences } from "./src/skin-preferences";
 import { SkinState } from "./src/skin-state";
 import { shareableSkinId, skinDefForId } from "./src/multiplayer-skins";
 import { convertTetrioSkin, MAX_SKIN_EXPORT_BYTES, parseTetrioSkin } from "./src/tetrio-skins";
-import { drawTile, pieceConnections } from "./src/tile-renderer";
+import { drawTile, pieceConnections, skinFrame } from "./src/tile-renderer";
 import { drawTetrioFrame } from "./src/skin-atlas";
 import { drawBoard } from "./src/board-view";
 import { createBoard, Piece, place, ROWS } from "@42tris/core";
@@ -25,10 +25,11 @@ function image(width = 2048, height = width) {
 function canvas() {
   const draws: unknown[][] = [];
   const context = { imageSmoothingEnabled: true, drawImage: (...args: unknown[]) => draws.push(args),
-    clearRect() {}, getImageData: () => ({ data: new Uint8ClampedArray(224 * 768 * 4) }),
-    createImageData: () => ({ data: new Uint8ClampedArray(32 * 32 * 4) }), putImageData() {},
+    clearRect() {}, getImageData: () => ({ data: new Uint8ClampedArray(element.width * element.height * 4) }),
+    createImageData: (width: number, height: number) => ({ data: new Uint8ClampedArray(width * height * 4) }), putImageData() {},
   };
-  return { draws, context, element: { width: 0, height: 0, getContext: () => context } as unknown as HTMLCanvasElement };
+  const element = { width: 0, height: 0, getContext: () => context } as unknown as HTMLCanvasElement;
+  return { draws, context, element };
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -56,11 +57,11 @@ describe("TETR.IO+ skins", () => {
     expect(parseTetrioSkin(animated).ghost).toBe(animated.ghostAnim);
     expect(parseTetrioSkin({ ...animated, ghostAnimMeta: { frames: 11, delay: 30 } }).ghost).toBeUndefined();
   });
-  test("crops the ghost atlas into column 1 for every connection, frame by frame", async () => {
+  test("crops ghost tiles from a static atlas and from an animation's second row", () => {
     const output = canvas();
-    await convertTetrioSkin(image(), () => output.element, 1, image(1024));
+    convertTetrioSkin(image(), () => output.element, image(1024));
     expect(output.draws).toHaveLength(216);
-    expect(output.draws[12 * 9 + 8].slice(1)).toEqual([2, 290, 92, 92, 32, 384, 32, 32]);
+    expect(output.draws[12 * 9 + 8].slice(1)).toEqual([2, 290, 92, 92, 92, 1104, 92, 92]);
     const packed = canvas();
     drawTetrioFrame(packed.context as unknown as CanvasRenderingContext2D, image(16384, 2048), 1024, 17, 22, 32, image(8192, 1024));
     expect(packed.draws).toHaveLength(216);
@@ -84,25 +85,25 @@ describe("TETR.IO+ skins", () => {
     expect(draws).toHaveLength(2);
     expect(fills).toHaveLength(4);
   });
-  test("crops the seven piece colors and the lone garbage tile into the nine-column layout without texture borders", async () => {
+  test("crops the seven piece colors and the lone garbage tile into the nine-column layout without texture borders", () => {
     const atlas = image(), output = canvas();
-    expect(await convertTetrioSkin(atlas, () => output.element)).toBe(output.element);
-    expect([output.element.width, output.element.height]).toEqual([288, 768]);
+    expect(convertTetrioSkin(atlas, () => output.element)).toBe(output.element);
+    expect([output.element.width, output.element.height]).toEqual([828, 2208]);
     expect(output.context.imageSmoothingEnabled).toBe(false);
     expect(output.draws).toHaveLength(192);
     expect(output.draws.slice(96, 104).map(call => call.slice(1))).toEqual([
-      [2, 290, 92, 92, 64, 384, 32, 32], [386, 290, 92, 92, 96, 384, 32, 32],
-      [770, 290, 92, 92, 128, 384, 32, 32], [1154, 290, 92, 92, 160, 384, 32, 32],
-      [2, 866, 92, 92, 192, 384, 32, 32], [386, 866, 92, 92, 224, 384, 32, 32],
-      [770, 866, 92, 92, 256, 384, 32, 32], [1538, 290, 92, 92, 0, 384, 32, 32],
+      [2, 290, 92, 92, 184, 1104, 92, 92], [386, 290, 92, 92, 276, 1104, 92, 92],
+      [770, 290, 92, 92, 368, 1104, 92, 92], [1154, 290, 92, 92, 460, 1104, 92, 92],
+      [2, 866, 92, 92, 552, 1104, 92, 92], [386, 866, 92, 92, 644, 1104, 92, 92],
+      [770, 866, 92, 92, 736, 1104, 92, 92], [1538, 290, 92, 92, 0, 1104, 92, 92],
     ]);
     const small = canvas();
-    await convertTetrioSkin(image(512), () => small.element);
+    convertTetrioSkin(image(512), () => small.element);
     expect([small.element.width, small.element.height]).toEqual([198, 528]);
     expect(small.draws[96].slice(1)).toEqual([1, 73, 22, 22, 44, 264, 22, 22]);
-    await expect(convertTetrioSkin(image(4096), () => small.element)).rejects.toThrow();
+    expect(() => convertTetrioSkin(image(4096), () => small.element)).toThrow();
   });
-  test("validates animation metadata and dimensions, then packs frames while yielding to other tasks", async () => {
+  test("validates animation metadata and dimensions", () => {
     const data = { skin: png(), skinAnim: png(16384, 2048), skinAnimMeta: { frames: 22, delay: 30 } };
     expect(parseTetrioSkin(data)).toEqual({ image: data.skinAnim, frames: 22, delay: 30 });
     for (const meta of [{ frames: 0, delay: 30 }, { frames: 65, delay: 30 }, { frames: 1.5, delay: 30 },
@@ -110,16 +111,6 @@ describe("TETR.IO+ skins", () => {
       expect(() => parseTetrioSkin({ ...data, skinAnimMeta: meta })).toThrow();
     }
     expect(() => parseTetrioSkin({ ...data, skinAnim: png(16384, 1024) })).toThrow("dimensions");
-    const output = canvas();
-    const conversion = convertTetrioSkin(image(16384, 2048), () => output.element, 22);
-    expect(output.draws).toHaveLength(192);
-    let yielded = false;
-    setTimeout(() => { yielded = output.draws.length < 22 * 192; }, 0);
-    await conversion;
-    expect(yielded).toBe(true);
-    expect([output.element.width, output.element.height]).toEqual([4608, 1536]);
-    expect(output.draws).toHaveLength(22 * 192);
-    expect(output.draws[17 * 192].slice(1)).toEqual([1025, 1025, 46, 46, 352, 768, 32, 32]);
   });
   test("distinguishes isolated tiles, straight joins, inner corners, and filled square corners", () => {
     expect(pieceConnections([0, 0], 0)).toBe(0);
@@ -131,19 +122,6 @@ describe("TETR.IO+ skins", () => {
     const ctx = { drawImage: (...args: unknown[]) => output.draws.push(args) } as unknown as CanvasRenderingContext2D;
     for (const mask of [0, 5, 22, 6]) drawTile(ctx, 1, 0, 0, 30, skin, mask);
     expect(output.draws.map(call => call[2])).toEqual([384, 448, 512, 32]);
-  });
-  test("compact atlas preparation keeps every frame, piece, and connection crop", async () => {
-    const atlas = image(16384, 2048), full = canvas();
-    await convertTetrioSkin(atlas, () => full.element, 22);
-    for (const frame of [0, 17, 21]) {
-      const packed = canvas();
-      drawTetrioFrame(packed.context as unknown as CanvasRenderingContext2D, atlas, 1024, frame, 22);
-      expect(packed.draws).toHaveLength(192);
-      packed.draws.forEach((draw, i) => {
-        expect(draw.slice(1, 5)).toEqual(full.draws[frame * 192 + i].slice(1, 5));
-        expect(draw.slice(5)).toEqual([i % 8 * 32, Math.floor(i / 8) * 32, 32, 32]);
-      });
-    }
   });
   test("touching S pieces keep their original tiles instead of creating transparent four-way joins", () => {
     for (const width of [4, 10, 12]) {
@@ -166,22 +144,11 @@ describe("TETR.IO+ skins", () => {
       expect(board).toEqual(before);
     }
   });
-  test("animated tiles select the exported timing and frame grid while ghosts stay flat", () => {
-    const output = canvas(), clock = spyOn(performance, "now").mockReturnValue(8500);
-    const skin: LoadedSkin = { def: customSkin(url, 0), image: output.element, tile: 32, connected: true,
+  test("animation time wraps at the duration from the export", () => {
+    const skin: LoadedSkin = { def: customSkin(url, 0), image: canvas().element, tile: 32,
       animation: { frames: 22, delay: 30 } };
-    const ctx = { fillRect() {}, drawImage: (...args: unknown[]) => output.draws.push(args) } as unknown as CanvasRenderingContext2D;
-    try {
-      drawTile(ctx, 1, 0, 0, 30, skin, 22);
-      expect(output.draws[0].slice(1, 3)).toEqual([352, 1280]);
-      clock.mockReturnValue(11000);
-      drawTile(ctx, 1, 0, 0, 30, skin, 22);
-      expect(output.draws[1].slice(1, 3)).toEqual([64, 512]);
-      drawTile(ctx, 1, 0, 0, 30, skin, 22, true);
-      drawTile(ctx, 8, 0, 0, 30, skin);
-      expect(output.draws).toHaveLength(3);
-      expect(output.draws[2].slice(1, 3)).toEqual([0, 384]);
-    } finally { clock.mockRestore(); }
+    expect(skinFrame(skin, 8500)).toBe(17);
+    expect(skinFrame(skin, 11000)).toBe(0);
   });
   test("catalog skins have creator credits and ids accepted by the existing multiplayer protocol", () => {
     const skins = BUILTIN_SKINS.filter(def => def.url?.includes("/tetrioplus/"));
@@ -214,7 +181,7 @@ describe("TETR.IO+ skins", () => {
       const [a, b] = await Promise.all([first, second]);
       expect(a!.image).toBe(output.element);
       expect(a!.image).toBe(b!.image);
-      expect(a!.tile).toBe(32);
+      expect(a!.tile).toBe(92);
       expect(a!.connected).toBe(true);
       expect(a!.ghost).toBe(false);
       expect(fetch).toHaveBeenCalledTimes(1);
@@ -225,7 +192,7 @@ describe("TETR.IO+ skins", () => {
       const drawn: unknown[][] = [];
       const ctx = { drawImage: (...args: unknown[]) => drawn.push(args) } as unknown as CanvasRenderingContext2D;
       drawTile(ctx, 1, 0, 0, 30, a);
-      expect(drawn[0]).toEqual([output.element, 64, 384, 32, 32, 0, 0, 30, 30]);
+      expect(drawn[0]).toEqual([output.element, 184, 1104, 92, 92, 0, 0, 30, 30]);
     } finally { fetch.mockRestore(); }
   });
   test("an export with a ghost atlas loads it next to the skin and draws ghosts from it", async () => {
@@ -244,7 +211,7 @@ describe("TETR.IO+ skins", () => {
       expect(skin!.ghost).toBe(true);
       const drawn: unknown[][] = [];
       drawTile({ drawImage: (...args: unknown[]) => drawn.push(args) } as unknown as CanvasRenderingContext2D, 1, 0, 0, 30, skin, 0, true);
-      expect(drawn[0].slice(0, 3)).toEqual([output.element, 32, 384]);
+      expect(drawn[0].slice(0, 3)).toEqual([output.element, 92, 1104]);
     } finally { fetch.mockRestore(); }
   });
   test("failed exports are evicted and a corrected link can be retried", async () => {
@@ -257,7 +224,7 @@ describe("TETR.IO+ skins", () => {
       await expect(load(customSkin(url, 0))).rejects.toThrow("2048px");
       const retry = load(customSkin(url, 0));
       const img = await created.promise; img.onload!(new Event("load"));
-      expect((await retry)!.tile).toBe(32);
+      expect((await retry)!.tile).toBe(92);
       expect(fetch).toHaveBeenCalledTimes(2);
     } finally { fetch.mockRestore(); }
   });

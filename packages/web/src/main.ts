@@ -23,6 +23,7 @@ import { mountVolumeOverlay } from "./volume-overlay";
 import { GameSounds } from "./game-sounds";
 import { withMatchReplaySounds, withSprintReplaySounds, type ReplaySoundOutput } from "./replay-sounds";
 import { drawPiecePreview } from "./tile-renderer";
+import { fitCanvas, pixelRatio } from "./canvas-resolution";
 import { drawBoard } from "./board-view";
 import { mountOnline } from "./online-view";
 import { mountGuestName } from "./guest-name";
@@ -723,12 +724,6 @@ function observeSoloSounds(input?: InputId) {
   }
 }
 
-const cell = 30;
-
-function drawPreview(context: CanvasRenderingContext2D, piece: PieceId, slot: number) {
-  drawPiecePreview(context, piece, cell, context.canvas.width, cell * 3, slot * cell * 3, skins.loaded);
-}
-
 function render() {
   if (atHome || competitivePlayback) return;
   if (online && renderOnlineWaiting(document, online.session)) return;
@@ -738,15 +733,17 @@ function render() {
   const ratio = String(width / 10);
   if (style.getPropertyValue("--board-ratio") !== ratio) style.setProperty("--board-ratio", ratio);
   setAttributeIfChanged(canvas, "aria-label", "42tris playfield");
+  const holdCell = fitCanvas(holdCanvas, 5, 3);
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
   setDisabled(holdButton, countdown.active || playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay));
   setAttributeIfChanged(holdCanvas, "aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
-  if (display.held !== null) drawPreview(holdCtx, display.held, 0);
+  if (display.held !== null) drawPiecePreview(holdCtx, display.held, holdCell, holdCanvas.width, holdCanvas.height, 0, skins.loaded);
 
+  const nextCell = fitCanvas(nextCanvas, 5, 15);
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
   let nextLabel = "Next pieces:";
   for (let i = 0; i < display.previews.length; i++) {
-    drawPreview(nextCtx, display.previews[i] as PieceId, i);
+    drawPiecePreview(nextCtx, display.previews[i] as PieceId, nextCell, nextCanvas.width, nextCell * 3, i * nextCell * 3, skins.loaded);
     nextLabel += ` ${LETTERS[display.previews[i]]}`;
   }
   setAttributeIfChanged(nextCanvas, "aria-label", nextLabel);
@@ -777,6 +774,7 @@ const unmountInput = mountGameplayInput(window, {
 });
 
 function frame(now: number) {
+  pixelRatio();
   online?.session.diagnostics?.frame(now);
   replayControls.flushSeek();
   const delta = lastFrameAt === null ? 0 : Math.min(Math.max(0, now - lastFrameAt), 100);

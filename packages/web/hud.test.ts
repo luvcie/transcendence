@@ -5,6 +5,7 @@ import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary } from "./
 import { snapshotDisplay } from "./src/game-display";
 import { SprintPlayback } from "./src/sprint-playback";
 import { sprintRecordingFor, startSprintRecording } from "./src/sprint-recording";
+import { fitCanvas, pixelRatio } from "./src/canvas-resolution";
 import * as domUpdate from "./src/dom-update";
 import { FakeDocument } from "./test-dom";
 
@@ -36,7 +37,7 @@ function harness(mode: "zen" | "sprint" = "sprint") {
     atHome: false, competitivePlayback: null, countdown: { active: false, label: () => null },
     holdCtx: node("hold-preview").context, nextCtx: node("next-preview").context,
     ctx: node("board").context, skins: { loaded: undefined }, showGhost: true,
-    drawPreview() {}, drawBoard() {}, renderOnlineWaiting: () => false,
+    fitCanvas, pixelRatio, drawPiecePreview() {}, drawBoard() {}, renderOnlineWaiting: () => false,
     lastFrameAt: null, frameId: 0, requestAnimationFrame: () => 1,
     replayControls: { flushSeek() {} }, guestName: { update() {} },
     gameSounds: { observe() {} }, observeSoloSounds() {}, restartOnFinesseFault() {},
