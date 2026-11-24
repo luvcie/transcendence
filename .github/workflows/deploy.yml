@@ -1,0 +1,34 @@
+name: Deploy
+
+# manual only, the free antideploy plan has 30 deploys a month
+on: workflow_dispatch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - name: Deploy
+        env:
+          ANTIDEPLOY_KEY: ${{ secrets.ANTIDEPLOY_KEY }}
+        run: |
+          task=$(git archive HEAD | curl -fsS -X POST https://antideploy.com/api/v1/deploy \
+            -H "Authorization: Bearer $ANTIDEPLOY_KEY" \
+            -F "archive=@-" \
+            -F "env=ALLOWED_ORIGINS=https://42tris.antideploy.app" | jq -r .taskId)
+          for i in $(seq 60); do
+            status=$(curl -fsS -H "Authorization: Bearer $ANTIDEPLOY_KEY" \
+              "https://antideploy.com/api/v1/deployments/$task" | jq -r .status)
+            echo "$status"
+            case "$status" in
+              succeeded) exit 0 ;;
+              failed) exit 1 ;;
+            esac
+            sleep 10
+          done
+          exit 1
