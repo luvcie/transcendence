@@ -17,10 +17,16 @@ jobs:
         env:
           ANTIDEPLOY_KEY: ${{ secrets.ANTIDEPLOY_KEY }}
         run: |
-          task=$(git archive HEAD | curl -fsS -X POST https://antideploy.com/api/v1/deploy \
+          code=$(git archive HEAD | curl -sS -o resp.json -w '%{http_code}' -X POST https://antideploy.com/api/v1/deploy \
             -H "Authorization: Bearer $ANTIDEPLOY_KEY" \
             -F "archive=@-" \
-            -F "env=ALLOWED_ORIGINS=https://42tris.antideploy.app" | jq -r .taskId)
+            -F "env=ALLOWED_ORIGINS=https://42tris.antideploy.app")
+          cat resp.json
+          case "$code" in
+            202) task=$(jq -r .taskId resp.json) ;;
+            200) echo "same content as the last deploy, nothing to build"; exit 0 ;;
+            *) exit 1 ;;
+          esac
           for i in $(seq 60); do
             status=$(curl -fsS -H "Authorization: Bearer $ANTIDEPLOY_KEY" \
               "https://antideploy.com/api/v1/deployments/$task" | jq -r .status)
