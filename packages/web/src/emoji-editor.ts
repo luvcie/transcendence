@@ -186,7 +186,7 @@ export function mirrorRows(board: string[]) {
 }
 
 const modeKey = "tetorisueditor.emojiMode";
-export const parseEmojiMode = (raw: string | null) => raw !== "false";
+export const parseEmojiMode = (raw: string | null) => raw === "true";
 
 const skinKey = "tetorisueditor.skin";
 // the editor keeps its own skin and starts from the game's

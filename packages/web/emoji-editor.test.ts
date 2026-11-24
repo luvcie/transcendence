@@ -69,9 +69,9 @@ test("gifSize sizes the canvas from the block size and the tallest board", () =>
   expect(gifSize([["⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛"], Array(4).fill("⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛")], 16)).toEqual({ rows: 4, width: 160, height: 64 });
 });
 
-test("emoji mode is on unless storage explicitly says false", () => {
-  expect(parseEmojiMode("false")).toBe(false);
-  for (const raw of ["true", null, "", "0", "nope"]) expect(parseEmojiMode(raw)).toBe(true);
+test("emoji mode is off unless storage explicitly says true", () => {
+  expect(parseEmojiMode("true")).toBe(true);
+  for (const raw of ["false", null, "", "0", "nope"]) expect(parseEmojiMode(raw)).toBe(false);
 });
 
 // a 10 wide grid from rows of digits, 0 is empty
