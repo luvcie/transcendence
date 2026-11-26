@@ -1,21 +1,24 @@
 import { expect, test } from "bun:test";
-import { Input, Piece, ROWS } from "@42tris/core";
-import { SprintRecorder } from "@42tris/replay";
+import { DEFAULT_HANDLING, Input, Piece, ROWS } from "@42tris/core";
+import { SprintRecorder, verifySprintReplayExecution } from "@42tris/replay";
 import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary } from "./src/singleplayer";
 import { bindGameStats, snapshotDisplay } from "./src/game-display";
 import { SprintPlayback } from "./src/sprint-playback";
 import { sprintRecordingFor, startSprintRecording } from "./src/sprint-recording";
 import { fitCanvas, pixelRatio } from "./src/canvas-resolution";
 import * as domUpdate from "./src/dom-update";
+import { ACTIONS } from "./src/keybinds";
 import { FakeDocument } from "./test-dom";
 import { NetHarness } from "./netplay-harness";
 
 const source = await Bun.file(new URL("./src/main.ts", import.meta.url)).text();
 // Exercise the production functions without starting the app's audio, network or RAF loop.
-function appFunction(name: string, next: string, context: Record<string, unknown>) {
-  const body = source.slice(source.indexOf(`function ${name}(`), source.indexOf(next, source.indexOf(`function ${name}(`)));
+function appFunction<Args extends unknown[] = number[]>(name: string, next: string, context: Record<string, unknown>) {
+  const declaration = source.indexOf(`function ${name}(`);
+  const start = source.lastIndexOf("\n", declaration) + 1;
+  const body = source.slice(start, source.indexOf(next, declaration));
   const js = new Bun.Transpiler({ loader: "ts" }).transformSync(body);
-  return new Function("context", `with (context) { ${js}; return ${name}; }`)(context) as (...args: number[]) => void;
+  return new Function("context", `with (context) { ${js}; return ${name}; }`)(context) as (...args: Args) => void;
 }
 
 function harness(mode: "zen" | "sprint" = "sprint") {
@@ -27,6 +30,7 @@ function harness(mode: "zen" | "sprint" = "sprint") {
     zenStatus: "zen-status", resultPanel: "sprint-result", watchReplayButton: "watch-replay-button",
     navSettingsButton: "nav-settings-button", canvas: "board", holdCanvas: "hold-preview", nextCanvas: "next-preview",
     holdButton: "hold-button", status: "status", countdownOverlay: "sprint-countdown",
+    settingsDialog: "settings-dialog", pauseDialog: "pause-dialog",
   };
   const solo = new Singleplayer(mode, 108, 0);
   const pressed = new Map();
@@ -220,6 +224,52 @@ test("Sprint timer retains millisecond updates and finesse changes after placeme
   expect(h.node("elapsed-time").textContent).toBe("0:01.234");
   run.tick(1335); h.refresh();
   expect(h.node("elapsed-time").textContent).toBe("0:01.235");
+});
+
+test("Sprint keeps its clock running while Settings is open and releases held input", async () => {
+  const h = harness();
+  let now = 0;
+  const context = Object.assign(h.context, {
+    startSprintRecording, seed: undefined, modeRequest: 0, handling: DEFAULT_HANDLING,
+    performance: { now: () => now }, cancelKeyCapture() {},
+    resetOnFinesseFault: false, soundOnFinesseFault: false, finesseSoundOptions: { sprint: { checked: false } },
+    soundedGame: null, soundedResult: null, gameSounds: { reset() {}, observe() {} },
+    music: { release() {} }, stopPlayback() {}, showView() {}, focusView() {}, syncZenMusic() {},
+    inputMount: { ...h.context.inputMount, setTouchBlocked() {} },
+    countdown: { ...h.context.countdown, cancel() {} },
+    activePlayback: () => null, settingsFromMenu: false, ACTIONS,
+  });
+  const launch = appFunction<["sprint", boolean]>("launchMode", "\nfunction restart()", context);
+  await launch("sprint", false);
+  Object.assign(context, {
+    restartOnFinesseFault: () => false,
+    releaseSoloControls: appFunction("releaseSoloControls", "\nfunction focusView", context),
+    resume: appFunction("resume", "\nlet settingsFromMenu", context),
+  });
+  const open = appFunction<[boolean]>("openSettings", "\nfunction closeSettings", context);
+  const close = appFunction("closeSettings", "\nasync function launchMode", context);
+  h.node("nav-settings-button").addEventListener("click", () => open(false));
+  const run = context.solo as SprintRecorder;
+  expect(h.node("nav-settings-button").disabled).toBe(false);
+  run.apply(Input.LeftDown, ++now);
+  context.pressed.set("ArrowLeft", "left");
+  h.node("nav-settings-button").dispatchEvent(new Event("click"));
+  expect(h.node("settings-dialog").open).toBe(true);
+  expect(context.pressed.size).toBe(0);
+  expect(run.paused).toBe(false);
+  now += 3000;
+  h.frame(now);
+  expect(h.node("elapsed-time").textContent).toBe("0:03.000");
+  close();
+  expect(h.node("settings-dialog").open).toBe(false);
+  for (let i = 0; !run.result && i < 30; i++) run.apply(Input.HardDrop, ++now);
+  expect(run.result!.elapsedMs).toBe(now - 1);
+  const replay = await run.finish();
+  const verified = await verifySprintReplayExecution(replay!);
+  expect(verified.result).toEqual(run.result!);
+  const ops = replay!.records.map(record => record.op);
+  expect(ops).toContainEqual({ type: "input", atMs: 1, input: Input.LeftUp });
+  expect(ops.some(op => op.type === "pause")).toBe(false);
 });
 
 test("restart and Zen/Sprint switching reset statistics, timer and visibility", () => {

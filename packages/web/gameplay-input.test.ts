@@ -98,6 +98,26 @@ test("browser Ctrl/Meta shortcuts pass through while undo and standalone modifie
   unmount();
 });
 
+test("restart key retries from the result screen but other keys stay blocked", () => {
+  const target = new EventTarget();
+  const inputs: number[] = [];
+  let restarts = 0, result = true;
+  const unmount = mountGameplayInput(target, {
+    bindings: structuredClone(DEFAULT_KEYBINDS), pressed: new Map(), editable: () => false,
+    blocked: action => !result || action !== "restart", settingsOpen: () => false, starting: () => false,
+    menu() {}, undo() {}, restart() { restarts++; }, input: input => { inputs.push(input); }, lateRelease() {},
+  });
+  const key = (key: string, code: string) => target.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { key, code }));
+  key(" ", "Space");
+  expect(inputs).toEqual([]);
+  key("r", "KeyR");
+  expect(restarts).toBe(1);
+  result = false;
+  key("r", "KeyR");
+  expect(restarts).toBe(1);
+  unmount();
+});
+
 test("replay isolation blocks gameplay, undo and restart and restores input after exit", () => {
   const target = new EventTarget();
   const game = new Game(1);

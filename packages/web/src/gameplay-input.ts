@@ -8,7 +8,7 @@ export function mountGameplayInput(target: EventTarget & { readonly innerWidth?:
   bindings: Keybinds;
   pressed?: Map<string, Action>;
   editable(target: EventTarget | null): boolean;
-  blocked(action?: "undo"): boolean;
+  blocked(action?: "restart" | "undo"): boolean;
   settingsOpen(): boolean;
   starting(): boolean;
   menu(): void;
@@ -58,7 +58,7 @@ export function mountGameplayInput(target: EventTarget & { readonly innerWidth?:
       if (!e.repeat && !e.isComposing) options.menu();
       return;
     }
-    if (options.blocked() || !action || action === "pause") return;
+    if (!action || action === "pause" || options.blocked(action === "restart" ? action : undefined)) return;
     e.preventDefault();
     if (e.repeat || e.isComposing || pressed.has(e.code)) return;
     if (action === "restart") { options.restart(); return; }
