@@ -1,16 +1,48 @@
 import type { SkinDef } from "./skin-catalog";
-import { fetchExternalFile } from "./external-file";
 import { isTetrioExportUrl } from "./tetrio-sounds";
-import { convertTetrioSkin, MAX_SKIN_EXPORT_BYTES, packedTileSize, parseTetrioSkin, tetrioSourceTile } from "./tetrio-skins";
+import { convertTetrioSkin, MAX_SKIN_EXPORT_BYTES, packedTileSize, tetrioSourceTile } from "./tetrio-skins";
 import { canPrepareSkin, decodePreparedSkin, prepareSkin } from "./skin-worker-client";
 import { drawTetrioFrame, packSkinFrames } from "./skin-atlas";
 import { skinSourceAnimation } from "./skin-animation";
+import { loadSkinExport, skinAnimations, skinFiles } from "./skin-files";
 
 type SkinImage = HTMLImageElement | HTMLCanvasElement;
 interface SkinSheet { image: SkinImage; connected?: boolean; ghost?: boolean; preview?: boolean; tiles?: Uint16Array; tile?: number; animation?: { frames: number; delay: number; frameEnds?: number[] } }
 export interface LoadedSkin extends SkinSheet { def: SkinDef; tile: number }
+export type SkinLoad = ((def: SkinDef) => Promise<LoadedSkin | undefined>) & { forget?: (url: string) => void };
 export const SKIN_CACHE_LIMIT = 96;
-export const SKIN_CACHE_BYTES = 64 * 1024 * 1024;
+const SKIN_CACHE_BYTES = 64 * 1024 * 1024;
+
+export class SkinCache<T> {
+  private entries = new Map<string, { request: Promise<T>; bytes?: number }>();
+
+  constructor(private maxBytes: number, private sizeOf: (value: T) => number) {}
+
+  load(key: string, prepare: () => Promise<T>): Promise<T> {
+    const cached = this.entries.get(key);
+    if (cached) {
+      this.entries.delete(key);
+      this.entries.set(key, cached);
+      return cached.request;
+    }
+    const entry: { request: Promise<T>; bytes?: number } = { request: prepare() };
+    this.entries.set(key, entry);
+    void entry.request.then(value => {
+      entry.bytes = this.sizeOf(value);
+      let settled = 0, bytes = 0;
+      for (const item of this.entries.values()) if (item.bytes !== undefined) { settled++; bytes += item.bytes; }
+      for (const [key, item] of this.entries) {
+        if (settled <= SKIN_CACHE_LIMIT && bytes <= this.maxBytes) break;
+        if (item.bytes !== undefined) { this.entries.delete(key); settled--; bytes -= item.bytes; }
+      }
+    }, () => this.forget(key, entry.request));
+    return entry.request;
+  }
+
+  forget(key: string, request?: Promise<T>) {
+    if (!request || this.entries.get(key)?.request === request) this.entries.delete(key);
+  }
+}
 
 export function sheetTile(width: number, height: number, def: SkinDef): number {
   const tile = def.tile || width / 9;
@@ -22,20 +54,11 @@ export function sheetTile(width: number, height: number, def: SkinDef): number {
   return tile;
 }
 
-export function createSkinLoader(makeImage = () => new Image(), timeoutMs = 10_000, makeCanvas = () => document.createElement("canvas")) {
-  const images = new Map<string, { request: Promise<SkinSheet>; pending: boolean; bytes: number }>();
-  function discard(url: string, request: Promise<SkinSheet>) {
-    if (images.get(url)?.request === request) images.delete(url);
-  }
-  function trim() {
-    let settled = 0, bytes = 0;
-    for (const entry of images.values()) if (!entry.pending) { settled++; bytes += entry.bytes; }
-    for (const [url, entry] of images) {
-      if (settled <= SKIN_CACHE_LIMIT && bytes <= SKIN_CACHE_BYTES) break;
-      // In-flight entries remain available for deduplication until they settle.
-      if (!entry.pending) { images.delete(url); settled--; bytes -= entry.bytes; }
-    }
-  }
+export function createSkinLoader(makeImage = () => new Image(), timeoutMs = 10_000, makeCanvas = () => document.createElement("canvas")): SkinLoad {
+  const images = new SkinCache<SkinSheet>(SKIN_CACHE_BYTES, ({ image, tiles }) => {
+    const pixels = "naturalWidth" in image ? image.naturalWidth * image.naturalHeight : image.width * image.height;
+    return pixels * 4 + (tiles?.byteLength ?? 0);
+  });
   function loadImage(url: string): Promise<HTMLImageElement> {
     return new Promise<HTMLImageElement>((resolve, reject) => {
       const img = makeImage();
@@ -53,54 +76,56 @@ export function createSkinLoader(makeImage = () => new Image(), timeoutMs = 10_0
       img.src = url;
     }).then(async img => { await img.decode?.(); return img; });
   }
-  function image(url: string): Promise<SkinSheet> {
-    const cached = images.get(url);
-    if (cached) {
-      images.delete(url);
-      images.set(url, cached);
-      return cached.request;
+  function requestSheet(url: string, def: SkinDef, custom: boolean): Promise<SkinSheet> {
+    if (!isTetrioExportUrl(url)) {
+      if (!custom) return loadImage(url).then(image => ({ image, ghost: true }));
+      return skinFiles.load(url, MAX_SKIN_EXPORT_BYTES, undefined, async ({ bytes, type }) => {
+        const local = URL.createObjectURL(new Blob([bytes], { type }));
+        try {
+          const image = await loadImage(local + new URL(url).hash);
+          sheetTile(image.naturalWidth, image.naturalHeight, def);
+          return { image, ghost: true };
+        } finally { URL.revokeObjectURL(local); }
+      }, timeoutMs);
     }
-    const request: Promise<SkinSheet> = isTetrioExportUrl(url)
-      ? canPrepareSkin() ? prepareSkin(url).then(decodePreparedSkin)
-      : fetchExternalFile(url, MAX_SKIN_EXPORT_BYTES, new AbortController().signal, timeoutMs)
-        .then(bytes => parseTetrioSkin(JSON.parse(new TextDecoder().decode(bytes))))
-        .then(async data => {
-          const img = await loadImage(data.image), ghost = data.ghost ? await loadImage(data.ghost) : undefined;
-          try {
-            if (data.frames === 1) return { image: convertTetrioSkin(img, makeCanvas, ghost), connected: true, ghost: !!ghost };
-            const source = await skinSourceAnimation(url, data.frames);
-            const width = img.naturalWidth / Math.min(data.frames, 16);
-            const tile = packedTileSize(tetrioSourceTile(width), data.frames);
-            const sheet = await packSkinFrames(data.frames, async (ctx, frame) => {
-              if (frame) await new Promise(resolve => setTimeout(resolve, 0));
-              drawTetrioFrame(ctx, img, width, frame, data.frames, tile, ghost);
-            }, (width, height) => { const canvas = makeCanvas(); canvas.width = width; canvas.height = height; return canvas; }, tile);
-            return { ...sheet, connected: true, ghost: !!ghost,
-              animation: { frames: data.frames, delay: data.delay, frameEnds: source?.frameEnds } };
-          } finally { img.src = ""; if (ghost) ghost.src = ""; }
-        })
-      // nine-column sheets always carry a ghost in column 1
-      : loadImage(url).then(image => ({ image, ghost: true }));
-    const entry = { request, pending: true, bytes: 0 };
-    images.set(url, entry);
-    void request.then(({ image, tiles }) => {
-      entry.pending = false;
-      entry.bytes = ("naturalWidth" in image ? image.naturalWidth * image.naturalHeight : image.width * image.height) * 4 + (tiles?.byteLength ?? 0);
-      trim();
-    }, () => discard(url, request));
-    return request;
+    if (canPrepareSkin()) {
+      return prepareSkin(url, custom).then(prepared => decodePreparedSkin(prepared).catch(async error => {
+        if (custom) await Promise.all([skinFiles.remove(url), skinAnimations.remove(url)]);
+        throw error;
+      }));
+    }
+    return loadSkinExport(url, custom, timeoutMs, async data => {
+      const img = await loadImage(data.image);
+      let ghost: HTMLImageElement | undefined;
+      try {
+        if (data.ghost) ghost = await loadImage(data.ghost);
+        if (data.frames === 1) return { image: convertTetrioSkin(img, makeCanvas, ghost), connected: true, ghost: !!ghost };
+        const source = await skinSourceAnimation(url, data.frames, custom);
+        const width = img.naturalWidth / Math.min(data.frames, 16);
+        const tile = packedTileSize(tetrioSourceTile(width), data.frames);
+        const sheet = await packSkinFrames(data.frames, async (ctx, frame) => {
+          if (frame) await new Promise(resolve => setTimeout(resolve, 0));
+          drawTetrioFrame(ctx, img, width, frame, data.frames, tile, ghost);
+        }, (width, height) => { const canvas = makeCanvas(); canvas.width = width; canvas.height = height; return canvas; }, tile);
+        return { ...sheet, connected: true, ghost: !!ghost,
+          animation: { frames: data.frames, delay: data.delay, frameEnds: source?.frameEnds } };
+      } finally { img.src = ""; if (ghost) ghost.src = ""; }
+    });
   }
-  return async (def: SkinDef): Promise<LoadedSkin | undefined> => {
+  const load = async (def: SkinDef): Promise<LoadedSkin | undefined> => {
     if (!def.url) return;
-    const request = image(def.url);
+    const url = def.url, custom = def.id.startsWith("custom:"), key = custom ? `custom:${url}` : url;
+    const request = images.load(key, () => requestSheet(url, def, custom));
     const sheet = await request, img = sheet.image;
     try {
       const width = "naturalWidth" in img ? img.naturalWidth : img.width;
       const height = "naturalHeight" in img ? img.naturalHeight : img.height;
       return { def, ...sheet, tile: sheet.tile ?? sheetTile(width, height, def) };
     } catch (error) {
-      discard(def.url, request);
+      images.forget(key, request);
+      if (custom) await skinFiles.remove(url);
       throw error;
     }
   };
+  return Object.assign(load, { forget: (url: string) => images.forget(`custom:${url}`) });
 }

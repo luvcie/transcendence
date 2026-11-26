@@ -16,13 +16,14 @@ export interface SoundPack extends Partial<Record<SoundEvent, string>> {
   specialScoring?: Record<string, SpecialSound[]>;
 }
 export const MAX_PACK_LENGTH = 65536;
+export const MAX_SOUND_CLIPS = 256;
 
 export function soundUrl(value: unknown): string {
   if (typeof value !== "string" || value.length > 2048) throw new Error("Use HTTPS links for pack files and audio clips.");
   try {
     const url = new URL(value.trim());
     if (url.protocol === "https:" && !url.username && !url.password && url.href.length <= 2048) return url.href;
-  } catch { /* Report invalid user input below. */ }
+  } catch {}
   throw new Error("Use HTTPS links for pack files and audio clips, without credentials.");
 }
 function record(value: unknown): Record<string, unknown> {
@@ -82,7 +83,7 @@ export function parseSoundPack(value: unknown): SoundPack {
   }
   const count = soundUrls(pack).length;
   if (count === 0 && !pack.tetrioPlus) throw new Error("Add at least one audio link to this pack.");
-  if (count > 256) throw new Error("Use at most 256 different audio clips per pack.");
+  if (count > MAX_SOUND_CLIPS) throw new Error("Use at most 256 different audio clips per pack.");
   return pack;
 }
 

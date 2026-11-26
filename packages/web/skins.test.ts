@@ -1,10 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { MINOS, Piece, type PieceId } from "@42tris/core";
 import { BUILTIN_SKINS, CLASSIC, customSkin, TETRIO_SKIN_DATABASE } from "./src/skin-catalog";
 import { createSkinLoader, sheetTile, SKIN_CACHE_LIMIT, type LoadedSkin } from "./src/skin-loader";
 import { parseCustomSkinUrl, parseSkinPreferences, removeCustom } from "./src/skin-preferences";
 import { SkinState } from "./src/skin-state";
 import { COLORS, drawTile, pieceConnections, previewLayout } from "./src/tile-renderer";
+import { fakeFileCache } from "./test-file-cache";
 
 const a = "https://example.com/a.png", b = "https://example.com/b.png";
 const four = BUILTIN_SKINS.find(def => def.id === "four")!;
@@ -153,9 +154,10 @@ describe("image loader", () => {
     const images: HTMLImageElement[] = [];
     const load = createSkinLoader(() => { const img = fakeImage(); images.push(img); return img; });
     const pending = load(four);
+    const def = (i: number) => ({ ...four, url: `${a}?${i}` });
     let active: LoadedSkin | undefined;
     for (let i = 0; i <= SKIN_CACHE_LIMIT; i++) {
-      const request = load(customSkin(`${a}?${i}`, i));
+      const request = load(def(i));
       images.at(-1)!.onload!(new Event("load"));
       const result = await request;
       if (i === 0) active = result;
@@ -167,9 +169,9 @@ describe("image loader", () => {
     expect((await pending)!.image).toBe((await shared)!.image);
     expect(active!.image.src).toBe(`${a}?0`);
     expect(active!.image.naturalWidth).toBe(288);
-    await load(customSkin(`${a}?${SKIN_CACHE_LIMIT}`, 0));
+    await load(def(SKIN_CACHE_LIMIT));
     expect(images).toHaveLength(count);
-    const evicted = load(customSkin(`${a}?0`, 0));
+    const evicted = load(def(0));
     expect(images).toHaveLength(count + 1);
     images.at(-1)!.onload!(new Event("load"));
     expect((await evicted)!.image).not.toBe(active!.image);
@@ -188,14 +190,15 @@ describe("image loader", () => {
   test("the decoded byte budget evicts large sheets before reaching the entry limit", async () => {
     const images: HTMLImageElement[] = [];
     const load = createSkinLoader(() => { const img = { ...fakeImage(), naturalWidth: 4608, naturalHeight: 512 }; images.push(img); return img; });
+    const def = (i: number) => ({ ...CLASSIC, url: `${a}?${i}` });
     for (let i = 0; i < 8; i++) {
-      const pending = load(customSkin(`${a}?${i}`, i));
+      const pending = load(def(i));
       images.at(-1)!.onload!(new Event("load"));
       await pending;
     }
-    await load(customSkin(`${a}?7`, 0));
+    await load(def(7));
     expect(images).toHaveLength(8);
-    const evicted = load(customSkin(`${a}?0`, 0));
+    const evicted = load(def(0));
     expect(images).toHaveLength(9);
     images.at(-1)!.onload!(new Event("load"));
     expect((await evicted)!.tile).toBe(512);
@@ -225,6 +228,91 @@ describe("image loader", () => {
 });
 
 describe("selection and persistence races", () => {
+  test("restores custom images from disk and removes only the deleted URL", async () => {
+    const cache = fakeFileCache(), store = storage();
+    const fetch = spyOn(globalThis, "fetch").mockImplementation(async () => new Response("png", { headers: { "Content-Type": "image/png" } }));
+    const state = (valid = true) => new SkinState(() => store, createSkinLoader(() => {
+      const img = fakeImage();
+      if (!valid) Object.defineProperty(img, "naturalWidth", { value: 287 });
+      queueMicrotask(() => img.onload!(new Event("load")));
+      return img;
+    }));
+    try {
+      const first = state();
+      expect(await first.add(a)).toBe(true);
+      expect(await first.add(b)).toBe(true);
+      expect(fetch.mock.calls[0][1]).toMatchObject({ credentials: "omit", referrerPolicy: "no-referrer" });
+      const restored = state();
+      await restored.select("custom:0", false);
+      expect(restored.loaded?.tile).toBe(32);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      await restored.remove(0);
+      expect(cache.has(a)).toBe(false);
+      expect(cache.has(b)).toBe(true);
+      expect(await restored.add(a)).toBe(true);
+      expect(fetch).toHaveBeenCalledTimes(3);
+      const invalid = state(false);
+      await invalid.select("custom:1", false);
+      expect(invalid.message).toContain("nine equal");
+      expect(cache.has(a)).toBe(false);
+      expect(cache.has(b)).toBe(true);
+      expect(fetch).toHaveBeenCalledTimes(3);
+    } finally { fetch.mockRestore(); cache.restore(); }
+  });
+  test("a stale tab's failed add preserves saved and still-pending skin downloads", async () => {
+    const cache = fakeFileCache(), store = storage();
+    const missing = "https://example.com/missing.png";
+    const fetch = spyOn(globalThis, "fetch").mockImplementation(async url =>
+      url === missing ? new Response(null, { status: 404 }) : new Response("png"));
+    const loader = () => createSkinLoader(() => {
+      const img = fakeImage();
+      queueMicrotask(() => img.onload!(new Event("load")));
+      return img;
+    });
+    const cached = deferred<void>(), finish = deferred<void>();
+    const load = loader();
+    const stale = new SkinState(() => store, loader());
+    const first = new SkinState(() => store, async def => {
+      const skin = await load(def);
+      if (def.url === b) {
+        cached.resolve();
+        await finish.promise;
+      }
+      return skin;
+    });
+    try {
+      expect(await first.add(a)).toBe(true);
+      expect(await stale.add(missing)).toBe(false);
+      expect(cache.has(a)).toBe(true);
+
+      const adding = first.add(b);
+      await cached.promise;
+      expect(await stale.add(missing)).toBe(false);
+      expect(cache.has(a)).toBe(true);
+      expect(cache.has(b)).toBe(true);
+      finish.resolve();
+      expect(await adding).toBe(true);
+
+      const restored = new SkinState(() => store, loader());
+      await restored.select("custom:1", false);
+      expect(restored.loaded?.def.url).toBe(b);
+      expect(fetch).toHaveBeenCalledTimes(4);
+    } finally { finish.resolve(); fetch.mockRestore(); cache.restore(); }
+  });
+  test("stale tabs merge additions and remove by URL after indexes shift", async () => {
+    const saved = storage();
+    const state = () => new SkinState(() => saved, async def => loaded(def));
+    const first = state(), second = state(), third = "https://other.test/third.png";
+    expect(await first.add(a)).toBe(true);
+    expect(await second.add(b)).toBe(true);
+    expect(state().preferences).toEqual({ active: "custom:1", customs: [a, b] });
+    await first.remove(0);
+    expect(await first.add(third)).toBe(true);
+    await second.select("custom:1");
+    expect(state().preferences).toEqual({ active: "custom:0", customs: [b, third] });
+    await second.remove(1);
+    expect(state().preferences).toEqual({ active: "classic", customs: [third] });
+  });
   test("late success and failure cannot overwrite a newer selection", async () => {
     const old = deferred<LoadedSkin | undefined>();
     const store = storage();
@@ -298,7 +386,8 @@ describe("selection and persistence races", () => {
     expect(state.loaded!.def.id).toBe("four");
   });
   test("custom additions reject duplicates and enforce the 12-link cap", async () => {
-    const state = new SkinState(storage, async def => loaded(def));
+    const saved = storage();
+    const state = new SkinState(() => saved, async def => loaded(def));
     expect(await state.add(a)).toBe(true);
     expect(await state.add(a)).toBe(false);
     for (let i = 1; i < 12; i++) expect(await state.add(a + i)).toBe(true);

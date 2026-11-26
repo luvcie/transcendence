@@ -1,8 +1,8 @@
 import { BUILTIN_SKINS, CLASSIC, customSkin } from "./skin-catalog";
+import { MAX_CUSTOM_SKINS } from "./skin-files";
 
 export interface SkinPreferences { active: string; customs: string[] }
 export const SKIN_STORAGE_KEY = "42tris.skins.v1";
-export const MAX_CUSTOM_SKINS = 12;
 
 export function parseCustomSkinUrl(value: unknown): string | undefined {
   if (typeof value !== "string") return;
@@ -11,7 +11,7 @@ export function parseCustomSkinUrl(value: unknown): string | undefined {
   try {
     const url = new URL(text);
     if (url.protocol === "https:" && !url.username && !url.password && url.href.length <= 512) return url.href;
-  } catch { /* Invalid user input. */ }
+  } catch {}
 }
 
 export function resolveSkin(settings: SkinPreferences) {

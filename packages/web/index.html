@@ -87,6 +87,19 @@
       .b2b-value[data-charged] .surge-icon:not([hidden]) + .b2b-count {
         -webkit-text-stroke: 2px #111; paint-order: stroke fill;
       }
+      .surge-icon {
+        background: var(--surge-color);
+        -webkit-mask: var(--surge-mask) center / contain no-repeat;
+        mask: var(--surge-mask) center / contain no-repeat;
+      }
+      @keyframes surge-spin {
+        to { transform: scale(var(--surge-scale)) rotate(1turn); }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .b2b-value[data-charged] .surge-icon[data-rotate="true"]:not([hidden]) {
+          animation: surge-spin var(--surge-spin-duration) linear infinite;
+        }
+      }
       .b2b-value:not([data-charged]) > :is(.surge-icon, .visually-hidden) { display: none; }
       .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
       .clear-result { color: #22d3ee; }
@@ -134,6 +147,9 @@
       .skin-head, .sound-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
       .skin-head h3, .sound-head h3 { flex: 1; min-width: 140px; font-size: 14px; margin: 0; }
       .skin-head button, .sound-head button { padding: 6px 8px; }
+      @media (pointer: coarse) {
+        #download-surge-icon { min-height: 44px; }
+      }
       .catalog-search { margin: 16px 0; }
       .catalog-search label { display: block; margin-bottom: 8px; }
       .catalog-search input { width: 100%; background: #111; color: #eee; border: 1px solid #666; padding: 8px; }
@@ -1372,6 +1388,17 @@
           <p id="skin-help" class="hint">Use a nine-column image or a TETR.IO+ <code>.tpse</code> skin export. Connected and animated exports are supported.</p>
         </form>
         <p id="skin-note" class="hint" role="status"></p>
+        <article class="skin-option">
+          <div class="skin-head">
+            <h3>Cyclone Surge Icon</h3>
+            <button type="button" id="download-surge-icon" aria-label="Download and use Cyclone Surge Icon">Download and use</button>
+            <button type="button" id="remove-surge-icon" aria-label="Remove Cyclone Surge Icon" hidden>Remove</button>
+          </div>
+          <label><input id="rotate-surge-icon" type="checkbox" checked aria-describedby="rotate-surge-icon-help"> Rotate surge icon</label>
+          <p id="rotate-surge-icon-help" class="hint">Cyclone stays still when your device requests reduced motion.</p>
+          <p class="hint">Art by AGoatt. <a href="https://you.have.fail/tetrioplus/#unknown-AGoatt-Cyclone_Surge_Icon" target="_blank" rel="noreferrer">Source</a></p>
+          <p id="surge-icon-note" class="hint" role="status"></p>
+        </article>
         <div class="catalog-search">
           <label for="skin-search">Search skins</label>
           <input id="skin-search" type="search" placeholder="Name, creator, or link" autocomplete="off" spellcheck="false" aria-controls="skin-list">

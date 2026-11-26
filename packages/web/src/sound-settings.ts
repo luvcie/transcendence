@@ -90,7 +90,7 @@ export function setupSounds(state: SoundState, player: SoundPlayer) {
           if (!state.preferences.enabled || !state.preferences.volume) { status.textContent = "Enable sound effects and turn up the volume to preview."; return; }
           const current = generation;
           status.textContent = `Loading ${label.toLowerCase()}…`;
-          void player.preview([clip!]).then(() => {
+          void player.preview([clip!], index !== undefined).then(() => {
             if (current === generation) status.textContent = "";
           }).catch((error: Error) => {
             if (current === generation) status.textContent = error.name === "AbortError" ? "" : "Preview unavailable. Check the audio link or try another pack.";

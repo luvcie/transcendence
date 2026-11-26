@@ -16,7 +16,7 @@ export function packedTileSize(source: number, frames: number) {
   return Math.min(source, Math.floor(Math.sqrt(64 * 1024 * 1024 / (frames * TETRIO_SKIN_ROWS * 9 * 4))));
 }
 
-function pngSize(value: unknown): [number, number] {
+export function pngSize(value: unknown): [number, number] {
   if (typeof value !== "string" || value.length > MAX_SKIN_EXPORT_BYTES
     || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error("This export does not contain a PNG skin.");
   const header = atob(value.slice(value.indexOf(",") + 1, value.indexOf(",") + 33));

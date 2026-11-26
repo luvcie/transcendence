@@ -8,7 +8,7 @@ import {
   type PieceId,
   type InputId,
 } from "@42tris/core";
-import { loadHandling, setupDisplayToggle, setupHandling, setupTouchDisplaySettings } from "./settings";
+import { loadHandling, setupDisplayToggle, setupHandling, setupSurgeIcon, setupTouchDisplaySettings } from "./settings";
 import { ACTIONS, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 import { SkinState } from "./skin-state";
@@ -104,7 +104,7 @@ setupMultiplayerSkinSetting(multiplayerSkins);
 const soundPlayer = new SoundPlayer();
 const music = new ZenMusic(() => soundPlayer.audio(), () => localStorage);
 setupMusic(music, syncZenMusic);
-const sounds = new SoundState(() => localStorage, (pack, signal) => soundPlayer.load(pack, signal));
+const sounds = new SoundState(() => localStorage, (pack, signal, mode) => soundPlayer.load(pack, signal, mode));
 const gameSounds = new GameSounds(() => sounds.preferences.enabled ? sounds.loaded?.pack : undefined,
   clips => {
     if (sounds.preferences.enabled && sounds.loaded && !document.hidden && !atHome && !settingsDialog.open && !activePlayback()) soundPlayer.play(clips, sounds.loaded);
@@ -127,6 +127,7 @@ window.addEventListener("pointerdown", unlockSounds);
 window.addEventListener("keydown", unlockSounds);
 let showGhost = setupDisplayToggle("#ghost-preview", "42tris.ghost", enabled => { showGhost = enabled; });
 setFastSkins(setupDisplayToggle("#fast-skins", "42tris.fastSkins", setFastSkins));
+void setupSurgeIcon();
 setupTouchDisplaySettings(coarsePointer);
 // Zen is selected per game; old preferences no longer control gameplay.
 try { localStorage.removeItem("42tris.zen"); } catch { /* Storage is optional. */ }
