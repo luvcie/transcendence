@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { DEFAULT_KEYBINDS, actionForKey, parseKeybinds, validateKeybinds } from "./src/keybinds";
+import { FakeDocument } from "./test-dom";
 
 test("defaults include Shift hold and both rotation aliases", () => {
   validateKeybinds(DEFAULT_KEYBINDS);
@@ -54,4 +55,60 @@ test("unbound slots are allowed but malformed saved keys are rejected", () => {
   expect(() => validateKeybinds({} as typeof keys)).toThrow();
   keys.hold[0] = "Shift";
   expect(() => validateKeybinds(keys)).toThrow();
+});
+
+test("keybinds remain editable after a failed save and merge again after recovery", async () => {
+  const document = new FakeDocument(), window = new EventTarget();
+  const globals = ["document", "window", "localStorage"];
+  const originals = globals.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
+  let saved = JSON.stringify(DEFAULT_KEYBINDS), full = true;
+  const localStorage = {
+    getItem: () => saved,
+    setItem: (_key: string, value: string) => {
+      if (full) throw new DOMException("Storage is full", "QuotaExceededError");
+      saved = value;
+    },
+  };
+  try {
+    Object.assign(globalThis, { document, window, localStorage });
+    const { loadKeybinds, setupKeybinds } = await import("./src/keybind-settings");
+    const bindings = loadKeybinds();
+    setupKeybinds(bindings, () => {});
+    const buttons = document.querySelector("#keybind-controls").children.flatMap(row => row.children.flatMap(slot => slot.children));
+    const click = (label: string) => buttons.find(button => button.getAttribute("aria-label") === label)!.dispatchEvent(new Event("click"));
+    const assign = (label: string, key: string) => {
+      click(label);
+      window.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { key }));
+    };
+    const note = document.querySelector("#keybind-note");
+
+    click("Clear Hold key 1");
+    expect(actionForKey(bindings, "Shift")).toBeUndefined();
+    expect(actionForKey(parseKeybinds(saved), "Shift")).toBe("hold");
+    assign("Restart, key 2", "Shift");
+    expect(actionForKey(bindings, "Shift")).toBe("restart");
+    expect(note.textContent).toContain("apply for this session");
+
+    full = false;
+    assign("Move left, key 2", "a");
+    expect(parseKeybinds(saved)).toMatchObject({ left: ["arrowleft", "a"], restart: ["r", "shift"] });
+
+    saved = JSON.stringify({ ...parseKeybinds(saved), right: ["d", ""] });
+    assign("Move left, key 2", "q");
+    expect(parseKeybinds(saved)).toMatchObject({ left: ["arrowleft", "q"], right: ["d", ""] });
+
+    full = true;
+    click("Clear Move left key 2");
+    expect(bindings.left[1]).toBe("");
+    full = false;
+    saved = JSON.stringify({ ...parseKeybinds(saved), right: ["f", ""] });
+    assign("Move left, key 2", "s");
+    expect(bindings).toMatchObject({ left: ["arrowleft", "s"], right: ["f", ""] });
+    expect(parseKeybinds(saved)).toEqual(bindings);
+  } finally {
+    globals.forEach((name, index) => {
+      if (originals[index]) Object.defineProperty(globalThis, name, originals[index]!);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
 });
