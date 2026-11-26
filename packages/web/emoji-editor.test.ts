@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { GARBAGE, MINOS, pieceEdges } from "@42tris/core";
-import { arrangeBoards, boardCells, mirrorRows, parseBoardText, parseEmojiMode, parseSavedOpeners } from "./src/emoji-editor";
+import { arrangeBoards, boardCells, mirrorRows, parseBoardText, parseEmojiMode, parseSavedOpeners, touchStartsInBoard } from "./src/emoji-editor";
 import { ids } from "./src/board-emoji";
 import { gifSize, tetrominoEdges, timeline } from "./src/emoji-gif";
 import { BUILTIN_SKINS } from "./src/skin-catalog";
@@ -8,6 +8,15 @@ import type { LoadedSkin } from "./src/skin-loader";
 import { COLORS, drawTile } from "./src/tile-renderer";
 
 const row = (emoji: string) => emoji.repeat(10);
+
+test("a touch targeting an edge cell must start inside the board", () => {
+  const board = { left: 22, top: 100, right: 368, bottom: 792 };
+  expect(touchStartsInBoard(board, 367.5, 791.5)).toBe(true);
+  expect(touchStartsInBoard(board, 22, 100)).toBe(true);
+  for (const [x, y] of [[382, 400], [368, 400], [21.5, 400], [175, 99.5], [175, 792]]) {
+    expect(touchStartsInBoard(board, x, y)).toBe(false);
+  }
+});
 
 test("boards in a row are bottom aligned and joined by a space", () => {
   const [group] = arrangeBoards([[row("🟦"), row("🟥")], [row("🟩")]], 2);

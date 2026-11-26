@@ -1,40 +1,166 @@
 import { DEFAULT_HANDLING, FRAME_MS, HANDLING_MAX, validateHandling, type Handling } from "@42tris/core";
+import { setupSettingsSearch } from "./settings-search";
+import { loadSurgeIcon, SURGE_ICON_HEIGHT, SURGE_ICON_WIDTH } from "./surge-icon";
+import { pngSize } from "./tetrio-skins";
+import { updatePreferences, withPreferenceLock } from "./preference-storage";
 
 const storageKey = "42tris.handling";
+
+function loadDisplaySetting(key: string, note: HTMLElement) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    note.textContent = "Saved display settings could not be loaded. Using defaults.";
+  }
+}
+
+function saveDisplaySetting(key: string, value: string, note: HTMLElement) {
+  try {
+    localStorage.setItem(key, value);
+    note.textContent = "Display settings saved on this device.";
+  } catch {
+    note.textContent = "Display settings apply for this session; browser storage is unavailable.";
+  }
+}
 
 export function setupDisplayToggle(id: string, key: string, onChange: (enabled: boolean) => void): boolean {
   const toggle = document.querySelector<HTMLInputElement>(id)!;
   const note = document.querySelector<HTMLParagraphElement>("#display-note")!;
-  try {
-    const saved = localStorage.getItem(key);
-    toggle.checked = toggle.defaultChecked ? saved !== "false" : saved === "true";
-  } catch {
-    note.textContent = "Saved display settings could not be loaded. Using defaults.";
-  }
+  const saved = loadDisplaySetting(key, note);
+  if (saved !== undefined) toggle.checked = toggle.defaultChecked ? saved !== "false" : saved === "true";
   toggle.addEventListener("change", () => {
     onChange(toggle.checked);
-    try {
-      localStorage.setItem(key, String(toggle.checked));
-      note.textContent = "Display settings saved on this device.";
-    } catch {
-      note.textContent = "Display settings apply for this session; browser storage is unavailable.";
-    }
+    saveDisplaySetting(key, String(toggle.checked), note);
   });
   return toggle.checked;
 }
 
-export function loadHandling(): Handling {
+export async function setupSurgeIcon(load = loadSurgeIcon, makeImage = () => new Image()): Promise<void> {
+  const key = "42tris.surgeIcon";
+  const rotationKey = "42tris.rotateSurgeIcon";
+  const panel = document.querySelector<HTMLElement>("#settings-skins")!;
+  const download = panel.querySelector<HTMLButtonElement>("#download-surge-icon")!;
+  const remove = panel.querySelector<HTMLButtonElement>("#remove-surge-icon")!;
+  const rotate = panel.querySelector<HTMLInputElement>("#rotate-surge-icon")!;
+  const icons = () => document.querySelectorAll<HTMLElement>(".surge-icon");
+  const note = panel.querySelector<HTMLElement>("#surge-icon-note")!;
+
+  function save(preference: string, value: string | null) {
+    try {
+      if (value === null) localStorage.removeItem(preference);
+      else localStorage.setItem(preference, value);
+    } catch {
+      const message = "This change applies for this session only.";
+      if (!note.textContent?.endsWith(message)) note.textContent = [note.textContent, message].filter(Boolean).join(" ");
+    }
+  }
+
+  function apply(mask: string) {
+    for (const icon of icons()) {
+      icon.setAttribute("style", `--surge-mask: url("${mask}")`);
+      icon.hidden = false;
+    }
+    download.hidden = true;
+    remove.hidden = false;
+    note.textContent = "Cyclone Surge Icon is in use.";
+  }
+
+  async function enable() {
+    if (download.disabled) return;
+    download.disabled = remove.disabled = true;
+    note.textContent = "Downloading Cyclone Surge Icon…";
+    try {
+      const mask = await load();
+      apply(mask);
+      await withPreferenceLock(key, () => save(key, mask));
+    } catch {
+      note.textContent = "Cyclone Surge Icon could not load. Try again.";
+    } finally {
+      download.disabled = remove.disabled = false;
+    }
+  }
+
+  download.addEventListener("click", () => { void enable(); });
+  remove.addEventListener("click", () => {
+    for (const icon of icons()) {
+      icon.hidden = true;
+      icon.removeAttribute("style");
+    }
+    download.hidden = false;
+    remove.hidden = true;
+    note.textContent = "Cyclone Surge Icon removed.";
+    void withPreferenceLock(key, () => save(key, null));
+    download.focus();
+  });
+  rotate.addEventListener("change", () => {
+    setRotation();
+    save(rotationKey, String(rotate.checked));
+  });
+  function setRotation() {
+    for (const icon of icons()) icon.dataset.rotate = String(rotate.checked);
+  }
   try {
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      const value = JSON.parse(saved);
-      validateHandling(value);
-      return value;
+    rotate.checked = localStorage.getItem(rotationKey) !== "false";
+    const mask = localStorage.getItem(key);
+    if (mask !== null) {
+      download.disabled = true;
+      try {
+        const [width, height] = pngSize(mask);
+        if (width !== SURGE_ICON_WIDTH || height !== SURGE_ICON_HEIGHT) throw new Error("Unexpected Surge icon dimensions.");
+        const image = makeImage();
+        image.src = mask;
+        await image.decode();
+        if (image.naturalWidth !== width || image.naturalHeight !== height) throw new Error("Unexpected Surge icon dimensions.");
+        apply(mask);
+      } catch {
+        await withPreferenceLock(key, () => {
+          if (localStorage.getItem(key) === mask) localStorage.removeItem(key);
+        });
+      } finally {
+        download.disabled = false;
+      }
     }
   } catch {
-    document.querySelector<HTMLParagraphElement>("#storage-note")!.textContent = "Saved settings could not be loaded. Using defaults.";
+    note.textContent = "The saved Surge icon setting could not be loaded.";
   }
-  return { ...DEFAULT_HANDLING };
+  setRotation();
+}
+
+export function setupTouchDisplaySettings(coarsePointer: MediaQueryList): void {
+  const key = "42tris.touchRestartSymbol";
+  const select = document.querySelector<HTMLSelectElement>("#restart-symbol")!;
+  const note = document.querySelector<HTMLElement>("#display-note")!;
+  select.value = loadDisplaySetting(key, note) === "arrow" ? "arrow" : "r";
+  document.documentElement.dataset.restartSymbol = select.value;
+  select.addEventListener("change", () => {
+    document.documentElement.dataset.restartSymbol = select.value;
+    saveDisplaySetting(key, select.value, note);
+  });
+
+  const input = document.querySelector<HTMLInputElement>("#display-search")!;
+  const filter = setupSettingsSearch(input, document.querySelector<HTMLElement>("#display-settings")!,
+    document.querySelector<HTMLElement>("#display-empty")!);
+  coarsePointer.addEventListener("change", () => {
+    if (coarsePointer.matches) return;
+    input.value = "";
+    filter();
+  });
+}
+
+function parseHandling(saved: string | null): Handling {
+  if (!saved) return { ...DEFAULT_HANDLING };
+  const value = JSON.parse(saved);
+  validateHandling(value);
+  return value;
+}
+
+export function loadHandling(): Handling {
+  try {
+    return parseHandling(localStorage.getItem(storageKey));
+  } catch {
+    document.querySelector<HTMLParagraphElement>("#storage-note")!.textContent = "Saved settings could not be loaded. Using defaults.";
+    return { ...DEFAULT_HANDLING };
+  }
 }
 
 export function setupHandling(handling: Handling, onChange: (value: Handling) => void): void {
@@ -47,14 +173,14 @@ export function setupHandling(handling: Handling, onChange: (value: Handling) =>
     { key: "sdarr", label: "Soft-drop ARR", help: "Soft-drop interval. 0 F drops instantly to the surface." },
   ];
   const refresh: (() => void)[] = [];
-  function save() {
+  function save(change: Partial<Handling>) {
     onChange({ ...handling });
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(handling));
-      note.textContent = "Changes are saved on this device.";
-    } catch {
-      note.textContent = "Settings apply for this session; browser storage is unavailable.";
-    }
+    void withPreferenceLock(storageKey, () => {
+      const { saved } = updatePreferences(() => localStorage, storageKey, raw => {
+        try { return parseHandling(raw); } catch { return { ...DEFAULT_HANDLING }; }
+      }, handling, preferences => ({ ...preferences, ...change }));
+      note.textContent = saved ? "Changes are saved on this device." : "Settings apply for this session; browser storage is unavailable.";
+    });
   }
   for (const { key, label, help } of rows) {
     const row = document.createElement("div");
@@ -83,7 +209,7 @@ export function setupHandling(handling: Handling, onChange: (value: Handling) =>
         slider.value = String(handling[key]);
         if (input === slider) number.value = slider.value;
         output.value = `${handling[key]} F / ${(handling[key] * FRAME_MS).toFixed(2)} ms${handling[key] === 0 && (key === "arr" || key === "sdarr") ? " · Instant" : ""}`;
-        save();
+        save({ [key]: handling[key] });
       });
       input.addEventListener("change", update);
     }
@@ -92,14 +218,14 @@ export function setupHandling(handling: Handling, onChange: (value: Handling) =>
   document.querySelector("#reset-handling")!.addEventListener("click", () => {
     Object.assign(handling, DEFAULT_HANDLING);
     refresh.forEach(update => update());
-    save();
+    save({ ...handling });
   });
   const finesseButton = document.querySelector<HTMLButtonElement>("#finesse-handling")!;
   let appliedTimer: ReturnType<typeof setTimeout>;
   finesseButton.addEventListener("click", () => {
     Object.assign(handling, { das: 4.9, arr: 0, sddas: 0, sdarr: 0 });
     refresh.forEach(update => update());
-    save();
+    save({ ...handling });
     finesseButton.classList.add("applied");
     clearTimeout(appliedTimer);
     appliedTimer = setTimeout(() => finesseButton.classList.remove("applied"), 1200);

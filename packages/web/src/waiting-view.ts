@@ -17,11 +17,14 @@ export function renderOnlineWaiting(document: Document, session: Session): boole
     }
   }
   document.querySelector<HTMLButtonElement>("#hold-button")!.disabled = true;
-  for (const id of ["line-count", "combo-count", "b2b-count", "surge-count", "clear-result", "zen-status"]) {
+  for (const id of ["line-count", "combo-count", "b2b-count", "clear-result", "zen-status"]) {
     const element = document.querySelector(`#${id}`)!;
     element.textContent = "";
     element.removeAttribute("title");
   }
+  const b2bValue = document.querySelector("#b2b-value")!;
+  b2bValue.removeAttribute("data-charged");
+  b2bValue.removeAttribute("style");
   document.querySelector<HTMLElement>("#zen-status")!.hidden = true;
   return true;
 }

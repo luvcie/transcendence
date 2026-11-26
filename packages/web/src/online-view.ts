@@ -1,5 +1,5 @@
 import type { requestCompetitiveReplay } from "./replay-request";
-import { finesseAccuracy, FRAME_MS, INITIAL_FINESSE, type Handling } from "@42tris/core";
+import { finesseAccuracy, FRAME_MS, INITIAL_FINESSE, ROWS, type Handling } from "@42tris/core";
 import type { RoomOptions } from "@42tris/protocol";
 import { Session } from "./session";
 import { connectSession } from "./session-transport";
@@ -8,11 +8,13 @@ import { createMultiplayerBoard, drawMultiplayerBoard, setGarbage, type Multipla
 import type { SkinState } from "./skin-state";
 import { onlineView, type AppView } from "./app-view";
 import { formatTime } from "./singleplayer";
+import { setText } from "./dom-update";
+import { onResolutionChange } from "./canvas-resolution";
 import { MultiplayerSkinResolver, playerSkinAssignments, type MultiplayerSkinMode } from "./multiplayer-skins";
 
 export function mountOnline(root: HTMLElement, options: {
   clearKeys(): void; handling(): Handling; local(): void; skins: SkinState;
-  replay?(replay: Awaited<ReturnType<typeof requestCompetitiveReplay>>): void;
+  replay?(replay: Awaited<ReturnType<typeof requestCompetitiveReplay>>): void; settings?(): void;
   skin?(): string; skinMode(): MultiplayerSkinMode;
   session?: Session; invite?: string | null; view?(view: AppView): void; diagnostics?: SessionDiagnostics;
   inputLeadMs?: number | "auto";
@@ -33,11 +35,17 @@ export function mountOnline(root: HTMLElement, options: {
     <section data-room hidden aria-label="Current room">
       <div class="room-bar">
         <div class="room-identity"><h2 data-code></h2><p data-phase role="status"></p><span data-round-time></span></div>
-        <div class="actions"><button data-copy>Copy invite</button><button data-details>Room details</button>
+        <div class="phone-match-info"><strong data-short-code></strong><span data-short-round></span><span data-set-score></span></div>
+        <div class="actions"><button data-copy>Copy invite</button><button data-details><span class="room-wide">Room details</span><span class="phone-match-info">Details</span></button>
           <button data-reset hidden>Reset my board</button><button data-attacks hidden>Toggle attacks</button>
-          <button data-ready class="primary">Ready</button><button data-leave>Leave room</button></div>
+          <button data-ready class="primary">Ready</button><button data-leave><span class="room-wide">Leave room</span><span class="phone-match-info">Leave</span></button></div>
       </div>
-      <div data-round-summary class="round-summary" hidden><p data-result role="status"></p><ul data-scores aria-label="Set scores"></ul><button data-watch-replay hidden>Watch replay</button><p data-replay-status class="hint" role="status" hidden></p></div>
+      <div data-round-summary class="round-summary" hidden>
+        <p data-phone-result class="phone-match-info" role="status"></p>
+        <div class="round-summary-details"><p data-result role="status"></p><p data-round-times class="phone-match-info"></p><p data-next-round class="phone-match-info"></p><ul data-scores aria-label="Set scores"></ul></div>
+        <div class="round-summary-actions"><button data-phone-ready class="primary phone-match-info" hidden>Ready for rematch</button><button data-watch-replay hidden>Watch replay</button></div>
+        <p data-replay-status class="hint" role="status" hidden></p>
+      </div>
     </section>
     <div data-management-home>
       <div data-management class="online-workspace">
@@ -61,13 +69,15 @@ export function mountOnline(root: HTMLElement, options: {
         </section>
       </div>
     </div>
-    <dialog data-room-dialog aria-labelledby="room-details-title"><div class="dialog-heading"><h2 id="room-details-title">Room details</h2><button data-close-details autofocus>Back</button></div></dialog>`;
+    <dialog data-room-dialog aria-labelledby="room-details-title"><div class="dialog-heading"><h2 id="room-details-title">Room details</h2><button data-close-details autofocus>Back</button></div>
+      <div class="phone-match-info phone-room-details"><p data-detail-status class="hint" role="status"></p><div class="actions">
+        <button data-detail-copy>Copy invite</button><button data-detail-settings>Settings</button><button data-detail-retry>Retry connection</button>
+        <button data-detail-reset>Reset my board</button><button data-detail-attacks>Toggle attacks</button>
+      </div></div>
+    </dialog>`;
   const element = <T extends HTMLElement = HTMLElement>(selector: string) => root.querySelector<T>(selector)!;
   const stageElement = <T extends HTMLElement = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
-  const text = (selector: string, value: string) => {
-    const node = element(selector);
-    if (node.textContent !== value) node.textContent = value;
-  };
+  const text = (selector: string, value: string) => setText(element(selector), value);
   const lifetime = new AbortController();
   function click(selector: string, callback: () => void) {
     element(selector).addEventListener("click", callback, { signal: lifetime.signal });
@@ -136,6 +146,7 @@ export function mountOnline(root: HTMLElement, options: {
     else session.send({ type: "create", requestId: crypto.randomUUID(), options: roomOptions });
   }, { signal: lifetime.signal });
   click("[data-retry]", () => session.retry());
+  click("[data-detail-retry]", () => session.retry());
   click("[data-guest]", () => session.anotherGuest());
   const leave = (local = false) => {
     if (session.room && ["playing", "paused", "countdown", "preparing", "roundResult"].includes(session.room.phase)
@@ -150,16 +161,21 @@ export function mountOnline(root: HTMLElement, options: {
     if (local) options.local();
   };
   click("[data-leave]", () => leave());
-  click("[data-ready]", () => session.send({ type: "ready", ready: !session.room?.players.find(p => p.playerId === session.playerId)?.ready, handling: options.handling() }));
-  const focusGame = () => stageElement("#game-view").focus({ preventScroll: true });
-  click("[data-reset]", () => { session.practice("practiceReset"); focusGame(); });
-  click("[data-attacks]", () => { session.send({ type: "toggleAttacks", enabled: !session.room?.options.attacksEnabled }); focusGame(); });
+  const toggleReady = () => session.send({ type: "ready", ready: !session.room?.players.find(p => p.playerId === session.playerId)?.ready, handling: options.handling() });
+  click("[data-ready]", toggleReady);
+  click("[data-phone-ready]", toggleReady);
+  const gameView = stageElement("#game-view");
+  const focusGame = () => gameView.focus({ preventScroll: true });
+  const reset = () => { session.practice("practiceReset"); focusGame(); };
+  const toggleAttacks = () => { session.send({ type: "toggleAttacks", enabled: !session.room?.options.attacksEnabled }); focusGame(); };
+  click("[data-reset]", reset);
+  click("[data-attacks]", toggleAttacks);
   let notificationUntil = 0;
-  click("[data-copy]", async () => {
+  const copyInvite = async () => {
     const url = new URL(location.href);
     url.searchParams.set("room", session.room!.code);
     url.searchParams.delete("lead");
-    if (!stageElement("#game-view").hidden) focusGame();
+    if (!roomDialog.open && !gameView.hidden) focusGame();
     if (!navigator.clipboard) { session.status = `Copy this invite: ${url.href}`; return; }
     try {
       await navigator.clipboard.writeText(url.href);
@@ -167,7 +183,9 @@ export function mountOnline(root: HTMLElement, options: {
       element("[data-notification]").hidden = false;
       notificationUntil = performance.now() + 3000;
     } catch { session.status = `Copy this invite: ${url.href}`; }
-  });
+  };
+  click("[data-copy]", copyInvite);
+  click("[data-detail-copy]", copyInvite);
   const roomDialog = element<HTMLDialogElement>("[data-room-dialog]");
   const management = element("[data-management]");
   const managementHome = element("[data-management-home]");
@@ -184,6 +202,9 @@ export function mountOnline(root: HTMLElement, options: {
     roomDialog.showModal();
   });
   click("[data-close-details]", closeDetails);
+  click("[data-detail-settings]", () => { closeDetails(); options.settings?.(); });
+  click("[data-detail-reset]", () => { closeDetails(); reset(); });
+  click("[data-detail-attacks]", () => { closeDetails(); toggleAttacks(); });
   roomDialog.addEventListener("cancel", e => { e.preventDefault(); closeDetails(); }, { signal: lifetime.signal });
   let rosterKey = "";
   let optionsKey = "";
@@ -195,14 +216,58 @@ export function mountOnline(root: HTMLElement, options: {
   const remoteSkins = new MultiplayerSkinResolver(options.skins.load, () => { skinsRevision++; });
   let returnLocal = false;
   let previousView: AppView | undefined;
-  const boards = new Map<string, MultiplayerBoard>();
+  const main = stageElement("main");
+  const localMeter = stageElement("[data-local-meter]");
+  const opponents = stageElement("[data-opponents]");
+  const cycle = stageElement<HTMLButtonElement>("[data-opponent-cycle]");
+  const matchStatus = stageElement("[data-match-status]");
+  const boards = new Map<string, MultiplayerBoard & { name: HTMLElement; score: HTMLElement }>();
+  let opponentIds: string[] = [];
+  let aliveOpponentIds: string[] = [];
+  let focused: string | undefined;
+  let manualFocus = false;
+  let focusRound = "";
+  const invalidateBoards = () => { lastCheckpoint = -1; };
+  const stopWatchingResolution = onResolutionChange(invalidateBoards);
+  const opponentResize = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(invalidateBoards);
+  opponentResize?.observe(opponents);
+  function focusOpponent(id: string | undefined) {
+    if (focused !== id) {
+      if (focused) boards.get(focused)?.container.removeAttribute("data-focused");
+      focused = id;
+      if (id) boards.get(id)?.container.setAttribute("data-focused", "");
+      invalidateBoards();
+    }
+    cycle.hidden = opponentIds.length < 2;
+    const index = opponentIds.indexOf(id ?? "");
+    const label = index < 0 ? "" : `${index + 1}/${opponentIds.length}`;
+    if (cycle.textContent !== label) {
+      cycle.textContent = label;
+      cycle.setAttribute("aria-label", index < 0 ? "Next opponent" : `Next opponent (${index + 1} of ${opponentIds.length})`);
+    }
+  }
+  function cycleOpponent(event: MouseEvent) {
+    if (opponentIds.length < 2) return;
+    manualFocus = true;
+    focusOpponent(opponentIds[(opponentIds.indexOf(focused ?? "") + 1) % opponentIds.length]);
+    if (event.detail > 0) focusGame();
+  }
+  cycle.addEventListener("click", cycleOpponent, { signal: lifetime.signal });
+  opponents.addEventListener("click", event => {
+    if (cycle.getClientRects().length) cycleOpponent(event);
+  }, { signal: lifetime.signal });
   function clearMatch() {
-    if (boards.size) { boards.clear(); stageElement("[data-opponents]").replaceChildren(); }
+    if (boards.size) { boards.clear(); opponents.replaceChildren(); }
+    focusRound = "";
+    opponentIds = [];
+    aliveOpponentIds = [];
+    focusOpponent(undefined);
+    matchStatus.hidden = true;
     text("[data-result]", "");
-    const meter = stageElement("[data-local-meter]");
-    setGarbage(meter, 0);
-    meter.hidden = true;
-    stageElement("main").classList.remove("match-active");
+    text("[data-phone-result]", "");
+    setGarbage(localMeter, 0);
+    localMeter.hidden = true;
+    main.classList.remove("match-active");
   }
   function update() {
     session.tick();
@@ -215,11 +280,13 @@ export function mountOnline(root: HTMLElement, options: {
     }
     element("[data-guest]").hidden = !session.duplicate;
     element("[data-retry]").hidden = session.connected;
+    element("[data-detail-retry]").hidden = session.connected;
     for (const selector of ["[data-create]", "[data-configure]"]) element<HTMLButtonElement>(selector).disabled = !session.connected;
     join.querySelector("button")!.disabled = !session.connected;
     const room = session.room;
-    element("[data-watch-replay]").hidden = !replayEligible();
-    if (room?.matchId !== replayMatch || !replayEligible()) {
+    const canReplay = replayEligible();
+    element("[data-watch-replay]").hidden = !canReplay;
+    if (room?.matchId !== replayMatch || !canReplay) {
       cancelReplay();
       element("[data-replay-status]").hidden = true;
       replayMatch = room?.matchId ?? null;
@@ -257,11 +324,16 @@ export function mountOnline(root: HTMLElement, options: {
     const roundTime = room.phase === "playing" && room.options.mode === "competitive" && cp?.room.phase === "playing" && cp.state
       ? `Round time ${formatTime(cp.state.frame * FRAME_MS)}` : "";
     text("[data-round-time]", roundTime);
-    if ((room.phase === "countdown" || room.phase === "roundResult") && room.startsAt !== null) phase += ` ${Math.max(1, Math.ceil((room.startsAt - session.serverNow()) / 1000))}…`;
+    const seconds = room.startsAt === null ? null : Math.max(1, Math.ceil((room.startsAt - session.serverNow()) / 1000));
+    if ((room.phase === "countdown" || room.phase === "roundResult") && seconds !== null) phase += ` ${seconds}…`;
+    text("[data-next-round]", room.phase === "roundResult" ? phase : "");
     const missing = room.players.filter(p => !p.connected && p.deadline !== null);
     if (missing.length) phase += ` · Waiting for ${missing.map(p => `${p.name}: ${Math.max(0, Math.ceil((p.deadline! - session.serverNow()) / 1000))}s`).join(", ")}`;
     if (!session.connected) phase += " · Connection lost; boards frozen";
     text("[data-phase]", phase);
+    text("[data-detail-status]", [`Room ${room.code}`, phase, session.notice,
+      element("[data-status]").hidden ? "" : session.status,
+      element("[data-notification]").hidden ? "" : "Invite copied"].filter(Boolean).join(" · "));
     text("[data-settings]", `${room.options.width} wide · ${room.options.mode} · ${room.options.mode === "practice" ? "No scoring" : `First to ${room.options.firstTo}`} · ${room.players.length}/${room.options.maxPlayers} players · Attacks ${room.options.attacksEnabled ? "on" : "off"}`);
     text("[data-player-count]", `${room.players.length}/${room.options.maxPlayers}`);
     text("[data-waiting-hint]", room.players.length < 2 ? "Invite at least one more player, then ready up."
@@ -295,11 +367,17 @@ export function mountOnline(root: HTMLElement, options: {
     }
     const ready = element<HTMLButtonElement>("[data-ready]");
     ready.hidden = !["waiting", "setResult"].includes(room.phase);
-    ready.disabled = !session.connected || !!room.players.find(p => p.playerId === session.playerId)?.withdrawn;
-    text("[data-ready]", room.players.find(p => p.playerId === session.playerId)?.ready ? "Unready" : room.phase === "setResult" ? "Ready for rematch" : "Ready");
+    const localPlayer = room.players.find(p => p.playerId === session.playerId);
+    ready.disabled = !session.connected || !!localPlayer?.withdrawn;
+    setText(ready, localPlayer?.ready ? "Unready" : room.phase === "setResult" ? "Ready for rematch" : "Ready");
     element("[data-reset]").hidden = room.options.mode !== "practice" || room.phase !== "playing";
     element("[data-attacks]").hidden = room.options.mode !== "practice" || room.phase !== "playing" || room.ownerId !== session.playerId;
-    for (const selector of ["[data-reset]", "[data-attacks]", "[data-leave]"]) element<HTMLButtonElement>(selector).disabled = !session.connected;
+    const phoneReady = element<HTMLButtonElement>("[data-phone-ready]");
+    phoneReady.hidden = room.phase !== "setResult";
+    phoneReady.disabled = ready.disabled;
+    setText(phoneReady, ready.textContent);
+    for (const action of ["reset", "attacks"]) element(`[data-detail-${action}]`).hidden = element(`[data-${action}]`).hidden;
+    for (const selector of ["[data-reset]", "[data-attacks]", "[data-leave]", "[data-detail-reset]", "[data-detail-attacks]"]) element<HTMLButtonElement>(selector).disabled = !session.connected;
     if (!cp) { clearMatch(); return; }
     const mode = options.skinMode();
     const skinSource = `${mode}|${room.revision}|${room.players.map(player => `${player.playerId}:${player.skin ?? ""}`).join(",")}`;
@@ -311,25 +389,36 @@ export function mountOnline(root: HTMLElement, options: {
     lastSkinsRevision = skinsRevision;
     const state = cp.state;
     if (!state) { clearMatch(); return; }
-    const main = stageElement("main");
     main.classList.add("match-active");
     main.setAttribute("data-layout", state.roster.length === 2 ? "duel" : "group");
-    stageElement("[data-opponents]").setAttribute("style", `--opponent-columns: ${Math.min(4, state.roster.length - 1)}`);
-    const localMeter = stageElement("[data-local-meter]");
+    opponents.setAttribute("style", `--opponent-columns: ${Math.min(4, state.roster.length - 1)}`);
     localMeter.hidden = false;
-    const owner = state.players[state.roster.indexOf(session.playerId)];
+    const localIndex = state.roster.indexOf(session.playerId);
+    const owner = state.players[localIndex];
+    const playerName = (id: string) => room.players.find(p => p.playerId === id)?.name ?? id;
+    const localScore = state.scores[localIndex] ?? 0;
+    const score = room.options.mode === "practice" ? "Practice" : state.roster.length === 2
+      ? `${localScore}-${state.scores[localIndex === 0 ? 1 : 0]}` : `${localScore}/${room.options.firstTo}`;
+    text("[data-short-code]", room.code);
+    text("[data-short-round]", `Round ${state.round}`);
+    text("[data-set-score]", score);
+    const message = view === "paused" ? "Reconnecting…" : view === "preparing" ? "Preparing…"
+      : view === "countdown" ? String(seconds ?? "Get ready") : view === "playing" && owner?.eliminated ? "Out" : "";
+    matchStatus.hidden = !message;
+    setText(matchStatus, message);
     const garbage = owner?.garbage.packets.reduce((n, p) => n + p.lines, 0) ?? 0;
     setGarbage(localMeter, garbage);
     const result = [...cp.events].reverse().find(({ event }) => event.round === state.round && (event.type === "setEnd" || event.type === "roundEnd"))?.event;
-    const playerName = (id: string) => room.players.find(p => p.playerId === id)?.name ?? id;
-    let resultText = ["roundResult", "setResult"].includes(room.phase)
+    const resultText = ["roundResult", "setResult"].includes(room.phase)
       ? result && (result.type === "setEnd" || result.type === "roundEnd")
         ? `${result.type === "setEnd" ? "Set" : "Round"}: ${result.winner ? `${playerName(result.winner)} wins` : result.reason === "aborted" ? "aborted; no winner" : "draw"} · ${result.reason === "firstTo" ? `first to ${room.options.firstTo}` : result.reason === "survivor" ? "last player standing" : result.reason}`
         : `${room.phase === "setResult" ? "Set" : "Round"} finished.` : "";
     const durations = room.phase === "roundResult" ? cp.roundDurations.filter(round => round.round === state.round)
       : room.phase === "setResult" ? cp.roundDurations : [];
-    if (durations.length) resultText += ` · ${durations.map(round => `Round ${round.round}: ${formatTime(round.durationMs)}`).join(" · ")}`;
-    text("[data-result]", resultText);
+    const times = durations.map(round => `Round ${round.round}: ${formatTime(round.durationMs)}`).join(" · ");
+    text("[data-result]", times ? `${resultText} · ${times}` : resultText);
+    text("[data-phone-result]", resultText);
+    text("[data-round-times]", times);
     const scores = state.roster.map((id, i) => {
       const finesse = state.players[i].game.lastResult?.finesse ?? INITIAL_FINESSE;
       const pieces = state.players[i].game.lastResult?.stats.pieces ?? 0;
@@ -350,35 +439,77 @@ export function mountOnline(root: HTMLElement, options: {
       if (id === session.playerId) return;
       let board = boards.get(id);
       if (!board) {
-        board = createMultiplayerBoard(document);
-        stageElement("[data-opponents]").append(board.container);
+        const name = document.createElement("p"); name.className = "phone-match-info opponent-phone-name";
+        const score = document.createElement("p"); score.className = "phone-match-info opponent-phone-score";
+        board = { ...createMultiplayerBoard(document), name, score };
+        board.container.append(name, score);
+        opponents.append(board.container);
         boards.set(id, board);
       }
       const p = state.players[index];
-      const connected = room.players.find(p => p.playerId === id)?.connected;
-      const label = `${playerName(id)} · ${state.scores[index]} points${p.eliminated ? " · eliminated" : ""}${p.withdrawn ? " · withdrawn" : ""}${connected ? "" : " · disconnected"}`;
+      const player = room.players.find(p => p.playerId === id);
+      const name = player?.name ?? id, connected = player?.connected;
+      const label = `${name} · ${state.scores[index]} points${p.eliminated ? " · eliminated" : ""}${p.withdrawn ? " · withdrawn" : ""}${connected ? "" : " · disconnected"}`;
       if (board.label.title !== label) {
+        const status = `${p.withdrawn ? " · left" : p.eliminated ? " · out" : ""}${connected ? "" : " · offline"}`;
         board.label.title = label;
         if (state.roster.length === 2) board.label.textContent = label;
         else {
-          const name = document.createElement("span"); name.className = "opponent-name"; name.textContent = playerName(id);
+          const nameLabel = document.createElement("span"); nameLabel.className = "opponent-name"; nameLabel.textContent = name;
           const score = document.createElement("span"); score.className = "opponent-score";
-          score.textContent = `${state.scores[index]} pts${p.withdrawn ? " · left" : p.eliminated ? " · out" : ""}${connected ? "" : " · offline"}`;
-          board.label.replaceChildren(name, score);
+          score.textContent = `${state.scores[index]} pts${status}`;
+          board.label.replaceChildren(nameLabel, score);
         }
+        board.name.textContent = name;
+        board.score.textContent = p.withdrawn ? "left" : p.eliminated ? "out" : connected ? `${state.scores[index]} pts` : "offline";
+        if (status) board.container.setAttribute("data-unavailable", "");
+        else board.container.removeAttribute("data-unavailable");
       }
-      board.meter.setAttribute("aria-label", `${playerName(id)} incoming garbage lines`);
+      board.meter.setAttribute("aria-label", `${name} incoming garbage lines`);
       setGarbage(board.meter, p.garbage.packets.reduce((n, packet) => n + packet.lines, 0));
       if (redraw) {
         const skin = boardSkins!.get(id);
         drawMultiplayerBoard(board, p.game, skin);
       }
     });
+    if (redraw) {
+      opponentIds = state.roster.filter(id => id !== session.playerId);
+      const round = `${room.matchId}:${state.round}`;
+      let next = focusRound === round ? focused : undefined;
+      if (focusRound !== round) {
+        focusRound = round;
+        manualFocus = false;
+      }
+      const alive = opponentIds.length < 2 ? opponentIds : opponentIds.filter(id => {
+        const player = state.players[state.roster.indexOf(id)];
+        return !player.eliminated && !player.withdrawn;
+      });
+      if (next && alive.length && !alive.includes(next) && (!manualFocus || aliveOpponentIds.includes(next))) {
+        next = undefined;
+      }
+      aliveOpponentIds = alive;
+      if (!manualFocus) {
+        const sender = owner?.garbage.packets.at(-1)?.from;
+        if (sender && alive.includes(sender)) next = sender;
+      }
+      if (!next || !opponentIds.includes(next)) {
+        const height = (id: string) => {
+          const game = state.players[state.roster.indexOf(id)].game;
+          const first = game.board.findIndex(Boolean);
+          return first < 0 ? 0 : ROWS - Math.floor(first / state.width);
+        };
+        next = (alive.length ? alive : opponentIds).reduce<string | undefined>((best, id) => !best || height(id) > height(best) ? id : best, undefined);
+      }
+      focusOpponent(next);
+    }
   }
   if (options.invite !== undefined && options.invite !== null) session.joinInvite(options.invite);
   session.start();
   return { session, update, cancelReplay, local: () => leave(true), closeDetails,
     get detailsOpen() { return roomDialog.open; },
-    destroy() { replayRequest?.abort(); closeDetails(); session.stop(); lifetime.abort(); clearMatch(); root.replaceChildren(); },
+    destroy() {
+      replayRequest?.abort(); closeDetails(); session.stop(); lifetime.abort();
+      stopWatchingResolution(); opponentResize?.disconnect(); clearMatch(); root.replaceChildren();
+    },
   };
 }

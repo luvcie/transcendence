@@ -1,20 +1,24 @@
 import { expect, test } from "bun:test";
-import { Input, Piece, ROWS } from "@42tris/core";
-import { SprintRecorder } from "@42tris/replay";
+import { DEFAULT_HANDLING, Input, Piece, ROWS } from "@42tris/core";
+import { SprintRecorder, verifySprintReplayExecution } from "@42tris/replay";
 import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary } from "./src/singleplayer";
-import { snapshotDisplay } from "./src/game-display";
+import { bindGameStats, snapshotDisplay } from "./src/game-display";
 import { SprintPlayback } from "./src/sprint-playback";
 import { sprintRecordingFor, startSprintRecording } from "./src/sprint-recording";
 import { fitCanvas, pixelRatio } from "./src/canvas-resolution";
 import * as domUpdate from "./src/dom-update";
+import { ACTIONS } from "./src/keybinds";
 import { FakeDocument } from "./test-dom";
+import { NetHarness } from "./netplay-harness";
 
 const source = await Bun.file(new URL("./src/main.ts", import.meta.url)).text();
 // Exercise the production functions without starting the app's audio, network or RAF loop.
-function appFunction(name: string, next: string, context: Record<string, unknown>) {
-  const body = source.slice(source.indexOf(`function ${name}(`), source.indexOf(next, source.indexOf(`function ${name}(`)));
+function appFunction<Args extends unknown[] = number[]>(name: string, next: string, context: Record<string, unknown>) {
+  const declaration = source.indexOf(`function ${name}(`);
+  const start = source.lastIndexOf("\n", declaration) + 1;
+  const body = source.slice(start, source.indexOf(next, declaration));
   const js = new Bun.Transpiler({ loader: "ts" }).transformSync(body);
-  return new Function("context", `with (context) { ${js}; return ${name}; }`)(context) as (...args: number[]) => void;
+  return new Function("context", `with (context) { ${js}; return ${name}; }`)(context) as (...args: Args) => void;
 }
 
 function harness(mode: "zen" | "sprint" = "sprint") {
@@ -22,18 +26,26 @@ function harness(mode: "zen" | "sprint" = "sprint") {
   let writes = 0;
   const node = (id: string) => document.querySelector(`#${id}`);
   const names = {
-    sprintClock: "sprint-clock", elapsedTime: "elapsed-time", lineCount: "line-count", comboCount: "combo-count",
-    b2bCount: "b2b-count", surgeCount: "surge-count", finesseCount: "finesse-count", clearResult: "clear-result",
+    sprintClock: "sprint-clock", elapsedTime: "elapsed-time",
     zenStatus: "zen-status", resultPanel: "sprint-result", watchReplayButton: "watch-replay-button",
     navSettingsButton: "nav-settings-button", canvas: "board", holdCanvas: "hold-preview", nextCanvas: "next-preview",
     holdButton: "hold-button", status: "status", countdownOverlay: "sprint-countdown",
+    settingsDialog: "settings-dialog", pauseDialog: "pause-dialog",
   };
   const solo = new Singleplayer(mode, 108, 0);
+  const pressed = new Map();
   const context = {
     ...domUpdate, document, solo: solo as Singleplayer | SprintRecorder | null, display: solo.game,
     playback: null as SprintPlayback | null, online: null as Record<string, unknown> | null,
-    openingPlayback: false, SINGLEPLAYER_MODES, snapshotDisplay, formatTime, finesseSummary, Piece, ROWS, LETTERS: "_ZLOSIJT", SprintRecorder, sprintRecordingFor,
-    pressed: new Map(), holdExit: { cancel() {} }, volumeOverlay: { hide() {} },
+    openingPlayback: false, SINGLEPLAYER_MODES, snapshotDisplay, formatTime, finesseSummary, ROWS, LETTERS: "_ZLOSIJT", SprintRecorder, sprintRecordingFor,
+    renderStats: bindGameStats(document as unknown as Document),
+    pressed, inputMount: { clear: () => pressed.clear(), setTouchBlocked() {} },
+    touchControls: {
+      undoCount: null as number | null, setUndoCount(count: number | null) { this.undoCount = count; },
+      restart: Object.assign(node("touch-restart"), { hidden: true }),
+    },
+    coarsePointer: { matches: false }, phonePortrait: { matches: false },
+    holdExit: { cancel() {} }, volumeOverlay: { hide() {} },
     atHome: false, competitivePlayback: null, countdown: { active: false, label: () => null },
     holdCtx: node("hold-preview").context, nextCtx: node("next-preview").context,
     ctx: node("board").context, skins: { loaded: undefined }, showGhost: true,
@@ -58,6 +70,8 @@ function harness(mode: "zen" | "sprint" = "sprint") {
     }
     const setAttribute = element.setAttribute.bind(element);
     element.setAttribute = (name, value) => { writes++; setAttribute(name, value); };
+    const removeAttribute = element.removeAttribute.bind(element);
+    element.removeAttribute = name => { writes++; removeAttribute(name); };
   }
   const refresh = appFunction("refreshHud", "\nfunction applyInput", context);
   const render = appFunction("render", "\nfunction toggleMenu", context);
@@ -81,30 +95,115 @@ test("unchanged HUD and preview values perform no writes, including after extern
   expect(h.node("sprint-clock").hidden).toBe(false);
 });
 
-test("mutable clear statistics, B2B tooltip, surge and attack labels update immediately", () => {
+test("local touch undo is available in Zen and hidden in Sprint", () => {
+  const sprint = harness("sprint");
+  sprint.refresh();
+  expect(sprint.context.touchControls.undoCount).toBeNull();
+  const zen = harness("zen");
+  zen.refresh();
+  expect(zen.context.touchControls.undoCount).toBe(0);
+  zen.context.solo!.tick(250);
+  zen.context.solo!.apply(Input.HardDrop, 251);
+  zen.refresh();
+  expect(zen.context.touchControls.undoCount).toBe(1);
+});
+
+test("online touch undo is only shown to a player in phone portrait practice", () => {
+  const h = harness();
+  const practice = new NetHarness();
+  practice.startMatch({ mode: "practice" });
+  const session = practice.a.session;
+  h.context.online = { session };
+  h.context.coarsePointer.matches = true;
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
+  h.context.phonePortrait.matches = true;
+  h.render();
+  expect(h.context.touchControls.undoCount).toBe(1);
+
+  session.practice("practiceUndo");
+  expect(session.canPlay).toBe(false);
+  h.render();
+  expect(h.context.touchControls.undoCount).toBe(1);
+  practice.runUntil(() => session.canPlay);
+
+  const room = session.room!;
+  session.room = { ...room, phase: "paused" };
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
+
+  session.room = room;
+  session.playerId = "spectator";
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
+  session.playerId = practice.aCheckpoint!.state!.roster[0];
+
+  Object.assign(h.context, { competitivePlayback: {} });
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
+  Object.assign(h.context, { competitivePlayback: null });
+
+  const competitive = new NetHarness();
+  competitive.startMatch();
+  h.context.online = { session: competitive.a.session };
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
+});
+
+test("touch restart is visible in solo and online practice but hidden in competitive matches", () => {
+  const h = harness();
+  h.render();
+  expect(h.context.touchControls.restart.hidden).toBe(false);
+  const options = { mode: "competitive" };
+  h.context.online = { session: { room: { options }, canPlay: true } };
+  h.render();
+  expect(h.context.touchControls.restart.hidden).toBe(true);
+  options.mode = "practice";
+  h.render();
+  expect(h.context.touchControls.restart.hidden).toBe(false);
+});
+
+test("mutable clear statistics, the B2B value and its Surge art, and attack labels update immediately", () => {
   const h = harness();
   h.refresh();
   const game = { ...snapshotDisplay(h.context.display.saveState()), stats: { ...h.context.display.stats } };
   Object.assign(h.context, { display: game });
-  Object.assign(game, { stats: { ...game.stats, lines: 4, combo: 2, chainLength: 1, b2b: 0, surge: 6 } });
+  Object.assign(game, { stats: { ...game.stats, lines: 4, combo: 2, chainLength: 1, b2b: 0, surge: 0 } });
   h.refresh();
   expect(h.node("line-count").textContent).toBe("4 / 40");
   expect(h.node("combo-count").textContent).toBe("2");
   expect(h.node("b2b-count").textContent).toBe("Ready");
   expect(h.node("b2b-count").getAttribute("title")).toBe("Chain started. The next qualifying clear earns the B2B bonus.");
+  expect(h.node("b2b-value").getAttribute("data-charged")).toBeNull();
   Object.assign(game, { stats: { ...game.stats, chainLength: 3, b2b: 2 } });
   Object.assign(game, { lastClear: { rows: [38, 39], spin: "mini", piece: Piece.T, allClear: true, attacks: [{ lines: 3 }, { lines: 2 }] } });
   h.refresh();
-  expect(h.node("b2b-count").textContent).toBe("2");
+  expect(h.node("b2b-count").textContent).toBe("×2");
   expect(h.node("b2b-count").getAttribute("title")).toBe("2 back-to-back clears.");
-  expect(h.node("surge-count").textContent).toBe("6");
+  expect(h.node("b2b-value").getAttribute("data-charged")).toBeNull();
   expect(h.node("clear-result").textContent).toBe("T-spin mini Double · All clear · Attack 5");
+  for (const [b2b, tint] of [
+    [4, "#00ffcc"], [5, "#00ff99"], [8, "#00ff00"], [12, "#ffff00"], [16, "#ffc600"],
+    [24, "#ff5500"], [30, "#ff0000"], [32, "#ff0011"], [48, "#ff0099"], [60, "#ff00ff"],
+    [77, "#933eff"], [100, "#0091ff"], [123, "#44c4f3"], [150, "#94ffe4"],
+    [250, "#ffdd87"], [500, "#ffffff"], [501, "#ffffff"],
+  ] as const) {
+    Object.assign(game.stats, { chainLength: b2b + 1, b2b, surge: b2b });
+    h.refresh();
+    expect(h.node("b2b-count").textContent).toBe(String(b2b));
+    expect(h.node("b2b-value").getAttribute("data-charged")).toBe("");
+    expect(h.node("b2b-value").getAttribute("style")).toContain(`--b2b-digits: ${String(b2b).length}`);
+    expect(h.node("b2b-value").getAttribute("style")).toContain(`--surge-color: ${tint};`);
+    const before = h.writes(); h.refresh(); expect(h.writes()).toBe(before);
+  }
   Object.assign(game, { lastClear: null });
   Object.assign(game, { stats: { ...game.stats, combo: -1, chainLength: 0, b2b: 0, surge: 0 } });
   h.refresh();
   expect(h.node("combo-count").textContent).toBe("0");
   expect(h.node("clear-result").textContent).toBe("");
   expect(h.node("b2b-count").textContent).toBe("—");
+  expect(h.node("b2b-value").getAttribute("data-charged")).toBeNull();
+  expect(h.node("b2b-value").getAttribute("style")).toBeNull();
 });
 
 test("Sprint timer retains millisecond updates and finesse changes after placements", () => {
@@ -125,6 +224,52 @@ test("Sprint timer retains millisecond updates and finesse changes after placeme
   expect(h.node("elapsed-time").textContent).toBe("0:01.234");
   run.tick(1335); h.refresh();
   expect(h.node("elapsed-time").textContent).toBe("0:01.235");
+});
+
+test("Sprint keeps its clock running while Settings is open and releases held input", async () => {
+  const h = harness();
+  let now = 0;
+  const context = Object.assign(h.context, {
+    startSprintRecording, seed: undefined, modeRequest: 0, handling: DEFAULT_HANDLING,
+    performance: { now: () => now }, cancelKeyCapture() {},
+    resetOnFinesseFault: false, soundOnFinesseFault: false, finesseSoundOptions: { sprint: { checked: false } },
+    soundedGame: null, soundedResult: null, gameSounds: { reset() {}, observe() {} },
+    music: { release() {} }, stopPlayback() {}, showView() {}, focusView() {}, syncZenMusic() {},
+    inputMount: { ...h.context.inputMount, setTouchBlocked() {} },
+    countdown: { ...h.context.countdown, cancel() {} },
+    activePlayback: () => null, settingsFromMenu: false, ACTIONS,
+  });
+  const launch = appFunction<["sprint", boolean]>("launchMode", "\nfunction restart()", context);
+  await launch("sprint", false);
+  Object.assign(context, {
+    restartOnFinesseFault: () => false,
+    releaseSoloControls: appFunction("releaseSoloControls", "\nfunction focusView", context),
+    resume: appFunction("resume", "\nlet settingsFromMenu", context),
+  });
+  const open = appFunction<[boolean]>("openSettings", "\nfunction closeSettings", context);
+  const close = appFunction("closeSettings", "\nasync function launchMode", context);
+  h.node("nav-settings-button").addEventListener("click", () => open(false));
+  const run = context.solo as SprintRecorder;
+  expect(h.node("nav-settings-button").disabled).toBe(false);
+  run.apply(Input.LeftDown, ++now);
+  context.pressed.set("ArrowLeft", "left");
+  h.node("nav-settings-button").dispatchEvent(new Event("click"));
+  expect(h.node("settings-dialog").open).toBe(true);
+  expect(context.pressed.size).toBe(0);
+  expect(run.paused).toBe(false);
+  now += 3000;
+  h.frame(now);
+  expect(h.node("elapsed-time").textContent).toBe("0:03.000");
+  close();
+  expect(h.node("settings-dialog").open).toBe(false);
+  for (let i = 0; !run.result && i < 30; i++) run.apply(Input.HardDrop, ++now);
+  expect(run.result!.elapsedMs).toBe(now - 1);
+  const replay = await run.finish();
+  const verified = await verifySprintReplayExecution(replay!);
+  expect(verified.result).toEqual(run.result!);
+  const ops = replay!.records.map(record => record.op);
+  expect(ops).toContainEqual({ type: "input", atMs: 1, input: Input.LeftUp });
+  expect(ops.some(op => op.type === "pause")).toBe(false);
 });
 
 test("restart and Zen/Sprint switching reset statistics, timer and visibility", () => {
@@ -168,7 +313,11 @@ test("preview labels, width and hold availability follow game state without redu
   expect(h.node("hold-preview").getAttribute("aria-label")).toBe("Hold empty");
   h.context.solo!.apply(Input.Hold, 251); h.render();
   expect(h.node("hold-preview").getAttribute("aria-label")).toBe(`Held piece ${h.context.LETTERS[h.context.display.held!]}`);
-  expect(h.node("hold-button").disabled).toBe(true);
+  expect(h.node("hold-button").disabled).toBe(false);
+  const nextHeld = h.context.display.piece;
+  h.context.solo!.apply(Input.Hold, 252); h.render();
+  expect(h.node("hold-preview").getAttribute("aria-label")).toBe(`Held piece ${h.context.LETTERS[nextHeld]}`);
+  expect(h.node("hold-button").disabled).toBe(false);
   expect(h.node("next-preview").getAttribute("aria-label")).toBe("Next pieces:" + Array.from(h.context.display.previews, p => ` ${h.context.LETTERS[p]}`).join(""));
   h.context.solo = new Singleplayer("zen", 108, 0, undefined, 12);
   h.context.display = h.context.solo.game; h.render();
@@ -180,7 +329,7 @@ test("multiplayer frame displays checkpoint statistics, score, top-out and waiti
   const h = harness("zen");
   const state = h.context.display.saveState();
   const session = {
-    name: "Player", playerId: "p", room: { phase: "playing" }, canPlay: true,
+    name: "Player", playerId: "p", room: { phase: "playing", options: { mode: "practice" } }, canPlay: true,
     prediction: { gameState: () => state },
     checkpoint: { state: { roster: ["p"], scores: [1], players: [{ game: state }] } },
   };
@@ -192,6 +341,7 @@ test("multiplayer frame displays checkpoint statistics, score, top-out and waiti
   replacement.tick(250);
   replacement.apply(Input.HardDrop, 251);
   const next = replacement.saveState();
+  next.lastResult = { ...next.lastResult!, stats: { ...next.lastResult!.stats, chainLength: 6, b2b: 5, surge: 5 } };
   session.prediction.gameState = () => next;
   session.checkpoint.state.players[0].game = next;
   session.checkpoint.state.scores[0] = 3;
@@ -199,7 +349,12 @@ test("multiplayer frame displays checkpoint statistics, score, top-out and waiti
   h.frame(116);
   expect(h.node("status").textContent).toBe("Player (you) · 3 points · Top out");
   expect(h.node("finesse-count").textContent).toBe(finesseSummary(snapshotDisplay(next).finesse));
+  expect(h.node("b2b-count").textContent).toBe("5");
+  expect(h.node("b2b-value").getAttribute("data-charged")).toBe("");
   expect(h.node("hold-button").disabled).toBe(true);
+  h.context.phonePortrait.matches = true;
+  h.frame(120);
+  expect(h.node("finesse-count").textContent).toBe("100.0%");
   const before = h.writes(); h.frame(124); expect(h.writes()).toBe(before);
   session.room.phase = "waiting"; h.frame(132);
   expect(h.node("status").hidden).toBe(true);

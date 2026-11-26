@@ -3,12 +3,14 @@ import { Game, INITIAL_FINESSE, INITIAL_STATS, Input, Piece, type LockResult } f
 import { BUILTIN_SOUNDS } from "./src/sound-catalog";
 import { clearClips, comboClip, parseSoundPack, soundUrl, soundUrls, type SoundClip, type SoundPack } from "./src/sound-pack";
 import { SoundPlayer, type LoadedSounds } from "./src/sound-player";
-import { fetchExternalFile } from "./src/external-file";
-import { MAX_CUSTOM_SOUNDS, parseSoundPreferences, resolveSound, SoundState } from "./src/sound-state";
+import { ExternalFileCache, fetchExternalFile } from "./src/external-file";
+import { MAX_CUSTOM_SOUNDS } from "./src/sound-files";
+import { parseSoundPreferences, resolveSound, SoundState } from "./src/sound-state";
 import { GameSounds } from "./src/game-sounds";
 import { snapshotDisplay } from "./src/game-display";
 import { setupSettingsTabs } from "./src/skin-settings";
 import { Singleplayer } from "./src/singleplayer";
+import { fakeFileCache } from "./test-file-cache";
 
 const a = "https://example.com/a.ogg", b = "https://example.com/b.ogg", c = "https://example.com/c.ogg";
 const pack: SoundPack = { name: "Test", move: a, rotate: b, harddrop: c, lock: a, hold: b };
@@ -77,12 +79,15 @@ describe("sound pack compatibility", () => {
 
 describe("sound selection and storage", () => {
   test("imports a JSON link as a saved snapshot and reports malformed or missing files", async () => {
+    const cache = fakeFileCache();
+    const url = "https://example.com/sounds.json", invalid = "https://example.com/page";
     const fetch = spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(pack)));
     try {
       const saved = storage();
       const state = new SoundState(() => saved, async next => loaded(next));
-      expect(await state.add("https://example.com/sounds.json")).toBe(true);
-      expect(state.preferences.customs[0]).toEqual({ url: "https://example.com/sounds.json", pack });
+      expect(await state.add(url)).toBe(true);
+      expect(state.preferences.customs[0]).toEqual({ url, pack });
+      expect(cache.has(url)).toBe(false);
       expect(fetch.mock.calls[0][1]).toMatchObject({ credentials: "omit", referrerPolicy: "no-referrer" });
       const restored = new SoundState(() => saved, async next => loaded(next));
       expect(resolveSound(restored.preferences).pack).toEqual(pack);
@@ -91,10 +96,13 @@ describe("sound selection and storage", () => {
       expect(await state.add("https://example.com/missing.json")).toBe(false);
       expect(state.message).toContain("404");
       fetch.mockResolvedValueOnce(new Response("<html>Not JSON</html>"));
-      expect(await state.add("https://example.com/page")).toBe(false);
+      expect(await state.add(invalid)).toBe(false);
       expect(state.message).toContain("Invalid JSON");
+      expect(cache.has(invalid)).toBe(false);
       expect(state.preferences.active).toBe("custom:0");
-    } finally { fetch.mockRestore(); }
+      await state.remove(0);
+      expect(cache.has(url)).toBe(false);
+    } finally { fetch.mockRestore(); cache.restore(); }
   });
   test("validates persisted data, restores pasted JSON, and falls back on unknown ids", () => {
     const preferences = { active: "custom:0", enabled: false, volume: 0.3, customs: [{ pack }] };
@@ -232,6 +240,49 @@ describe("game sound integration", () => {
 });
 
 describe("audio loading and playback", () => {
+  test("rechecks the byte limit on cache hits and preserves entries at the count limit", async () => {
+    const cache = fakeFileCache();
+    const files = new ExternalFileCache("test", 1);
+    const fetch = spyOn(globalThis, "fetch").mockImplementation(async () => new Response("12345"));
+    const load = (url: string, limit: number) => files.load(url, limit, new AbortController().signal, ({ bytes }) => bytes.byteLength);
+    try {
+      await expect(load(a, 4)).rejects.toThrow("too large");
+      expect(cache.has(a)).toBe(false);
+      expect(await load(a, 5)).toBe(5);
+      expect(await load(b, 5)).toBe(5);
+      expect(cache.has(a)).toBe(true);
+      expect(cache.has(b)).toBe(false);
+      await expect(load(a, 4)).rejects.toThrow("too large");
+      expect(cache.has(a)).toBe(false);
+      expect(fetch).toHaveBeenCalledTimes(3);
+    } finally { fetch.mockRestore(); cache.restore(); }
+  });
+  test("loads files over the aggregate cache cap without saving them", async () => {
+    const cache = fakeFileCache();
+    const files = new ExternalFileCache("test bytes", 10, 8);
+    const fetch = spyOn(globalThis, "fetch").mockImplementation(async () => new Response("12345"));
+    const load = (url: string) => files.load(url, 5, new AbortController().signal, ({ bytes }) => bytes.byteLength);
+    try {
+      expect(await load(a)).toBe(5);
+      expect(await load(b)).toBe(5);
+      expect(cache.has(a)).toBe(true);
+      expect(cache.has(b)).toBe(false);
+      await files.retain(() => [b]);
+      expect(await load(b)).toBe(5);
+      expect(cache.has(b)).toBe(true);
+    } finally { fetch.mockRestore(); cache.restore(); }
+  });
+  test.each(["open", "put"] as const)("fetches when cache %s fails", async failure => {
+    const cache = fakeFileCache(failure);
+    const files = new ExternalFileCache("test", 1);
+    const fetch = spyOn(globalThis, "fetch").mockImplementation(async () => new Response("valid"));
+    try {
+      for (let i = 0; i < 2; i++) {
+        expect(await files.load(a, 10, new AbortController().signal, ({ bytes }) => new TextDecoder().decode(bytes))).toBe("valid");
+      }
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally { fetch.mockRestore(); cache.restore(); }
+  });
   test("caps streamed files without trusting Content-Length", async () => {
     const fetch = spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(new Uint8Array(1025), { headers: { "Content-Length": "1" } }));
     try {
@@ -252,6 +303,78 @@ describe("audio loading and playback", () => {
     } as unknown as AudioContext;
     return { context, started, sources };
   }
+  test("restores linked and pasted packs offline and retains clips shared by saved packs", async () => {
+    const cache = fakeFileCache(), saved = storage(), url = "https://example.com/linked.json";
+    const linked = { name: "Linked", move: a, lock: b };
+    const pasted = { name: "Pasted", rotate: a };
+    const fetch = spyOn(globalThis, "fetch").mockImplementation(async request =>
+      request === url ? Response.json(linked) : new Response(new Uint8Array([1])));
+    const state = () => {
+      const { context } = audio();
+      const decode = context.decodeAudioData;
+      context.decodeAudioData = bytes => decode(structuredClone(bytes, { transfer: [bytes] }));
+      const player = new SoundPlayer(() => context);
+      return new SoundState(() => saved, (pack, signal, mode) => player.load(pack, signal, mode));
+    };
+    try {
+      const stale = state(), first = state();
+      expect(await first.add(url)).toBe(true);
+      await stale.configure({ volume: 0.25 });
+      expect(cache.has(a)).toBe(true);
+      expect(await stale.add(JSON.stringify(pasted))).toBe(true);
+      await first.configure({ enabled: false });
+      expect(state().preferences).toMatchObject({ active: "custom:1", volume: 0.25, enabled: false });
+      expect(fetch).toHaveBeenCalledTimes(3);
+      expect(cache.has(url)).toBe(false);
+      fetch.mockResolvedValueOnce(new Response("missing", { status: 404 }));
+      expect(await stale.add("https://example.com/missing.json")).toBe(false);
+      fetch.mockRejectedValue(new Error("offline"));
+
+      const restored = state();
+      await restored.select("custom:0", false);
+      expect([...restored.loaded!.buffers.keys()].sort()).toEqual([a, b]);
+      await restored.select("custom:1", false);
+      expect([...restored.loaded!.buffers.keys()]).toEqual([a]);
+      expect(fetch).toHaveBeenCalledTimes(4);
+      await restored.remove(0);
+      expect(cache.has(b)).toBe(false);
+      expect(cache.has(a)).toBe(true);
+      await restored.remove(0);
+      expect(cache.has(a)).toBe(false);
+    } finally { fetch.mockRestore(); cache.restore(); }
+  });
+  test("only persists clips accepted by decoding and by the playback budget", async () => {
+    const cache = fakeFileCache();
+    const { context } = audio();
+    context.decodeAudioData = async bytes => {
+      if (new Uint8Array(bytes)[0] === 1) throw new Error("Undecodable");
+      return { length: 10 * 1024 * 1024, numberOfChannels: 1 } as AudioBuffer;
+    };
+    const player = new SoundPlayer(() => context, async url => new Uint8Array([url === c ? 1 : 0]).buffer);
+    try {
+      const loaded = await player.load(pack, new AbortController().signal, "import");
+      expect(loaded.failed).toBe(2);
+      expect(loaded.buffers.size).toBe(1);
+      for (const url of [a, b, c]) expect(cache.has(url)).toBe(loaded.buffers.has(url));
+    } finally { cache.restore(); }
+  });
+  test("counts previously cached clips toward the per-pack byte limit on reload", async () => {
+    const cache = fakeFileCache();
+    const urls = Array.from({ length: 5 }, (_, i) => `https://example.com/clip-${i}.ogg`);
+    const bytes = new ArrayBuffer(8 * 1024 * 1024);
+    const requests: string[] = [];
+    const player = () => new SoundPlayer(() => audio().context, async url => { requests.push(url); return bytes; });
+    const signal = new AbortController().signal;
+    try {
+      const full = { name: "Large pack", comboTones: urls };
+      await player().load({ ...full, comboTones: urls.slice(0, 4) }, signal, "import");
+      expect(urls.slice(0, 4).every(cache.has)).toBe(true);
+      requests.length = 0;
+      expect((await player().load(full, signal, "custom")).buffers.size).toBe(5);
+      expect(requests).toEqual(urls.slice(4));
+      expect(cache.has(urls[4])).toBe(false);
+    } finally { cache.restore(); }
+  });
   test("preloads each URL once, permits partial failures, and retries failed URLs", async () => {
     const { context } = audio();
     const requests: string[] = [];

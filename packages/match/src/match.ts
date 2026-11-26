@@ -416,7 +416,7 @@ export class Match {
       if (!Number.isSafeInteger(p.epoch) || p.epoch < 0 || typeof p.withdrawn !== "boolean") {
         throw new RangeError("Invalid player epoch or eligibility");
       }
-      if (p.withdrawn && !p.eliminated || p.game.zenEnabled !== (match.mode === "practice")
+      if (p.withdrawn && !p.eliminated || p.game.zenEnabled !== (match.mode === "practice") || p.game.config.unlimitedHold === true
         || match.mode === "practice" && (p.withdrawn || p.eliminated || s.ended || s.complete || s.scores[i] !== 0)) {
         throw new RangeError("Checkpoint mode and player state differ");
       }

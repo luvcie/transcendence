@@ -1,15 +1,15 @@
 /// <reference lib="webworker" />
-import { fetchExternalFile } from "./external-file";
-import { MAX_SKIN_EXPORT_BYTES, packedTileSize, parseTetrioSkin, tetrioSourceTile, TETRIO_SKIN_ROWS } from "./tetrio-skins";
+import { packedTileSize, tetrioSourceTile, TETRIO_SKIN_ROWS } from "./tetrio-skins";
 import { drawTetrioFrame, packSkinFrames } from "./skin-atlas";
 import { skinSourceAnimation } from "./skin-animation";
+import { loadSkinExport, skinAnimations } from "./skin-files";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
-scope.onmessage = async ({ data: url }: MessageEvent<string>) => {
+scope.onmessage = async ({ data: { url, custom } }: MessageEvent<{ url: string; custom: boolean }>) => {
   let image: ImageBitmap | undefined, ghost: ImageBitmap | undefined, canvas: OffscreenCanvas | undefined;
   let decoder: ImageDecoder | undefined;
   try {
-    let source = await skinSourceAnimation(url);
+    let source = await skinSourceAnimation(url, undefined, custom);
     let frames = source?.frameEnds.length ?? 0, delay = (source?.frameEnds[0] ?? 0) * 60 / 1000;
     const pack = () => {
       const width = decoder ? source!.width : image!.width / Math.min(frames, 16);
@@ -28,7 +28,13 @@ scope.onmessage = async ({ data: url }: MessageEvent<string>) => {
         } finally { decoded.close(); }
       }, (width, height) => new OffscreenCanvas(width, height), tile);
     };
-    let packed;
+    async function encode(packed: Awaited<ReturnType<typeof pack>>) {
+      canvas = packed.image;
+      const blob = await canvas.convertToBlob({ type: "image/png" });
+      return { blob, tiles: packed.tiles, tile: packed.tile, frames, delay, frameEnds: source?.frameEnds,
+        ghost: !!decoder || !!ghost };
+    }
+    let packed, failedSource = false;
     if (source?.original && source.width / source.height === 12.4 && typeof ImageDecoder !== "undefined") {
       try {
         if (await ImageDecoder.isTypeSupported("image/gif")) {
@@ -37,25 +43,21 @@ scope.onmessage = async ({ data: url }: MessageEvent<string>) => {
           packed = await pack();
         }
       } catch {
-        // A failed optional GIF decoder must not prevent loading the valid PNG export.
         decoder?.close(); decoder = undefined;
+        failedSource = true;
+        if (custom) await skinAnimations.remove(url);
       }
     }
-    if (!packed) {
-      const bytes = await fetchExternalFile(url, MAX_SKIN_EXPORT_BYTES, new AbortController().signal, 10_000);
-      const skin = parseTetrioSkin(JSON.parse(new TextDecoder().decode(bytes)));
+    const prepared = packed ? await encode(packed) : await loadSkinExport(url, custom, 10_000, async skin => {
       frames = skin.frames; delay = skin.delay;
       if (frames === 1) source = undefined;
-      else if (source?.frameEnds.length !== frames) source = await skinSourceAnimation(url, frames);
+      else if (source?.frameEnds.length !== frames) source = failedSource ? undefined : await skinSourceAnimation(url, frames, custom);
       const blob = await fetch(skin.image).then(response => response.blob());
       image = await createImageBitmap(blob);
       if (skin.ghost) ghost = await createImageBitmap(await fetch(skin.ghost).then(response => response.blob()));
-      packed = await pack();
-    }
-    canvas = packed.image;
-    const preview = await canvas.convertToBlob({ type: "image/png" });
-    scope.postMessage({ blob: preview, tiles: packed.tiles, tile: packed.tile, frames, delay, frameEnds: source?.frameEnds,
-      ghost: !!decoder || !!ghost }, [packed.tiles.buffer]);
+      return encode(await pack());
+    });
+    scope.postMessage(prepared, [prepared.tiles.buffer]);
   } catch (error) {
     scope.postMessage({ error: (error as Error).message });
   } finally {

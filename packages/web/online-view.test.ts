@@ -164,7 +164,10 @@ test("disconnect retains boards; authoritative practice end clears all match pre
   h.render();
   const node = (selector: string) => h.document.querySelector(selector);
   const opponent = node("[data-opponents]").children[0];
-  for (const id of ["line-count", "combo-count", "b2b-count", "surge-count", "clear-result", "zen-status"]) node(`#${id}`).textContent = "old match";
+  for (const id of ["line-count", "combo-count", "b2b-count", "clear-result", "zen-status"]) node(`#${id}`).textContent = "old match";
+  node("#b2b-value").setAttribute("data-charged", "");
+  node("#b2b-value").setAttribute("style", "--surge-color: #00ffcc; --b2b-digits: 1");
+  node("#surge-icon").hidden = false;
   node("[data-result]").textContent = "old result";
   node("[data-local-meter]").setAttribute("aria-valuenow", "12");
   h.session.stop();
@@ -172,6 +175,7 @@ test("disconnect retains boards; authoritative practice end clears all match pre
   expect(node("[data-opponents]").children[0]).toBe(opponent);
   expect(node("#board").calls).toEqual([]);
   expect(node("#line-count").textContent).toBe("old match");
+  expect(node("#b2b-value").getAttribute("data-charged")).toBe("");
   h.session.receive({ ...h.cp, serverSequence: 2, matchId: null, state: null, events: [],
     room: { ...h.cp.room, phase: "waiting", matchId: null }, owner: { ...h.cp.owner, generation: 1 } });
   expect(h.render()).toBe(true);
@@ -182,7 +186,10 @@ test("disconnect retains boards; authoritative practice end clears all match pre
   expect(node("[data-local-meter]").hidden).toBe(true);
   expect(node("#board").calls).toContain("Waiting for a match");
   for (const id of ["hold-preview", "next-preview"]) expect(node(`#${id}`).calls).toContain("clear");
-  for (const id of ["line-count", "combo-count", "b2b-count", "surge-count", "clear-result", "zen-status"]) expect(node(`#${id}`).textContent).toBe("");
+  for (const id of ["line-count", "combo-count", "b2b-count", "clear-result", "zen-status"]) expect(node(`#${id}`).textContent).toBe("");
+  expect(node("#b2b-value").getAttribute("data-charged")).toBeNull();
+  expect(node("#b2b-value").getAttribute("style")).toBeNull();
+  expect(node("#surge-icon").hidden).toBe(false);
   expect(node("#hold-button").disabled).toBe(true);
   expect(node("#zen-status").hidden).toBe(true);
   h.session.receive({ ...h.cp, serverSequence: 3, matchId: "next-match" });
@@ -270,11 +277,17 @@ test("round and set results retain scores and only rematches offer readiness", (
     expect(node("[data-scores]").children.map(c => c.textContent)).toEqual(["a (you): 0 · Finesse — · 0 faults · 0 pieces placed", "b: 0 · Finesse — · 0 faults · 0 pieces placed"]);
     if (phase === "roundResult") {
       expect(node("[data-phase]").textContent).toBe("Next round in 3…");
+      expect(node("[data-next-round]").textContent).toBe("Next round in 3…");
+      expect(node("[data-phone-ready]").hidden).toBe(true);
       expect(node("[data-ready]").hidden).toBe(true);
       expect(h.sent.some(c => c.type === "ready")).toBe(false);
     } else {
       expect(node("[data-ready]").textContent).toBe("Ready for rematch");
       node("[data-ready]").dispatchEvent(new Event("click"));
+      expect(h.sent.at(-1)).toEqual({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
+      expect(node("[data-phone-ready]").textContent).toBe("Ready for rematch");
+      expect(node("[data-phone-ready]").hidden).toBe(false);
+      node("[data-phone-ready]").dispatchEvent(new Event("click"));
       expect(h.sent.at(-1)).toEqual({ type: "ready", ready: true, handling: DEFAULT_HANDLING });
     }
   }
@@ -352,18 +365,79 @@ test("multiplayer results use placed pieces independently of finesse evaluations
   h.view.destroy();
 });
 
-test("competitive timer displays committed simulation time only while playing", () => {
+test("desktop round time uses committed simulation time and the phone keeps only summary durations", () => {
   const h = harness();
   const state = structuredClone(h.cp.state!);
   state.frame = 60;
+  state.scores = [2, 1];
   const room = { ...h.cp.room, options: { ...h.cp.room.options, mode: "competitive" as const } };
   h.session.receive({ ...h.cp, state, room });
   h.view.update();
   expect(h.document.querySelector("[data-round-time]").textContent).toBe("Round time 0:01.000");
+  expect(h.document.querySelector("[data-short-round]").textContent).toBe("Round 1");
+  expect(h.document.querySelector("[data-set-score]").textContent).toBe("2-1");
+  expect(h.document.root.innerHTML).not.toContain("data-short-time");
   h.session.receive({ ...h.cp, serverSequence: 2, state, room: { ...room, phase: "roundResult", startsAt: 3000 }, roundDurations: [{ round: 1, durationMs: 1000 }] });
   h.view.update();
   expect(h.document.querySelector("[data-result]").textContent).toContain("Round 1: 0:01.000");
   expect(h.document.querySelector("[data-round-time]").textContent).toBe("");
+  expect(h.document.querySelector("[data-round-times]").textContent).toBe("Round 1: 0:01.000");
+  h.view.destroy();
+});
+
+test("phone opponent focus follows incoming garbage until the player cycles it", () => {
+  const h = harness();
+  const ids = ["a", "b", "c", "d"];
+  const state = new Match({ players: ids, seed: 42 }).saveState();
+  state.players[2].game.board[350] = 1;
+  const room = { ...h.cp.room, players: ids.map(playerId => ({ ...h.cp.room.players[0], playerId, name: playerId })) };
+  const node = (selector: string) => h.document.querySelector(selector);
+  const focused = () => node("[data-opponents]").children.find(p => p.getAttribute("data-focused") !== null)?.children[2].textContent;
+  const cycle = node("[data-opponent-cycle]");
+  h.session.receive({ ...h.cp, state, room });
+  h.render();
+  expect(focused()).toBe("c");
+  expect(cycle.textContent).toBe("2/3");
+  const garbage = state.players[0].garbage.packets;
+  state.players[2].eliminated = true;
+  garbage.push({ id: 1, from: "c", to: "a", lines: 4, kind: "base", atMs: 0, eligibleAtMs: 1000 });
+  h.session.receive({ ...h.cp, serverSequence: 2, state, room });
+  h.render();
+  expect(focused()).toBe("b");
+  garbage[0].from = "d";
+  h.session.receive({ ...h.cp, serverSequence: 3, state, room });
+  h.render();
+  expect(focused()).toBe("d");
+  cycle.dispatchEvent(new Event("click"));
+  expect(focused()).toBe("b");
+  expect(cycle.textContent).toBe("1/3");
+  cycle.dispatchEvent(new Event("click"));
+  h.session.receive({ ...h.cp, serverSequence: 4, state, room });
+  h.render();
+  expect(focused()).toBe("c");
+  cycle.dispatchEvent(new Event("click"));
+  expect(focused()).toBe("d");
+  state.players[3].eliminated = true;
+  h.session.receive({ ...h.cp, serverSequence: 5, state, room });
+  h.render();
+  expect(focused()).toBe("b");
+  expect(cycle.textContent).toBe("1/3");
+
+  state.round++;
+  h.session.receive({ ...h.cp, serverSequence: 6, state, room });
+  h.render();
+  expect(focused()).toBe("b");
+  state.players[1].eliminated = true;
+  h.session.receive({ ...h.cp, serverSequence: 7, state, room: { ...room, phase: "roundResult" } });
+  h.render();
+  expect(focused()).toBe("b");
+  expect(cycle.textContent).toBe("1/3");
+
+  state.round++;
+  h.session.receive({ ...h.cp, serverSequence: 8, state, room: { ...room, phase: "setResult" } });
+  h.render();
+  expect(focused()).toBe("c");
+  expect(cycle.textContent).toBe("2/3");
   h.view.destroy();
 });
 

@@ -1,4 +1,5 @@
 import { ACTIONS, DEFAULT_KEYBINDS, actionForKey, actionNames, keyLabel, parseKeybinds, type Action, type Keybinds } from "./keybinds";
+import { updatePreferences, withPreferenceLock } from "./preference-storage";
 
 const storageKey = "42tris.keybinds";
 const note = document.querySelector<HTMLParagraphElement>("#keybind-note")!;
@@ -28,15 +29,34 @@ export function setupKeybinds(bindings: Keybinds, onChange: () => void): () => v
     capture = null;
     refresh();
   }
-  function save() {
-    cancel();
-    onChange();
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(bindings));
-      note.textContent = "Keybinds saved on this device.";
-    } catch {
-      note.textContent = "Keybinds apply for this session; browser storage is unavailable.";
-    }
+  function save(change: (preferences: Keybinds) => Keybinds) {
+    const previousCapture = capture;
+    void withPreferenceLock(storageKey, () => {
+      try {
+        const { preferences, saved } = updatePreferences(() => localStorage, storageKey, raw => {
+          try { if (raw) return parseKeybinds(raw); } catch {}
+          return structuredClone(DEFAULT_KEYBINDS);
+        }, bindings, change);
+        Object.assign(bindings, preferences);
+        if (capture === previousCapture) capture = null;
+        refresh();
+        onChange();
+        note.textContent = saved ? "Keybinds saved on this device." : "Keybinds apply for this session; browser storage is unavailable.";
+      } catch (error) {
+        note.textContent = (error as Error).message;
+      }
+    });
+  }
+  function setBinding(action: Action, slot: number, key: string) {
+    save(preferences => {
+      const owner = key && actionForKey(preferences, key);
+      if (owner && !(owner === action && preferences[owner][slot] === key)) {
+        throw new Error(`${keyLabel(key)} is assigned to ${ACTIONS[owner].label}. Clear that binding first.`);
+      }
+      const keys: [string, string] = [...preferences[action]];
+      keys[slot] = key;
+      return { ...preferences, [action]: keys };
+    });
   }
   for (const action of actionNames) {
     const row = document.createElement("div");
@@ -59,8 +79,7 @@ export function setupKeybinds(bindings: Keybinds, onChange: () => void): () => v
       clear.textContent = "×";
       clear.setAttribute("aria-label", `Clear ${ACTIONS[action].label} key ${slot + 1}`);
       clear.addEventListener("click", () => {
-        bindings[action][slot] = "";
-        save();
+        setBinding(action, slot, "");
       });
       group.append(button, clear);
       row.append(group);
@@ -84,17 +103,10 @@ export function setupKeybinds(bindings: Keybinds, onChange: () => void): () => v
       note.textContent = "Choose a letter, symbol, modifier, or navigation key.";
       return;
     }
-    const owner = actionForKey(bindings, key);
-    if (owner && !(owner === capture.action && bindings[owner][capture.slot] === key)) {
-      note.textContent = `${keyLabel(key)} is assigned to ${ACTIONS[owner].label}. Clear that binding first.`;
-      return;
-    }
-    bindings[capture.action][capture.slot] = key;
-    save();
+    setBinding(capture.action, capture.slot, key);
   }, true);
   document.querySelector("#reset-keybinds")!.addEventListener("click", () => {
-    Object.assign(bindings, structuredClone(DEFAULT_KEYBINDS));
-    save();
+    save(() => structuredClone(DEFAULT_KEYBINDS));
   });
   refresh();
   return cancel;

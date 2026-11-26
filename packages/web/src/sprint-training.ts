@@ -4,8 +4,7 @@ export function mountModeCard(root: ParentNode, mode: SingleplayerMode, storage:
   const card = root.querySelector<HTMLElement>(`#${mode}-card`)!;
   const front = root.querySelector<HTMLButtonElement>(`#${mode}-card-front`)!;
   const back = root.querySelector<HTMLElement>(`#${mode}-card-back`)!;
-  const checkboxes = [...back.querySelectorAll<HTMLInputElement>("input[data-preference]")];
-  const backButton = root.querySelector<HTMLButtonElement>(`#${mode}-back`)!;
+  const checkboxes = back.querySelectorAll<HTMLInputElement>("input[data-preference]");
   for (const checkbox of checkboxes) {
     const key = `42tris.${mode}.${checkbox.dataset.preference}`;
     try { checkbox.checked = storage().getItem(key) === "true"; } catch { checkbox.checked = false; }
@@ -23,7 +22,15 @@ export function mountModeCard(root: ParentNode, mode: SingleplayerMode, storage:
     (open ? checkboxes[0] : front).focus({ preventScroll: true });
   }
   front.addEventListener("click", () => flip(true));
-  backButton.addEventListener("click", () => flip(false));
+  back.addEventListener("click", event => {
+    if (!(event.target as Element).closest("button, input, label")) flip(false);
+  });
+  back.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || event.repeat || event.isComposing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    flip(false);
+  });
 }
 
 export class SprintCountdown {

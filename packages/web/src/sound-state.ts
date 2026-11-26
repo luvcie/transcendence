@@ -1,11 +1,12 @@
 import { BUILTIN_SOUNDS, SILENT, type SoundDef } from "./sound-catalog";
+import { fetchExternalFile } from "./external-file";
 import { MAX_PACK_LENGTH, parseSoundPack, soundUrl, type SoundPack } from "./sound-pack";
 import type { LoadedSounds } from "./sound-player";
-import { fetchExternalFile } from "./external-file";
 import { isTetrioExportUrl } from "./tetrio-sounds";
+import { MAX_CUSTOM_SOUNDS, soundClips, soundExports, soundFileUrls, type SoundLoadMode } from "./sound-files";
+import { updatePreferences, withPreferenceLock } from "./preference-storage";
 
 export const SOUND_STORAGE_KEY = "42tris.sounds.v1";
-export const MAX_CUSTOM_SOUNDS = 12;
 export interface CustomSound { pack: SoundPack; url?: string }
 export interface SoundPreferences { active: string; enabled: boolean; volume: number; customs: CustomSound[] }
 export function customSound(custom: CustomSound, index: number): SoundDef {
@@ -29,6 +30,21 @@ export function parseSoundPreferences(raw: string | null): SoundPreferences {
   } catch { return defaults; }
 }
 
+function soundIndex(preferences: SoundPreferences, target: CustomSound) {
+  return preferences.customs.findIndex(custom => target.url
+    ? custom.url === target.url
+    : !custom.url && JSON.stringify(custom.pack) === JSON.stringify(target.pack));
+}
+
+function removeSound(preferences: SoundPreferences, target: CustomSound): SoundPreferences {
+  const index = soundIndex(preferences, target);
+  if (index < 0) return preferences;
+  const selected = Number(preferences.active.slice(7));
+  const active = !preferences.active.startsWith("custom:") || selected < index ? preferences.active
+    : selected === index ? "silent" : `custom:${selected - 1}`;
+  return { ...preferences, active, customs: preferences.customs.filter((_, i) => i !== index) };
+}
+
 export class SoundState {
   preferences: SoundPreferences;
   loaded?: LoadedSounds;
@@ -37,31 +53,55 @@ export class SoundState {
   private selection?: AbortController;
   private addition?: AbortController;
   constructor(private storage: () => Pick<Storage, "getItem" | "setItem">,
-    readonly load: (pack: SoundPack, signal: AbortSignal) => Promise<LoadedSounds>) {
+    readonly load: (pack: SoundPack, signal: AbortSignal, mode?: SoundLoadMode) => Promise<LoadedSounds>) {
     this.preferences = parseSoundPreferences(null);
-    try { this.preferences = parseSoundPreferences(storage().getItem(SOUND_STORAGE_KEY)); }
+    try {
+      this.preferences = parseSoundPreferences(storage().getItem(SOUND_STORAGE_KEY));
+      void this.pruneFiles();
+    }
     catch { this.message = "Saved sounds could not be loaded. Using Silent."; }
   }
-  private save() {
-    try { this.storage().setItem(SOUND_STORAGE_KEY, JSON.stringify(this.preferences)); this.message = "Sounds saved on this device."; }
-    catch { this.message = "Sounds apply for this session; browser storage is unavailable."; }
+  private pruneFiles() {
+    const customs = () => parseSoundPreferences(this.storage().getItem(SOUND_STORAGE_KEY)).customs;
+    return Promise.all([
+      soundClips.retain(() => customs().flatMap(({ pack }) => soundFileUrls(pack).clips)),
+      soundExports.retain(() => customs().flatMap(({ pack }) => soundFileUrls(pack).exports)),
+    ]);
+  }
+  private save(change: (preferences: SoundPreferences) => SoundPreferences) {
+    const { preferences, saved } = updatePreferences(this.storage, SOUND_STORAGE_KEY, parseSoundPreferences, this.preferences, change);
+    this.message = saved ? "Sounds saved on this device." : "Sounds apply for this session; browser storage is unavailable.";
+    return preferences;
   }
   configure(value: Partial<Pick<SoundPreferences, "volume" | "enabled">>, persist = true) {
-    Object.assign(this.preferences, value); if (persist) this.save(); this.changed();
+    Object.assign(this.preferences, value);
+    this.changed();
+    if (persist) return withPreferenceLock(SOUND_STORAGE_KEY, () => {
+      this.save(preferences => ({ ...preferences, ...value }));
+      this.changed();
+    });
   }
-  async select(active: string, persist = true) {
+  select(active: string, persist = true) {
+    const def = resolveSound({ ...this.preferences, active });
+    const custom = def.id.startsWith("custom:") ? this.preferences.customs[Number(def.id.slice(7))] : undefined;
+    return this.choose(def, persist ? preferences => {
+      const index = custom ? soundIndex(preferences, custom) : -1;
+      return custom && index < 0 ? preferences : { ...preferences, active: custom ? `custom:${index}` : def.id };
+    } : undefined);
+  }
+  private async choose(def: SoundDef, change?: (preferences: SoundPreferences) => SoundPreferences) {
     this.selection?.abort(); this.cancelPendingAdd();
     const request = this.selection = new AbortController();
-    this.preferences.active = active;
-    const def = resolveSound(this.preferences);
     this.preferences.active = def.id;
     this.loaded = undefined;
-    if (persist) this.save();
+    const saving = change && withPreferenceLock(SOUND_STORAGE_KEY, () => { this.save(change); });
+    if (saving) await saving;
+    if (request.signal.aborted) return;
     const savedMessage = this.message;
     this.message = def.id === "silent" ? savedMessage : `Loading ${def.label}…`;
     this.changed();
     try {
-      const loaded = await this.load(def.pack, request.signal);
+      const loaded = await this.load(def.pack, request.signal, def.id.startsWith("custom:") ? "custom" : undefined);
       if (request.signal.aborted) return;
       this.loaded = loaded;
       this.message = loaded.failed ? `${def.label}: ${loaded.failed} audio files could not be loaded; the remaining sounds are ready. Select again to retry.` : savedMessage;
@@ -74,51 +114,63 @@ export class SoundState {
   async add(raw: string): Promise<boolean> {
     this.cancelPendingAdd();
     const request = this.addition = new AbortController();
-    try {
-      if (this.preferences.customs.length >= MAX_CUSTOM_SOUNDS) throw new Error("The list is full. Remove a custom pack first.");
-      const text = raw.trim();
-      let json = text, url: string | undefined;
-      if (!text.startsWith("{")) {
-        url = soundUrl(text);
-        if (isTetrioExportUrl(url)) {
-          const name = decodeURIComponent(new URL(url).pathname.split("/").pop()!).replace(/(?:\.zip)?\.tpse$|\.zip$/i, "").replaceAll("_", " ");
-          json = JSON.stringify({ name, tetrioPlus: url });
-        } else {
-          const bytes = await fetchExternalFile(url, MAX_PACK_LENGTH, request.signal);
-          json = new TextDecoder().decode(bytes);
-        }
-      }
+    const prepare = (data: unknown) => this.load(parseSoundPack(data), request.signal, "import");
+    const prepareJson = (json: string) => {
       if (json.length > MAX_PACK_LENGTH) throw new Error("Use a JSON pack smaller than 64 KB.");
       let data: unknown;
       try { data = JSON.parse(json); } catch { throw new Error("Invalid JSON. Paste a JSON object with quoted keys and no comments."); }
-      const pack = parseSoundPack(data);
-      if (url && this.preferences.customs.some(custom => custom.url === url)) throw new Error("That pack is already saved.");
-      const loaded = await this.load(pack, request.signal);
-      if (request.signal.aborted) return false;
-      if (!url && this.preferences.customs.some(custom => JSON.stringify(custom.pack) === JSON.stringify(loaded.pack))) throw new Error("That pack is already saved.");
-      this.selection?.abort();
-      const index = this.preferences.customs.length;
-      this.preferences.customs.push({ pack: loaded.pack, ...(url ? { url } : {}) });
-      this.preferences.active = `custom:${index}`;
-      this.preferences.enabled = true;
-      this.loaded = loaded;
-      this.save();
-      if (loaded.failed) this.message += ` ${loaded.failed} audio files could not be loaded.`;
-      this.changed();
-      return true;
+      return prepare(data);
+    };
+    try {
+      return await soundClips.duringAdd(() => soundExports.duringAdd(async () => {
+        request.signal.throwIfAborted();
+        const text = raw.trim();
+        const url = text.startsWith("{") ? undefined : soundUrl(text);
+        let latest = this.preferences;
+        try { latest = parseSoundPreferences(this.storage().getItem(SOUND_STORAGE_KEY)); } catch {}
+        if (latest.customs.length >= MAX_CUSTOM_SOUNDS) throw new Error("The list is full. Remove a custom pack first.");
+        if (url && latest.customs.some(custom => custom.url === url)) throw new Error("That pack is already saved.");
+        let loaded: LoadedSounds;
+        if (!url) loaded = await prepareJson(text);
+        else if (isTetrioExportUrl(url)) {
+          const name = decodeURIComponent(new URL(url).pathname.split("/").pop()!).replace(/(?:\.zip)?\.tpse$|\.zip$/i, "").replaceAll("_", " ");
+          loaded = await prepare({ name, tetrioPlus: url });
+        } else {
+          const bytes = await fetchExternalFile(url, MAX_PACK_LENGTH, request.signal);
+          loaded = await prepareJson(new TextDecoder().decode(bytes));
+        }
+        return await withPreferenceLock(SOUND_STORAGE_KEY, () => {
+          if (request.signal.aborted) return false;
+          const target = { pack: loaded.pack, ...(url ? { url } : {}) };
+          const { active, customs, enabled } = this.save(preferences => {
+            if (preferences.customs.length >= MAX_CUSTOM_SOUNDS) throw new Error("The list is full. Remove a custom pack first.");
+            if (preferences.customs.some(custom => url ? custom.url === url : JSON.stringify(custom.pack) === JSON.stringify(target.pack))) {
+              throw new Error("That pack is already saved.");
+            }
+            return { ...preferences, active: `custom:${preferences.customs.length}`, enabled: true, customs: [...preferences.customs, target] };
+          });
+          this.selection?.abort();
+          Object.assign(this.preferences, { active, customs, enabled });
+          this.loaded = loaded;
+          if (loaded.failed) this.message += ` ${loaded.failed} audio files could not be loaded.`;
+          this.changed();
+          return true;
+        });
+      }));
     } catch (error) {
       if (!request.signal.aborted) { this.message = (error as Error).message; this.changed(); }
       return false;
+    } finally {
+      if (this.addition === request) this.addition = undefined;
+      await this.pruneFiles();
     }
   }
-  remove(index: number) {
-    const selected = resolveSound(this.preferences).pack;
-    this.preferences.customs.splice(index, 1);
-    if (this.preferences.active.startsWith("custom:")) {
-      const next = this.preferences.customs.findIndex(custom => custom.pack === selected);
-      this.preferences.active = next < 0 ? "silent" : `custom:${next}`;
-    }
-    return this.select(this.preferences.active);
+  async remove(index: number) {
+    const target = this.preferences.customs[index];
+    if (!target) return;
+    this.preferences = removeSound(this.preferences, target);
+    await this.choose(resolveSound(this.preferences), preferences => removeSound(preferences, target));
+    await this.pruneFiles();
   }
   cancelPendingAdd() { this.addition?.abort(); }
 }

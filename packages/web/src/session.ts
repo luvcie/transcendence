@@ -87,6 +87,8 @@ export class Session {
   private nextSeq = 1;
   private prepared = "";
   private releasing = false;
+  private queuedUndos = 0;
+  private undoGeneration: number | null = null;
   private gap = false;
   private resyncAt = -Infinity;
   private receivedAt = 0;
@@ -266,7 +268,9 @@ export class Session {
     this.adaptiveDecision = undefined;
     this.adaptive?.resetDecrease();
   }
-  private invalidate() {
+  private invalidate(keepQueuedUndos = false) {
+    if (!keepQueuedUndos) this.queuedUndos = 0;
+    this.undoGeneration = null;
     this.cancelScheduledFlush();
     this.pending = [];
     this.gap = false;
@@ -275,6 +279,7 @@ export class Session {
     this.diagnostics?.clearQueue();
   }
   release(reason: ReleaseReason = "user") {
+    this.queuedUndos = 0;
     this.cancelScheduledFlush();
     this.options.clearKeys();
     const cp = this.checkpoint;
@@ -288,9 +293,23 @@ export class Session {
     this.diagnostics?.updateControl();
   }
   practice(type: "practiceUndo" | "practiceReset") {
+    if (type === "practiceUndo") {
+      if (!this.canUndoPractice) return;
+      this.queuedUndos++;
+      this.flushPracticeUndo();
+      return;
+    }
     if (!this.canPlay || this.room?.options.mode !== "practice") return;
     this.release();
     this.send({ type });
+  }
+  private flushPracticeUndo() {
+    // wait for pending placements to commit before rewinding one
+    if (!this.queuedUndos || this.pending.length || !this.canPlay) return;
+    this.queuedUndos--;
+    this.undoGeneration = this.checkpoint!.owner.generation + 1;
+    this.options.clearKeys();
+    this.send({ type: "practiceUndo" });
   }
   private get controlsReady() {
     const state = this.checkpoint?.state;
@@ -300,7 +319,11 @@ export class Session {
       && !this.checkpoint?.clock.frozen
       && !owner?.withdrawn && !(state?.mode === "competitive" && (owner?.eliminated || owner?.game.state.topOut));
   }
-  get canPlay() { return this.controlsReady && this.options.now() - this.receivedAt < 2000; }
+  private get freshControls() { return this.controlsReady && this.options.now() - this.receivedAt < 2000; }
+  get canPlay() { return this.undoGeneration === null && this.freshControls; }
+  get canUndoPractice() {
+    return this.room?.options.mode === "practice" && this.prediction?.owner === this.playerId && this.freshControls;
+  }
   private target() {
     const cp = this.checkpoint!;
     const base = cp.state!.frame * FRAME_MS;
@@ -311,7 +334,7 @@ export class Session {
   }
   input(input: InputId) {
     this.adaptive?.activity(this.options.now());
-    if (!this.canPlay) return;
+    if (!this.canPlay || this.queuedUndos) return;
     if (this.pending.length >= 128) { this.release("pending-overflow"); return; }
     this.queue(input);
     // Rebuild before replay: a checkpoint's accepted orders may precede a local
@@ -531,7 +554,10 @@ export class Session {
         if (this.adaptive && (!message.room.matchId || this.leadMatch && this.leadMatch !== JSON.stringify([message.room.code, message.room.matchId]))) this.resetLead();
         this.invite = "";
         if (!this.canPlay && (!this.deferred || !this.controlsReady)) this.cancelScheduledFlush();
-        if (message.room.phase !== "playing") this.options.clearKeys();
+        if (message.room.phase !== "playing") {
+          this.queuedUndos = 0;
+          this.options.clearKeys();
+        }
         break;
       case "checkpoint": {
         if (message.serverSequence <= this.sequence) { this.diagnostics?.staleCheckpoint(this.options.now()); return; }
@@ -549,7 +575,9 @@ export class Session {
         const changed = identity !== this.identity;
 
         if (changed) {
-          this.invalidate();
+          const undoAcknowledged = message.owner.generation === this.undoGeneration
+            && message.matchId === this.checkpoint?.matchId && message.room.phase === "playing";
+          this.invalidate(undoAcknowledged);
           this.nextSeq = message.owner.nextSeq;
           this.releasing = false;
           this.identity = identity;
@@ -600,6 +628,7 @@ export class Session {
           for (const item of this.pending) if (item.seq >= message.owner.nextSeq) item.sent = false;
         }
         this.rebuild(true);
+        this.flushPracticeUndo();
         if (this.deferred && !this.pending.includes(this.deferred.first)) this.flushInputs(this.options.now());
         if (!this.canPlay || !this.pending.some(i => !i.sent)) this.cancelScheduledFlush();
         else if (!this.cancelFlush) this.scheduleFlush(this.options.now());
@@ -681,9 +710,12 @@ export class Session {
           this.cancelScheduledFlush();
           this.resync();
         } else if (["INPUT_REJECTED", "STALE_INPUT", "SEQ_EXPIRED", "RATE_LIMIT"].includes(message.code)
-          || message.code === "WRONG_PHASE" && this.pending.length > 0) {
+          || message.code === "WRONG_PHASE" && (this.pending.length > 0 || this.undoGeneration !== null)) {
           this.diagnostics?.rejection(this.options.now(), message.code, null);
-          this.release(releaseReason(message.code));
+          if (this.undoGeneration !== null) {
+            this.queuedUndos = 0;
+            this.undoGeneration = null;
+          } else this.release(releaseReason(message.code));
         }
         break;
     }

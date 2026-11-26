@@ -2,6 +2,7 @@ import { expect, spyOn, test } from "bun:test";
 import { gifTiming, skinSourceAnimation } from "./src/skin-animation";
 import { skinFrame } from "./src/tile-renderer";
 import type { LoadedSkin } from "./src/skin-loader";
+import { fakeFileCache } from "./test-file-cache";
 
 function gif(delays: number[]) {
   const bytes = [...new TextEncoder().encode("GIF89a"), 124, 0, 10, 0, 128, 0, 0, 0, 0, 0, 255, 255, 255,
@@ -66,4 +67,25 @@ test("original GIF timing can load without downloading an export, within the sam
     expect(await skinSourceAnimation(base + "long.gif.tpse")).toBeUndefined();
     expect(fetch).toHaveBeenCalledTimes(2);
   } finally { fetch.mockRestore(); }
+});
+test("custom GIF sources with unsupported frames or timing can be downloaded again", async () => {
+  const cache = fakeFileCache();
+  const base = "https://you.have.fail/tetrioplus/data/tpsefiles/skin/future/";
+  const fetch = spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(new Response(gif(Array(65).fill(3))))
+    .mockResolvedValueOnce(new Response(gif([3])))
+    .mockResolvedValueOnce(new Response(gif([3, 4, 3, 5])))
+    .mockResolvedValueOnce(new Response(gif([3, 4, 3, 4])));
+  try {
+    for (const [url, frames, frameEnds] of [
+      [base + "long.gif.tpse", undefined, [30]],
+      [base + "uneven.zip.tpse", 2, [30, 70]],
+    ] as const) {
+      expect(await skinSourceAnimation(url, frames, true)).toBeUndefined();
+      expect(cache.has(url)).toBe(false);
+      expect(await skinSourceAnimation(url, frames, true)).toMatchObject({ frameEnds });
+      expect(cache.has(url)).toBe(true);
+    }
+    expect(fetch).toHaveBeenCalledTimes(4);
+  } finally { fetch.mockRestore(); cache.restore(); }
 });

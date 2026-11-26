@@ -5,11 +5,10 @@ import type { requestCompetitiveReplay } from "./replay-request";
 import {
   ROWS,
   Input,
-  Piece,
   type PieceId,
   type InputId,
 } from "@42tris/core";
-import { loadHandling, setupDisplayToggle, setupHandling } from "./settings";
+import { loadHandling, setupDisplayToggle, setupHandling, setupSurgeIcon, setupTouchDisplaySettings } from "./settings";
 import { ACTIONS, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 import { SkinState } from "./skin-state";
@@ -30,9 +29,10 @@ import { mountGuestName } from "./guest-name";
 import { dismissSettingsOnBackdrop } from "./settings-dialog";
 import { MultiplayerSkinPreference, setupMultiplayerSkinSetting, shareableSkinId } from "./multiplayer-skins";
 import { mountGameplayInput } from "./gameplay-input";
+import { createTouchControls } from "./touch-controls";
 import { mountHoldExit } from "./hold-exit";
 import { renderOnlineWaiting } from "./waiting-view";
-import { snapshotDisplay, type GameDisplay } from "./game-display";
+import { bindGameStats, snapshotDisplay, type GameDisplay } from "./game-display";
 import { initialView, mountAppView, onlineView, toolPaths, type ToolView } from "./app-view";
 import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary, type SingleplayerMode } from "./singleplayer";
 import { SprintRecorder } from "@42tris/replay";
@@ -72,18 +72,16 @@ const holdCtx = holdCanvas.getContext("2d")!;
 const nextCanvas = document.querySelector<HTMLCanvasElement>("#next-preview")!;
 const nextCtx = nextCanvas.getContext("2d")!;
 const holdButton = document.querySelector<HTMLButtonElement>("#hold-button")!;
-const lineCount = document.querySelector("#line-count")!;
-const comboCount = document.querySelector("#combo-count")!;
-const b2bCount = document.querySelector("#b2b-count")!;
-const surgeCount = document.querySelector("#surge-count")!;
-const finesseCount = document.querySelector("#finesse-count")!;
+const touchControls = createTouchControls(document.querySelector<HTMLElement>("#game-touch-controls")!);
+const coarsePointer = matchMedia("(pointer: coarse)");
+const phonePortrait = matchMedia("(pointer: coarse) and (max-width: 663px) and (orientation: portrait)");
+const renderStats = bindGameStats(document);
 const sprintClock = document.querySelector<HTMLElement>("#sprint-clock")!;
 const elapsedTime = document.querySelector<HTMLElement>("#elapsed-time")!;
 const resultPanel = document.querySelector<HTMLElement>("#sprint-result")!;
 const watchReplayButton = document.querySelector<HTMLButtonElement>("#watch-replay-button")!;
 const replayBar = document.querySelector<HTMLElement>("#replay-bar")!;
 const replayToggle = document.querySelector<HTMLButtonElement>("#replay-toggle")!;
-const clearResult = document.querySelector("#clear-result")!;
 const zenStatus = document.querySelector<HTMLParagraphElement>("#zen-status")!;
 const LETTERS = "_ZLOSIJT";
 const pressed = new Map<string, Action>();
@@ -106,7 +104,7 @@ setupMultiplayerSkinSetting(multiplayerSkins);
 const soundPlayer = new SoundPlayer();
 const music = new ZenMusic(() => soundPlayer.audio(), () => localStorage);
 setupMusic(music, syncZenMusic);
-const sounds = new SoundState(() => localStorage, (pack, signal) => soundPlayer.load(pack, signal));
+const sounds = new SoundState(() => localStorage, (pack, signal, mode) => soundPlayer.load(pack, signal, mode));
 const gameSounds = new GameSounds(() => sounds.preferences.enabled ? sounds.loaded?.pack : undefined,
   clips => {
     if (sounds.preferences.enabled && sounds.loaded && !document.hidden && !atHome && !settingsDialog.open && !activePlayback()) soundPlayer.play(clips, sounds.loaded);
@@ -129,6 +127,8 @@ window.addEventListener("pointerdown", unlockSounds);
 window.addEventListener("keydown", unlockSounds);
 let showGhost = setupDisplayToggle("#ghost-preview", "42tris.ghost", enabled => { showGhost = enabled; });
 setFastSkins(setupDisplayToggle("#fast-skins", "42tris.fastSkins", setFastSkins));
+void setupSurgeIcon();
+setupTouchDisplaySettings(coarsePointer);
 // Zen is selected per game; old preferences no longer control gameplay.
 try { localStorage.removeItem("42tris.zen"); } catch { /* Storage is optional. */ }
 
@@ -167,13 +167,14 @@ let openingPlayback = false;
 let lastFrameAt: number | null = null;
 setupHandling(handling, value => {
   handling = value;
-  if (!online && !playback) { solo?.setHandling(value, performance.now()); pressed.clear(); }
+  if (!online && !playback) { solo?.setHandling(value, performance.now()); inputMount.clear(); }
 });
 
 const pauseDialog = document.querySelector<HTMLDialogElement>("#pause-dialog")!;
 const settingsDialog = document.querySelector<HTMLDialogElement>("#settings-dialog")!;
 const abandonDialog = document.querySelector<HTMLDialogElement>("#abandon-dialog")!;
 const navSettingsButton = document.querySelector<HTMLButtonElement>("#nav-settings-button")!;
+const pauseSettingsButton = document.querySelector<HTMLButtonElement>("#settings-button")!;
 const emojiView = document.querySelector<HTMLElement>("#emoji-view")!;
 const minolensView = document.querySelector<HTMLElement>("#minolens-view")!;
 
@@ -197,12 +198,13 @@ function syncZenMusic() {
 }
 
 function releaseSoloControls() {
+  const now = performance.now();
   for (const action of new Set(pressed.values())) {
     const binding = ACTIONS[action];
-    if ("up" in binding) solo?.apply(binding.up, performance.now());
-    if (restartOnFinesseFault()) break;
+    if ("up" in binding) solo?.apply(binding.up, now);
   }
-  pressed.clear();
+  inputMount.clear();
+  restartOnFinesseFault();
 }
 
 function focusView() {
@@ -219,7 +221,7 @@ function pause() {
   syncZenMusic();
   refreshHud();
   if (solo.result) return;
-  pressed.clear();
+  inputMount.clear();
   pauseDialog.showModal();
 }
 
@@ -230,30 +232,30 @@ async function resume() {
     await music.prepare();
     if (solo !== game || request !== modeRequest || document.hidden || !document.hasFocus()) return;
   }
+  const closingSettings = settingsDialog.open;
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.close();
-  if (!online && !playback) solo?.setPaused(false, performance.now());
+  if (!online && !playback && solo?.mode === "zen") solo.setPaused(false, performance.now());
   syncZenMusic();
-  focusView();
+  if (closingSettings && (atHome || solo?.result || activePlayback())) navSettingsButton.focus({ preventScroll: true });
+  else focusView();
 }
 
 let settingsFromMenu = false;
 function openSettings(fromMenu: boolean) {
   holdExit.cancel();
-  if (!online && solo?.mode === "sprint" && !solo.result) return;
-  if (activePlayback()) { activePlayback()!.pause(); lastFrameAt = null; syncPlaybackControls(); }
+  const replay = activePlayback();
+  if (replay) { replay.pause(); lastFrameAt = null; syncPlaybackControls(); }
   settingsFromMenu = fromMenu;
   if (fromMenu) pauseDialog.close();
-  else if (online) {
-    online.session.release();
-    pressed.clear();
-  } else {
+  else if (online) online.session.release();
+  else if (solo?.mode !== "sprint") {
     solo?.setPaused(true, performance.now());
-    refreshHud();
-    pressed.clear();
-  }
+    inputMount.clear();
+  } else releaseSoloControls();
   settingsDialog.showModal();
+  refreshHud();
   syncZenMusic();
 }
 
@@ -262,6 +264,7 @@ function closeSettings() {
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.showModal();
+  pauseSettingsButton.focus({ preventScroll: true });
 }
 
 async function launchMode(mode: SingleplayerMode, training = mode === "sprint" && sprintOption.checked) {
@@ -296,11 +299,11 @@ async function launchMode(mode: SingleplayerMode, training = mode === "sprint" &
   atHome = false;
   gameSounds.observe(display, solo.game);
   resultPanel.hidden = true;
+  inputMount.setTouchBlocked(false);
   showView("solo");
-  navSettingsButton.disabled = mode === "sprint";
   refreshHud();
   status.textContent = `${SINGLEPLAYER_MODES[mode].name} · ${solo.game.width} wide`;
-  pressed.clear();
+  inputMount.clear();
   if (mode === "zen" && (document.hidden || !document.hasFocus() || settingsDialog.open)) {
     solo.setPaused(true, performance.now());
     if (!settingsDialog.open) pauseDialog.showModal();
@@ -320,6 +323,7 @@ function restartOnFinesseFault(): boolean {
     || !countdown.restartOnFault(solo.game.finesse.faults, () => { void launchMode("sprint", true); }, () => performance.now())) return false;
   countdownOverlay.textContent = "3";
   countdownOverlay.hidden = false;
+  inputMount.releaseTouches();
   return true;
 }
 
@@ -330,7 +334,7 @@ async function abandonSolo(): Promise<boolean> {
   if (solo.mode === "zen") solo.setPaused(true, performance.now());
   else releaseSoloControls();
   syncZenMusic();
-  pressed.clear();
+  inputMount.clear();
   refreshHud();
   if (!solo.active) return true;
   document.querySelector("#abandon-description")!.textContent = `Your ${SINGLEPLAYER_MODES[solo.mode].name} progress will be lost.`;
@@ -356,7 +360,7 @@ function closeMenus() {
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.close();
-  pressed.clear();
+  inputMount.clear();
 }
 
 async function enterHome() {
@@ -384,7 +388,6 @@ function showHome() {
   resultPanel.hidden = true;
   atHome = true;
   showView("home");
-  navSettingsButton.disabled = false;
   status.textContent = "";
   focusView();
 }
@@ -419,9 +422,10 @@ async function enterOnline() {
   solo = null;
   atHome = false;
   resultPanel.hidden = true;
+  inputMount.setTouchBlocked(true);
+  touchControls.setUndoCount(null);
   display = null;
   showView(online ? onlineView(online.session.room, online.session.connected) : "lobby");
-  navSettingsButton.disabled = false;
   if (online) {
     online.closeDetails();
     online.session.release();
@@ -430,9 +434,9 @@ async function enterOnline() {
   }
   const root = document.querySelector<HTMLElement>("#online")!;
   online = mountOnline(root, {
-    clearKeys: () => { pressed.clear(); volumeOverlay.hide(); }, handling: () => handling, skins, invite, diagnostics: netDiagnostics, inputLeadMs,
+    clearKeys: () => { inputMount.clear(); volumeOverlay.hide(); }, handling: () => handling, skins, invite, diagnostics: netDiagnostics, inputLeadMs,
     skin: () => shareableSkinId(skins.preferences.active), skinMode: () => multiplayerSkins.mode,
-    replay: watchCompetitiveReplay,
+    replay: watchCompetitiveReplay, settings: () => openSettings(false),
     view: view => {
       if (view !== "playing") volumeOverlay.hide();
       if (!atHome && !competitivePlayback) showView(view);
@@ -510,8 +514,8 @@ const replayControls = mountReplayControls(document, {
 });
 document.querySelector("#pause-restart-button")!.addEventListener("click", () => { closeMenus(); restart(); });
 document.querySelector("#resume-button")!.addEventListener("click", resume);
-document.querySelector("#settings-button")!.addEventListener("click", () => openSettings(true));
-document.querySelector("#nav-settings-button")!.addEventListener("click", () => openSettings(false));
+pauseSettingsButton.addEventListener("click", () => openSettings(true));
+navSettingsButton.addEventListener("click", () => openSettings(false));
 document.querySelector("#settings-back")!.addEventListener("click", closeSettings);
 dismissSettingsOnBackdrop(settingsDialog, closeSettings);
 holdButton.addEventListener("click", () => {
@@ -528,17 +532,13 @@ function handleFocusLoss() {
   if (activePlayback()) {
     activePlayback()!.pause();
     lastFrameAt = null;
-    pressed.clear();
+    inputMount.clear();
     syncPlaybackControls();
     return;
   }
-  if (online) {
-    online.session.release();
-    pressed.clear();
-  } else {
-    if (solo?.mode === "sprint") releaseSoloControls();
-    else pause();
-  }
+  if (online) online.session.release();
+  else if (solo?.mode === "sprint") releaseSoloControls();
+  else pause();
 }
 
 window.addEventListener("blur", handleFocusLoss);
@@ -560,7 +560,7 @@ function stopPlayback(): void {
   replayBar.hidden = true;
   display = solo?.game ?? null;
   lastFrameAt = null;
-  pressed.clear();
+  inputMount.clear();
 }
 
 function backToResults(): void {
@@ -591,7 +591,7 @@ function watchCompetitiveReplay(replay: Awaited<ReturnType<typeof requestCompeti
   status.hidden = false;
   matchReplayHost.hidden = false;
   replayBar.hidden = false;
-  pressed.clear();
+  inputMount.clear();
   lastFrameAt = null;
   syncPlaybackControls();
   replayToggle.focus({ preventScroll: true });
@@ -622,7 +622,7 @@ async function watchSprintReplay(): Promise<void> {
   showView("sprintReplay");
   resultPanel.hidden = true;
   replayBar.hidden = false;
-  pressed.clear();
+  inputMount.clear();
   lastFrameAt = null;
   status.textContent = `40 lines · ${next.outcome === "complete" ? "completed attempt" : "topped out attempt"}`;
   display = snapshotDisplay(playback.state);
@@ -634,49 +634,26 @@ async function watchSprintReplay(): Promise<void> {
 function refreshHud() {
   if (!display) return;
   const sprint = playback !== null || (!online && solo?.mode === "sprint");
+  const undoCount = solo?.undoCount ?? 0;
+  if (!online) touchControls.setUndoCount(!playback && solo?.mode === "zen" ? (display.starting ? 0 : undoCount) : null);
   setHidden(sprintClock, !sprint);
   setText(elapsedTime, formatTime(playback ? playback.elapsedMs : solo?.elapsedMs ?? 0));
-  const { lines, combo, chainLength, b2b, surge } = display.stats;
-  setText(lineCount, sprint ? `${lines} / 40` : String(lines));
-  setText(comboCount, String(Math.max(0, combo)));
-  setText(b2bCount, chainLength === 0 ? "—" : b2b === 0 ? "Ready" : String(b2b));
-  setAttributeIfChanged(b2bCount, "title", chainLength === 0
-    ? "Clear a Quad, spin or all clear to start B2B."
-    : b2b === 0 ? "Chain started. The next qualifying clear earns the B2B bonus." : `${b2b} back-to-back clears.`);
-  setText(surgeCount, String(surge));
-  setText(finesseCount, finesseSummary(display.finesse));
-  const result = display.lastClear;
-  const labels: string[] = [];
-  if (result) {
-    const clear = ["", "Single", "Double", "Triple", "Quad"][result.rows.length];
-    let spin = "";
-    if (result.spin !== "none") {
-      spin = `${LETTERS[result.piece]}-spin`;
-      if (result.piece === Piece.T && result.spin === "mini") spin += " mini";
-    }
-    const placement = [spin, clear].filter(Boolean).join(" ");
-    if (placement) labels.push(placement);
-    if (result.allClear) labels.push("All clear");
-    const attack = result.attacks.reduce((sum, packet) => sum + packet.lines, 0);
-    if (attack) labels.push(`Attack ${attack}`);
-  }
-  setText(clearResult, labels.join(" · "));
+  renderStats(display, sprint, !!online && phonePortrait.matches);
   setHidden(zenStatus, playback !== null || (!display.zen && (!sprint || !!solo?.started)));
   setText(zenStatus, online ? "Online practice · Ctrl+Z to undo; restart resets your board."
     : sprint ? "Sprint 40L · Make your first move to start the clock."
-    : `Zen · Ctrl+Z to undo (${solo?.undoCount ?? 0} available)`);
+    : `Zen · Ctrl+Z to undo (${undoCount} available)`);
   if (solo?.result && !online && !playback && resultPanel.hidden) {
     holdExit.cancel();
     volumeOverlay.hide();
     const result = solo.result;
     setText(document.querySelector("#sprint-result-title")!, result.outcome === "complete" ? "Sprint complete" : "Topped out");
-    setDisabled(navSettingsButton, false);
     setText(document.querySelector("#result-time")!, formatTime(result.elapsedMs));
     setText(document.querySelector("#result-lines")!, `${result.stats.lines} / 40 lines cleared${result.outcome === "failed" ? " · Attempt failed" : ""}`);
     setText(document.querySelector("#result-pieces")!, `${result.stats.pieces} pieces placed`);
     setText(document.querySelector("#result-finesse")!, `Finesse ${finesseSummary(result.finesse)}`);
     setHidden(resultPanel, false);
-    pressed.clear();
+    inputMount.clear();
     if (!document.querySelector("dialog[open]")) document.querySelector<HTMLElement>("#sprint-result-title")!.focus({ preventScroll: true });
   }
   if (!online && solo instanceof SprintRecorder && solo.result) {
@@ -703,7 +680,7 @@ function applyInput(input: InputId) {
   solo?.apply(input, performance.now());
   observeSoloSounds(input);
   if (restartOnFinesseFault()) return;
-  if (solo && display !== solo.game) pressed.clear();
+  if (solo && display !== solo.game) inputMount.clear();
   display = solo?.game ?? null;
   refreshHud();
 }
@@ -726,7 +703,12 @@ function observeSoloSounds(input?: InputId) {
 }
 
 function render() {
+  const onlineUndo = !!online && !atHome && !playback && !competitivePlayback && phonePortrait.matches && online.session.canUndoPractice;
+  if (online) touchControls.setUndoCount(onlineUndo ? 1 : null);
   if (atHome || competitivePlayback) return;
+  setHidden(touchControls.restart, !!playback || (online ? online.session.room?.options.mode !== "practice" : !solo));
+  const onlineBlocked = !!online && !online.session.canPlay;
+  if (online && coarsePointer.matches) inputMount.setTouchBlocked(onlineBlocked && !onlineUndo);
   if (online && renderOnlineWaiting(document, online.session)) return;
   if (!display) return;
   const width = display.board.length / ROWS;
@@ -736,7 +718,7 @@ function render() {
   setAttributeIfChanged(canvas, "aria-label", "42tris playfield");
   const holdCell = fitCanvas(holdCanvas, 5, 3);
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-  setDisabled(holdButton, countdown.active || playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay));
+  setDisabled(holdButton, countdown.active || playback !== null || display.holdLocked || display.paused || display.topOut || display.starting || !!solo?.result || onlineBlocked);
   setAttributeIfChanged(holdCanvas, "aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
   if (display.held !== null) drawPiecePreview(holdCtx, display.held, holdCell, holdCanvas.width, holdCanvas.height, 0, skins.loaded);
 
@@ -752,24 +734,27 @@ function render() {
 }
 
 function toggleMenu() {
+  if (settingsDialog.open) { closeSettings(); return; }
   if (activePlayback()) { backToResults(); return; }
   if (abandonDialog.open) abandonDialog.close("cancel");
   else if (online?.detailsOpen) online.closeDetails();
-  else if (settingsDialog.open) closeSettings();
   else if (pauseDialog.open || (!online && solo?.paused)) resume();
 }
 
-const unmountInput = mountGameplayInput(window, {
-  bindings, pressed,
+const inputMount = mountGameplayInput(window, {
+  bindings, pressed, touch: touchControls,
   editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, summary, a, [contenteditable=true], [role=slider]"),
-  blocked: () => countdown.active || abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || activePlayback() !== null || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
+  blocked: action => countdown.active || abandonDialog.open || pauseDialog.open || settingsDialog.open
+    || !!online?.detailsOpen || atHome || activePlayback() !== null
+    || (online ? !(action === "undo" ? online.session.canUndoPractice : online.session.canPlay)
+      : !solo || (solo.result ? action !== "restart" : solo.paused)),
   settingsOpen: () => settingsDialog.open,
   starting: () => display?.starting ?? true,
   menu: toggleMenu,
   undo() {
     if (activePlayback()) return;
     if (online) online.session.practice("practiceUndo");
-    else if (solo?.undo(performance.now())) { pressed.clear(); display = solo.game; gameSounds.reset(); refreshHud(); }
+    else if (solo?.undo(performance.now())) { inputMount.clear(); display = solo.game; gameSounds.reset(); refreshHud(); }
   },
   restart, input: applyInput, lateRelease: () => online?.session.release(),
 });
@@ -819,7 +804,7 @@ function frame(now: number) {
       observeSoloSounds();
       restartOnFinesseFault();
     }
-    if (display !== solo.game) pressed.clear();
+    if (display !== solo.game) inputMount.clear();
     display = solo.game;
     refreshHud();
   }
@@ -828,7 +813,7 @@ function frame(now: number) {
 }
 
 let frameId = requestAnimationFrame(frame);
-window.addEventListener("pagehide", e => { holdExit.cancel(); modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { holdExit.dispose(); volumeOverlay.dispose(); unmountInput(); replayControls.dispose(); stopPlayback(); } });
+window.addEventListener("pagehide", e => { holdExit.cancel(); modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { holdExit.dispose(); volumeOverlay.dispose(); inputMount(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
 if (entryView === "emoji" || entryView === "minolens") showTool(entryView, false);
 else if (!atHome) enterOnline();

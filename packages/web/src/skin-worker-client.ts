@@ -7,7 +7,7 @@ export function canPrepareSkin() {
   return typeof Worker !== "undefined" && typeof OffscreenCanvas !== "undefined" && typeof createImageBitmap !== "undefined";
 }
 
-export function prepareSkin(url: string): Promise<PreparedSkin> {
+export function prepareSkin(url: string, custom = false): Promise<PreparedSkin> {
   const run = () => {
     const worker = new Worker(new URL("./skin-worker.ts", import.meta.url), { type: "module" });
     let timer: ReturnType<typeof setTimeout>;
@@ -19,7 +19,7 @@ export function prepareSkin(url: string): Promise<PreparedSkin> {
       };
       worker.onerror = () => reject(new Error("Skin could not load. Try again."));
       worker.onmessageerror = () => reject(new Error("Skin could not be read. Try again."));
-      worker.postMessage(url);
+      worker.postMessage({ url, custom });
     }).finally(() => { clearTimeout(timer); worker.terminate(); });
   };
   const request = preparation.then(run);

@@ -43,9 +43,10 @@ export class Element extends EventTarget {
   getBoundingClientRect() { return { width: this.width }; }
   getContext() { return this.context; }
 }
-export class FakeDocument {
+export class FakeDocument extends EventTarget {
   location = new URL("http://localhost:5173/");
   root = new Element(this);
+  hidden = false;
   focused?: Element;
   createElement() { return new Element(this); }
   querySelector(selector: string): Element {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { Game, Input } from "@42tris/core";
 import { BUILTIN_SOUNDS } from "./src/sound-catalog";
 import { GameSounds } from "./src/game-sounds";
@@ -6,6 +6,7 @@ import { parseSoundPack, soundUrls, type SoundClip } from "./src/sound-pack";
 import { SoundPlayer } from "./src/sound-player";
 import { parseSoundPreferences, SoundState } from "./src/sound-state";
 import { isTetrioExportUrl, MAX_TETRIO_EXPORT_BYTES, parseTetrioExport, tetrioClipSource, tetrioClipUrl, tetrioSoundPack } from "./src/tetrio-sounds";
+import { fakeFileCache } from "./test-file-cache";
 
 const url = "https://example.com/pizza.zip.tpse";
 function exported(atlas = { move: [0, 250], harddrop: [1000, 500], menuclick: [2000, 1500] }) {
@@ -106,22 +107,83 @@ describe("TETR.IO+ loading", () => {
     expect(started[1].args).toEqual(started[0].args);
     expect(loaded.buffers.get(tetrioClipUrl(url, "menuclick"))).toBeUndefined();
   });
-  test("imports and restores a direct export link without persisting its audio", async () => {
+  test("restores a direct export offline and removes its bytes with the pack", async () => {
     let raw: string | null = null;
     const saved = () => ({ getItem: () => raw, setItem: (_key: string, value: string) => { raw = value; } });
-    const { context } = audio();
-    const player = new SoundPlayer(() => context, async () => bytes(exported()));
-    const state = new SoundState(saved, (pack, signal) => player.load(pack, signal));
-    expect(await state.add(url)).toBe(true);
-    expect(state.preferences.customs[0].pack.name).toBe("pizza");
-    expect(state.preferences.customs[0].pack.harddrop).toBe(tetrioClipUrl(url, "harddrop"));
-    expect(raw!.length).toBeLessThan(2000);
-    expect(raw!).not.toContain("customSounds");
-    expect(parseSoundPreferences(raw)).toEqual(state.preferences);
-    expect(await state.add(url)).toBe(false);
-    const restored = new SoundState(saved, (pack, signal) => player.load(pack, signal));
-    await restored.select("custom:0", false);
-    expect(restored.loaded?.pack).toEqual(state.loaded?.pack);
+    const cache = fakeFileCache();
+    const fetch = spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(bytes(exported())));
+    fetch.mockRejectedValue(new Error("offline"));
+    const state = () => {
+      const { context } = audio();
+      const player = new SoundPlayer(() => context);
+      return new SoundState(saved, (pack, signal, mode) => player.load(pack, signal, mode));
+    };
+    try {
+      const first = state();
+      expect(await first.add(url)).toBe(true);
+      expect(first.preferences.customs[0].pack.name).toBe("pizza");
+      expect(first.preferences.customs[0].pack.harddrop).toBe(tetrioClipUrl(url, "harddrop"));
+      expect(raw!.length).toBeLessThan(2000);
+      expect(raw!).not.toContain("customSounds");
+      expect(parseSoundPreferences(raw)).toEqual(first.preferences);
+      expect(await first.add(url)).toBe(false);
+      const restored = state();
+      await restored.select("custom:0", false);
+      expect(restored.loaded?.pack).toEqual(first.loaded?.pack);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      await restored.remove(0);
+      expect(cache.has(url)).toBe(false);
+      expect(await restored.add(url)).toBe(false);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    } finally { fetch.mockRestore(); cache.restore(); }
+  });
+  test("keeps valid inline clips when another clip is out of bounds", async () => {
+    const { context, decoded } = audio();
+    const cache = fakeFileCache();
+    const player = new SoundPlayer(() => context, async () =>
+      bytes(exported({ move: [0, 250], harddrop: [1000, 500], menuclick: [3900, 500] })));
+    const signal = new AbortController().signal;
+    const move = tetrioClipUrl(url, "move"), harddrop = tetrioClipUrl(url, "harddrop");
+    try {
+      const first = await player.load({ name: "Drop", harddrop }, signal, "custom");
+      expect(cache.has(url)).toBe(true);
+      const loaded = await player.load({ name: "Shared", harddrop, move, fault: tetrioClipUrl(url, "menuclick") }, signal, "custom");
+      expect(loaded.failed).toBe(1);
+      expect(loaded.buffers.get(harddrop)).toBe(first.buffers.get(harddrop)!);
+      expect(loaded.buffers.has(move)).toBe(true);
+      expect(decoded()).toBe(2);
+      expect(cache.has(url)).toBe(false);
+    } finally { cache.restore(); }
+  });
+  test("inline clips decode once and keep shared export bytes for offline use", async () => {
+    let raw: string | null = null;
+    const saved = () => ({ getItem: () => raw, setItem: (_key: string, value: string) => { raw = value; } });
+    const cache = fakeFileCache();
+    const fetch = spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(bytes(exported())));
+    fetch.mockRejectedValue(new Error("offline"));
+    const state = (context = audio().context) => {
+      const player = new SoundPlayer(() => context);
+      return new SoundState(saved, (pack, signal, mode) => player.load(pack, signal, mode));
+    };
+    const move = tetrioClipUrl(url, "move"), harddrop = tetrioClipUrl(url, "harddrop");
+    try {
+      const { context, decoded } = audio();
+      const first = state(context);
+      expect(await first.add(JSON.stringify({ name: "Move and drop", move, harddrop }))).toBe(true);
+      expect([...first.loaded!.buffers.keys()].sort()).toEqual([harddrop, move]);
+      expect(decoded()).toBe(1);
+      expect(await first.add(JSON.stringify({ name: "Drop", harddrop }))).toBe(true);
+      const restored = state();
+      await restored.select(restored.preferences.active, false);
+      expect([...restored.loaded!.buffers.keys()]).toEqual([harddrop]);
+      await restored.remove(1);
+      expect(cache.has(url)).toBe(true);
+      await restored.select("custom:0", false);
+      expect([...restored.loaded!.buffers.keys()].sort()).toEqual([harddrop, move]);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      await restored.remove(0);
+      expect(cache.has(url)).toBe(false);
+    } finally { fetch.mockRestore(); cache.restore(); }
   });
   test("a named JSON reference can override individual events with regular audio links", async () => {
     const { context } = audio();
@@ -139,7 +201,9 @@ describe("TETR.IO+ loading", () => {
   test("rejects a repeated JSON reference after resolving its event mappings", async () => {
     const { context } = audio();
     const player = new SoundPlayer(() => context, async () => bytes(exported()));
-    const state = new SoundState(() => ({ getItem: () => null, setItem() {} }), (pack, signal) => player.load(pack, signal));
+    let saved: string | null = null;
+    const state = new SoundState(() => ({ getItem: () => saved, setItem: (_key, value) => { saved = value; } }),
+      (pack, signal) => player.load(pack, signal));
     const reference = JSON.stringify({ name: "Mine", tetrioPlus: url });
     expect(await state.add(reference)).toBe(true);
     expect(await state.add(reference)).toBe(false);

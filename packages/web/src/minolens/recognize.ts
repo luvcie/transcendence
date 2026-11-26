@@ -111,11 +111,12 @@ function fitGrid(im: RGBAImage, lum: Float32Array) {
 // per channel median of the pixels in the cell box [a,b] (fractions of the cell), skipping the inner box [c,d] when given
 function sampleCell(im: RGBAImage, x0: number, y0: number, p: number, a: number, b: number, c = 1, d = 0): number[] {
   const ch: number[][] = [[], [], []];
-  const x1 = Math.max(0, Math.round(x0 + a * p)), x2 = Math.min(im.width, Math.round(x0 + b * p));
+  const left = Math.max(0, x0), width = Math.min(im.width, x0 + p) - left;
+  const x1 = Math.round(left + a * width), x2 = Math.round(left + b * width);
   const y1 = Math.max(0, Math.round(y0 + a * p)), y2 = Math.min(im.height, Math.round(y0 + b * p));
   for (let y = y1; y < y2; y++)
     for (let x = x1; x < x2; x++) {
-      const fx = (x + 0.5 - x0) / p, fy = (y + 0.5 - y0) / p;
+      const fx = (x + 0.5 - left) / width, fy = (y + 0.5 - y0) / p;
       if (fx > c && fx < d && fy > c && fy < d) continue;
       const i = (y * im.width + x) * 4;
       for (let k = 0; k < 3; k++) ch[k].push(im.data[i + k]);
@@ -244,9 +245,9 @@ const result = (cells: Cell[], p: number, bounds: Rect): Recognition => ({
 
 const noBoard = () => result([], 0, { x: 0, y: 0, width: 0, height: 0 });
 
-function hasGridRow(lum: Float32Array, width: number, x: number, y: number, p: number) {
+function gridLines(lum: Float32Array, width: number, x: number, y: number, p: number, walls = false) {
   const offset = Math.floor(y + p / 2) * width;
-  if (offset < 0 || offset >= lum.length) return false;
+  if (offset < 0 || offset >= lum.length) return 0;
   const edge = (x: number) => {
     const i = Math.round(x);
     let peak = 0;
@@ -257,7 +258,11 @@ function hasGridRow(lum: Float32Array, width: number, x: number, y: number, p: n
   };
   let lines = 0;
   for (let i = 1; i < 10; i++) if (edge(x + i * p) - edge(x + (i - 0.5) * p) > 10) lines++;
-  return lines >= 5;
+  if (walls) {
+    if (edge(x) - edge(x + 0.5 * p) > 10) lines++;
+    if (edge(x + 10 * p) - edge(x + 9.5 * p) > 10) lines++;
+  }
+  return lines;
 }
 
 export function recognizeBoard(im: RGBAImage, { bounds }: { bounds?: Rect } = {}): Recognition {
@@ -294,17 +299,13 @@ function fitBoard(im: RGBAImage, { crop = false, colors }: { crop?: boolean; col
   const lum = lumOf(im);
   const g = fitGrid(im, lum);
   const p = g.cell;
-  // keep all ten columns of a tight crop, including edge cells clipped near their centres
   const span = 10 * p;
   const centre = (im.width - span) / 2;
-  const tightStart = Math.round((centre - g.ox) / p);
-  const tightX = g.ox + tightStart * p;
-  const edgeTolerance = p / 2 + 1;
-  const tight = Math.abs(im.width - span) <= edgeTolerance && Math.max(-tightX, tightX + span - im.width) <= edgeTolerance;
-
-  const i0 = tight ? tightStart : Math.ceil(-g.ox / p - 0.5);
+  const maxClip = 0.75 * p;
+  const minVisible = Math.abs(im.width - span) <= maxClip ? p - maxClip : p / 2;
+  const i0 = Math.ceil((minVisible - g.ox) / p - 1);
   const j0 = Math.ceil(-g.oy / p - 0.5);
-  const nx = tight ? 10 : Math.floor((im.width - g.ox) / p - 0.5) - i0 + 1;
+  const nx = Math.floor((im.width - g.ox - minVisible) / p) - i0 + 1;
   const ny = Math.floor((im.height - g.oy) / p - 0.5) - j0 + 1;
   const ox = g.ox + i0 * p, oy = g.oy + j0 * p;
   if (nx < 1 || ny < 1 || (crop && (nx < 10 || g.score <= 0))) return;
@@ -320,11 +321,31 @@ function fitBoard(im: RGBAImage, { crop = false, colors }: { crop?: boolean; col
     const off = Math.abs(ox + c * p - centre);
     if (n > best || (n === best && off < Math.abs(ox + c0 * p - centre))) [c0, best] = [c, n];
   }
+  let floor = ny - 1;
+  if (!crop && nx > 10 && ny >= MAX_ROWS) {
+    const initial = c0;
+    let strongest = 9 * MAX_ROWS;
+    for (let c = 0; c <= nx - 10; c++) {
+      const x = ox + c * p;
+      if (x < 0 || x + span > im.width) continue;
+      const lines = Array.from({ length: ny }, (_, j) =>
+        gridLines(lum, im.width, x, oy + j * p, p, true));
+      let sum = 0;
+      for (let j = 0; j < ny; j++) {
+        sum += lines[j] - (lines[j - MAX_ROWS] ?? 0);
+        if (j >= MAX_ROWS - 1 && (sum > strongest || (sum === strongest && Math.abs(c - initial) < Math.abs(c0 - initial)))) {
+          strongest = sum;
+          c0 = c;
+          floor = j;
+        }
+      }
+    }
+  }
   const rowFilled = (j: number) => {
     for (let i = c0; i < c0 + 10; i++) if (filled(i, j)) return true;
     return false;
   };
-  let bottom = ny - 1;
+  let bottom = floor;
   while (bottom > 0 && !rowFilled(bottom)) bottom--;
   if (crop && !rowFilled(bottom)) return;
   // the visible playfield has at most 20 rows; a gap also separates spawn previews
@@ -336,7 +357,7 @@ function fitBoard(im: RGBAImage, { crop = false, colors }: { crop?: boolean; col
   }
   if (crop) {
     // distinguish empty playfield rows from margins in a loose selection
-    const gridRow = (j: number) => hasGridRow(lum, im.width, ox + c0 * p, oy + j * p, p);
+    const gridRow = (j: number) => gridLines(lum, im.width, ox + c0 * p, oy + j * p, p) >= 5;
     while (bottom + 1 < ny && bottom - top + 1 < MAX_ROWS && gridRow(bottom + 1)) bottom++;
     while (top > 0 && bottom - top + 1 < MAX_ROWS && !rowFilled(top - 1) && gridRow(top - 1)) top--;
   }

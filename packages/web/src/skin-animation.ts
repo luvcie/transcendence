@@ -1,4 +1,5 @@
 import { fetchExternalFile } from "./external-file";
+import { skinAnimations } from "./skin-files";
 import { MAX_SKIN_EXPORT_BYTES } from "./tetrio-skins";
 
 export function gifTiming(data: ArrayBuffer) {
@@ -44,7 +45,7 @@ export function gifTiming(data: ArrayBuffer) {
   }
 }
 
-export async function skinSourceAnimation(url: string, frames?: number) {
+export async function skinSourceAnimation(url: string, frames?: number, custom = false) {
   const source = new URL(url);
   if (source.origin !== "https://you.have.fail" || !source.pathname.startsWith("/tetrioplus/data/tpsefiles/")) return;
   source.pathname = source.pathname.replace("/tpsefiles/", "/content/").replace(/\.tpse$/i, "");
@@ -53,17 +54,22 @@ export async function skinSourceAnimation(url: string, frames?: number) {
   if (!original) source.pathname += ".preview.gif";
   try {
     const path = source.pathname.slice("/tetrioplus/data/content/".length);
-    const data = await fetchExternalFile(`/api/skin-source?path=${encodeURIComponent(path)}`, MAX_SKIN_EXPORT_BYTES, new AbortController().signal, 10_000);
-    const timing = gifTiming(data);
-    const count = frames ?? timing.ends.length;
-    if (count > 64) return;
-    // Gallery previews can repeat the mino cycle while a longer ghost animation runs.
-    if (timing.ends.length % count || original && timing.ends.length !== count) return;
-    const durations = timing.ends.map((end, i) => end - (timing.ends[i - 1] ?? 0));
-    if (durations.some((duration, i) => duration !== durations[i % count])) return;
-    return { data, original, width: timing.width, height: timing.height, frameEnds: timing.ends.slice(0, count) };
+    const proxy = `/api/skin-source?path=${encodeURIComponent(path)}`;
+    const read = ({ bytes }: { bytes: ArrayBuffer }) => {
+      const timing = gifTiming(bytes);
+      const count = frames ?? timing.ends.length;
+      if (count > 64) throw new Error("Skin GIF has too many frames.");
+      // gallery previews can repeat the mino cycle while a longer ghost animation runs
+      if (timing.ends.length % count || original && timing.ends.length !== count) throw new Error("Skin GIF frame count does not match.");
+      const durations = timing.ends.map((end, i) => end - (timing.ends[i - 1] ?? 0));
+      if (durations.some((duration, i) => duration !== durations[i % count])) throw new Error("Skin GIF timings do not repeat.");
+      return { data: bytes, original, width: timing.width, height: timing.height, frameEnds: timing.ends.slice(0, count) };
+    };
+    return custom
+      ? await skinAnimations.load(url, MAX_SKIN_EXPORT_BYTES, undefined, read, 10_000, proxy)
+      : read({ bytes: await fetchExternalFile(proxy, MAX_SKIN_EXPORT_BYTES, undefined, 10_000) });
   } catch {
-    // Source timing is optional; a missing or invalid source keeps the export's own delay.
+    // keep the export's own delay when gallery timing is unavailable
     return;
   }
 }

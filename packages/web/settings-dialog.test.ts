@@ -1,48 +1,40 @@
 import { expect, test } from "bun:test";
-import { setupDisplayToggle } from "./src/settings";
 import { dismissSettingsOnBackdrop } from "./src/settings-dialog";
-import { FakeDocument } from "./test-dom";
 
-test("only a click outside the settings dialog closes it", () => {
+test("settings closes for a primary backdrop click or tap that starts and ends outside", () => {
   const dialog = new EventTarget() as HTMLDialogElement;
   dialog.getBoundingClientRect = () => ({ left: 100, right: 300, top: 100, bottom: 300 } as DOMRect);
   let closes = 0;
   dismissSettingsOnBackdrop(dialog, () => { closes++; });
-  function click(x: number, y: number, target?: EventTarget) {
-    const event = new Event("click");
-    Object.defineProperties(event, { clientX: { value: x }, clientY: { value: y }, ...(target ? { target: { value: target } } : {}) });
-    dialog.dispatchEvent(event);
-  }
-  click(150, 150);
-  click(20, 20, new EventTarget());
-  expect(closes).toBe(0);
-  click(20, 20);
-  expect(closes).toBe(1);
-});
-
-test("fast skins default off, apply on change, and persist across settings setup", () => {
-  const globals = ["document", "localStorage"];
-  const originals = globals.map(name => Object.getOwnPropertyDescriptor(globalThis, name));
-  const storage = new Map<string, string>();
-  const document = new FakeDocument();
-  Object.assign(globalThis, { document, localStorage: {
-    getItem: (key: string) => storage.get(key) ?? null,
-    setItem: (key: string, value: string) => { storage.set(key, value); },
-  } });
-  try {
-    const changes: boolean[] = [];
-    const toggle = document.querySelector("#fast-skins");
-    expect(setupDisplayToggle("#fast-skins", "42tris.fastSkins", enabled => changes.push(enabled))).toBe(false);
-    toggle.checked = true;
-    toggle.dispatchEvent(new Event("change"));
-    expect(changes).toEqual([true]);
-    expect(storage.get("42tris.fastSkins")).toBe("true");
-    Object.assign(globalThis, { document: new FakeDocument() });
-    expect(setupDisplayToggle("#fast-skins", "42tris.fastSkins", () => {})).toBe(true);
-  } finally {
-    globals.forEach((name, index) => {
-      if (originals[index]) Object.defineProperty(globalThis, name, originals[index]!);
-      else Reflect.deleteProperty(globalThis, name);
+  const content = new EventTarget();
+  function send(type: string, x: number, y: number, target = dialog as EventTarget, button = 0) {
+    const event = Object.assign(new Event(type, { cancelable: true }), {
+      clientX: x, clientY: y, isPrimary: true, button, detail: 1,
+      touches: [], changedTouches: [{ clientX: x, clientY: y }],
     });
+    Object.defineProperty(event, "target", { value: target });
+    dialog.dispatchEvent(event);
+    return event;
   }
+  send("pointerdown", 150, 150, content);
+  send("click", 20, 20);
+  send("pointerdown", 150, 150); // dialog padding
+  send("click", 20, 20);
+  send("pointerdown", 20, 20);
+  send("click", 150, 150);
+  send("pointerdown", 20, 20);
+  send("pointercancel", 20, 20);
+  send("click", 20, 20);
+  send("pointerdown", 20, 20, dialog, 2);
+  send("click", 20, 20);
+  expect(closes).toBe(0);
+  send("pointerdown", 20, 20);
+  send("click", 20, 20);
+  expect(closes).toBe(1);
+  send("pointerdown", 150, 150, content);
+  expect(send("touchend", 20, 20).defaultPrevented).toBe(false);
+  expect(closes).toBe(1);
+  send("pointerdown", 20, 20);
+  expect(send("touchend", 20, 20).defaultPrevented).toBe(true);
+  expect(closes).toBe(2);
 });

@@ -177,6 +177,36 @@ test("real adaptive practice reset and undo preserve the round decision", () => 
   }
 });
 
+test("practice undo waits for a pending placement and accepts consecutive requests before the checkpoint", () => {
+  const h = new NetHarness({ a: { up: 50, down: 150 } });
+  h.startMatch({ mode: "practice" });
+  const session = h.a.session;
+  const match = h.room!.match!;
+  const board = () => match.playerState(session.playerId).board;
+  const pieces = () => match.playerState(session.playerId).lastResult?.stats.pieces ?? 0;
+  const start = board();
+  h.press("a", Input.HardDrop);
+  h.runUntil(() => session.prediction!.gameState().lastResult?.stats.pieces === 1 && session.pending.length === 0);
+  const firstPlacement = board();
+  const epoch = h.aCheckpoint!.owner.epoch;
+
+  h.press("a", Input.HardDrop);
+  expect(session.prediction!.gameState().lastResult?.stats.pieces).toBe(2);
+  expect(pieces()).toBe(1);
+  session.practice("practiceUndo");
+  h.runUntil(() => !session.canPlay);
+  expect(pieces()).toBe(2);
+  expect(session.canUndoPractice).toBe(true);
+  session.practice("practiceUndo");
+
+  h.runUntil(() => pieces() === 1);
+  expect(board()).toEqual(firstPlacement);
+  h.runUntil(() => session.canPlay && h.aCheckpoint!.owner.epoch === epoch + 2);
+  expect(board()).toEqual(start);
+  expect(session.prediction!.gameState().board).toEqual(start);
+  expect(h.a.commands.filter(command => command.type === "practiceUndo")).toHaveLength(2);
+});
+
 test("adaptive zero and omitted lead have equivalent gameplay under equivalent clock mapping", async () => {
   const run = async (adaptive: boolean) => {
     const h = new NetHarness({ diagnostics: true, commandHistory: Infinity, messageHistory: Infinity,

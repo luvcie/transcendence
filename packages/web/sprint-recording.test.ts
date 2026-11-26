@@ -87,3 +87,19 @@ test("a finesse-failed recording never replaces a previous completed recording",
   expect(sprintRecordingFor(failed)).toBeNull();
   expect(lastSprintRecording()).toBe(previous);
 });
+
+test("Sprint records the full elapsed time across a gap between ticks", async () => {
+  const recorder = startSprintRecording(108, 100, DEFAULT_HANDLING);
+  recorder.apply(Input.LeftDown, 120);
+  recorder.apply(Input.LeftUp, 160);
+  recorder.tick(6120);
+  expect(recorder.elapsedMs).toBe(6000);
+
+  topOut(recorder, 6130);
+  const replay = await recorder.finish();
+  expect(replay?.records).toContainEqual({
+    seq: 3, op: { type: "tick", atMs: 6120 },
+  });
+  const verified = await verifySprintReplayExecution(replay!);
+  expect(verified.result.elapsedMs).toBe(recorder.elapsedMs);
+});

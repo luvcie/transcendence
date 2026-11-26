@@ -1,4 +1,5 @@
 import { fetchExternalFile } from "./external-file";
+import { updatePreferences, withPreferenceLock } from "./preference-storage";
 
 export const MUSIC_STORAGE_KEY = "42tris.music.v1";
 export const ZEN_LOOP_START = 1008000 / 44100;
@@ -42,11 +43,13 @@ export class ZenMusic {
     Object.assign(this.preferences, value);
     if (!this.preferences.enabled || !this.preferences.volume) this.pause();
     if (this.gain) this.gain.gain.setTargetAtTime(this.preferences.volume, this.audio().currentTime, 0.015);
-    if (persist) try {
-      this.storage().setItem(MUSIC_STORAGE_KEY, JSON.stringify(this.preferences));
-      this.message = "Music settings saved on this device.";
-    } catch { this.message = "Music applies for this session; browser storage is unavailable."; }
     this.changed();
+    if (persist) return withPreferenceLock(MUSIC_STORAGE_KEY, () => {
+      const { saved } = updatePreferences(this.storage, MUSIC_STORAGE_KEY, parseMusicPreferences, this.preferences,
+        preferences => ({ ...preferences, ...value }));
+      this.message = saved ? "Music settings saved on this device." : "Music applies for this session; browser storage is unavailable.";
+      this.changed();
+    });
   }
 
   prepare(): Promise<void> {
