@@ -4,6 +4,8 @@ import { externalFileKey, fetchExternalFile } from "./external-file";
 import { MAX_CACHED_PACK_BYTES, soundClips, soundExports, soundFileUrls, type SoundLoadMode } from "./sound-files";
 
 type CacheBytes = (url: string, bytes: number) => boolean | Promise<boolean>;
+type TetrioRecording = ReturnType<typeof parseTetrioExport> & { json: string; decoded?: Promise<AudioBuffer> };
+type TetrioLoad = { recording?: TetrioRecording; release?: () => void };
 
 export interface LoadedSounds { pack: SoundPack; buffers: Map<string, AudioBuffer>; failed: number }
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
@@ -74,12 +76,15 @@ export class SoundPlayer {
     this.cache.set(url, buffer); this.cacheBytes += this.size(buffer);
   }
   private async tetrioPack(pack: SoundPack, signal: AbortSignal, extra: string[], mode: SoundLoadMode | undefined,
-    accept: (url: string, buffer: AudioBuffer) => boolean, cacheBytes?: CacheBytes): Promise<SoundPack> {
-    // decode one export at a time: full exports include menu audio
-    const previous = this.tetrioQueue;
+    accept: (url: string, buffer: AudioBuffer) => boolean, cacheBytes?: CacheBytes, shared?: TetrioLoad): Promise<SoundPack> {
     let release!: () => void;
-    this.tetrioQueue = new Promise(resolve => { release = resolve; });
-    await previous;
+    if (!shared?.release) {
+      // full exports include menu audio
+      const previous = this.tetrioQueue;
+      this.tetrioQueue = new Promise(resolve => { release = resolve; });
+      if (shared) shared.release = release;
+      await previous;
+    }
     try {
       signal.throwIfAborted();
       const url = pack.tetrioPlus!;
@@ -102,10 +107,15 @@ export class SoundPlayer {
       let accepted = false;
       const decode = async ({ bytes }: { bytes: ArrayBuffer }) => {
         signal.throwIfAborted();
-        let data: unknown;
-        try { data = JSON.parse(new TextDecoder().decode(bytes)); }
-        catch { throw new Error("Use a TETR.IO+ .tpse export link, not a ZIP download."); }
-        const exported = parseTetrioExport(data);
+        const json = new TextDecoder().decode(bytes);
+        let exported = shared?.recording;
+        if (exported?.json !== json) {
+          let data: unknown;
+          try { data = JSON.parse(json); }
+          catch { throw new Error("Use a TETR.IO+ .tpse export link, not a ZIP download."); }
+          exported = { ...parseTetrioExport(data), json };
+          if (shared) shared.recording = exported;
+        }
         atlas = exported.atlas;
         const resolved = resolve();
         const wanted = names(resolved).filter(name => atlas![name]);
@@ -113,7 +123,7 @@ export class SoundPlayer {
         const context = this.audio();
         const seconds = Math.max(...Object.values(atlas).map(([offset, duration]) => offset + duration));
         if (seconds * context.sampleRate * 2 * 4 > MAX_TETRIO_DECODED_BYTES) throw new Error("This TETR.IO+ recording is too long.");
-        const audio = await context.decodeAudioData(exported.audio);
+        const audio = await (exported.decoded ??= context.decodeAudioData(exported.audio));
         signal.throwIfAborted();
         if (audio.numberOfChannels > 2 || this.size(audio) > MAX_TETRIO_DECODED_BYTES) throw new Error("This TETR.IO+ recording exceeds the decoding limit.");
         let total = 0;
@@ -141,10 +151,10 @@ export class SoundPlayer {
       return mode ? await soundExports.load(url, MAX_TETRIO_EXPORT_BYTES, signal, decode, 45000, this.fetchFile,
         ({ bytes }) => accepted && (cacheBytes?.(url, bytes.byteLength) ?? true))
         : await decode({ bytes: await (this.fetchFile ?? fetchExternalFile)(url, MAX_TETRIO_EXPORT_BYTES, signal, 45000) });
-    } finally { release(); }
+    } finally { if (!shared) release(); }
   }
   private async buffer(url: string, signal: AbortSignal, mode?: SoundLoadMode,
-    accept = (_buffer: AudioBuffer) => true, cacheBytes?: CacheBytes): Promise<AudioBuffer> {
+    accept = (_buffer: AudioBuffer) => true, cacheBytes?: CacheBytes, shared?: TetrioLoad): Promise<AudioBuffer> {
     const clip = tetrioClipSource(url);
     const key = mode && !clip ? `custom:${url}` : url;
     const cached = this.cache.get(key);
@@ -159,7 +169,7 @@ export class SoundPlayer {
           if (key !== url) return true;
           buffer = decoded;
           return accept(decoded);
-        }, cacheBytes);
+        }, cacheBytes, shared);
       if (!buffer) throw new Error(`This TETR.IO+ export has no ${clip.name} sound.`);
       return buffer;
     }
@@ -213,14 +223,33 @@ export class SoundPlayer {
     };
     if (pack.tetrioPlus) pack = await this.tetrioPack(pack, signal, [], mode, accept, cacheBytes);
     const urls = soundUrls(pack);
-    await Promise.all(Array.from({ length: Math.min(6, urls.length) }, async () => {
-      while (next < urls.length) {
-        signal.throwIfAborted();
-        const url = urls[next++];
+    if (urls.length) signal.throwIfAborted();
+    const jobs: string[][] = [];
+    const exports = new Map<string, string[]>();
+    for (const url of urls) {
+      try {
+        const source = tetrioClipSource(url)?.url;
+        if (source && source === pack.tetrioPlus) continue;
+        const group = source && exports.get(source);
+        if (group) group.push(url);
+        else {
+          const clips = [url];
+          if (source) exports.set(source, clips);
+          jobs.push(clips);
+        }
+      } catch {}
+    }
+    await Promise.all(Array.from({ length: Math.min(6, jobs.length) }, async () => {
+      while (next < jobs.length) {
+        const clips = jobs[next++];
+        const shared: TetrioLoad | undefined = clips.length > 1 ? {} : undefined;
         try {
-          if (pack.tetrioPlus && tetrioClipSource(url)?.url === pack.tetrioPlus) continue;
-          await this.buffer(url, signal, mode, buffer => accept(url, buffer), cacheBytes);
-        } catch { signal.throwIfAborted(); }
+          for (const url of clips) {
+            signal.throwIfAborted();
+            try { await this.buffer(url, signal, mode, buffer => accept(url, buffer), cacheBytes, shared); }
+            catch { signal.throwIfAborted(); }
+          }
+        } finally { shared?.release?.(); }
       }
     }));
     if (urls.length && !buffers.size) throw new Error("No audio could be loaded. Check the links and the host's CORS settings, then retry.");

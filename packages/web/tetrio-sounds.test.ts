@@ -137,20 +137,41 @@ describe("TETR.IO+ loading", () => {
       expect(fetch).toHaveBeenCalledTimes(2);
     } finally { fetch.mockRestore(); cache.restore(); }
   });
-  test("inline export clips share cached bytes and boot offline while any saved pack uses them", async () => {
+  test("keeps valid inline clips when another clip is out of bounds", async () => {
+    const { context, decoded } = audio();
+    const cache = fakeFileCache();
+    const player = new SoundPlayer(() => context, async () =>
+      bytes(exported({ move: [0, 250], harddrop: [1000, 500], menuclick: [3900, 500] })));
+    const signal = new AbortController().signal;
+    const move = tetrioClipUrl(url, "move"), harddrop = tetrioClipUrl(url, "harddrop");
+    try {
+      const first = await player.load({ name: "Drop", harddrop }, signal, "custom");
+      expect(cache.has(url)).toBe(true);
+      const loaded = await player.load({ name: "Shared", harddrop, move, fault: tetrioClipUrl(url, "menuclick") }, signal, "custom");
+      expect(loaded.failed).toBe(1);
+      expect(loaded.buffers.get(harddrop)).toBe(first.buffers.get(harddrop)!);
+      expect(loaded.buffers.has(move)).toBe(true);
+      expect(decoded()).toBe(2);
+      expect(cache.has(url)).toBe(false);
+    } finally { cache.restore(); }
+  });
+  test("inline clips decode once and keep shared export bytes for offline use", async () => {
     let raw: string | null = null;
     const saved = () => ({ getItem: () => raw, setItem: (_key: string, value: string) => { raw = value; } });
     const cache = fakeFileCache();
     const fetch = spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(bytes(exported())));
     fetch.mockRejectedValue(new Error("offline"));
-    const state = () => {
-      const player = new SoundPlayer(() => audio().context);
+    const state = (context = audio().context) => {
+      const player = new SoundPlayer(() => context);
       return new SoundState(saved, (pack, signal, mode) => player.load(pack, signal, mode));
     };
     const move = tetrioClipUrl(url, "move"), harddrop = tetrioClipUrl(url, "harddrop");
     try {
-      const first = state();
-      expect(await first.add(JSON.stringify({ name: "Move", move }))).toBe(true);
+      const { context, decoded } = audio();
+      const first = state(context);
+      expect(await first.add(JSON.stringify({ name: "Move and drop", move, harddrop }))).toBe(true);
+      expect([...first.loaded!.buffers.keys()].sort()).toEqual([harddrop, move]);
+      expect(decoded()).toBe(1);
       expect(await first.add(JSON.stringify({ name: "Drop", harddrop }))).toBe(true);
       const restored = state();
       await restored.select(restored.preferences.active, false);
@@ -158,7 +179,7 @@ describe("TETR.IO+ loading", () => {
       await restored.remove(1);
       expect(cache.has(url)).toBe(true);
       await restored.select("custom:0", false);
-      expect([...restored.loaded!.buffers.keys()]).toEqual([move]);
+      expect([...restored.loaded!.buffers.keys()].sort()).toEqual([harddrop, move]);
       expect(fetch).toHaveBeenCalledTimes(1);
       await restored.remove(0);
       expect(cache.has(url)).toBe(false);
