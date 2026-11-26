@@ -39,12 +39,23 @@ test.each(["sprint", "zen"] as const)("%s card changes faces, restores focus and
   expect(doc.focused).toBe(checkboxes[0]);
   sound.checked = true;
   sound.dispatchEvent(new Event("change"));
-  doc.querySelector(`#${mode}-back`).dispatchEvent(new Event("click"));
+  const panelClick = (interactive: boolean) => {
+    const target = { closest: () => interactive ? front : null };
+    back.dispatchEvent(Object.defineProperty(new Event("click"), "target", { value: target }));
+  };
+  panelClick(true);
+  expect(card.classes.has("flipped")).toBe(true);
+  panelClick(false);
   expect(card.classes.has("flipped")).toBe(false);
   expect((back as unknown as HTMLElement).inert).toBe(true);
   expect(doc.focused).toBe(front);
+  expect(front.getAttribute("aria-expanded")).toBe("false");
+  expect(back.getAttribute("aria-hidden")).toBe("true");
   front.dispatchEvent(new Event("click"));
   expect(sound.checked).toBe(true);
+  back.dispatchEvent(Object.assign(new Event("keydown"), { key: "Escape" }));
+  expect(card.classes.has("flipped")).toBe(false);
+  expect(doc.focused).toBe(front);
   const restored = modeCard(mode);
   mountModeCard(restored.doc as unknown as Document, mode, () => storage);
   expect(restored.sound.checked).toBe(true);
@@ -59,6 +70,7 @@ test("mode cards start with inert backs; only Sprint offers reset on fault", () 
   expect(html).toMatch(/data-mode="sprint" type="button">Play<\/button>/);
   expect(html).toMatch(/id="zen-card-back" inert aria-hidden="true"/);
   expect(html).toMatch(/data-mode="zen" type="button">Play<\/button>/);
+  expect(html).not.toMatch(/id="(?:sprint|zen)-back"/);
   expect(html).not.toContain('id="zen-reset-finesse"');
   expect(html).not.toMatch(/\.mode-card[^{}]*\{[^}]*(?:transition|animation|transform):/);
 });

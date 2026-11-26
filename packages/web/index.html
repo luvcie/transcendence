@@ -607,12 +607,13 @@
       }
       .mode-card { display: grid; }
       .mode-card > * { grid-area: 1 / 1; }
-      .mode-card-back { display: grid; gap: 12px; align-content: center; padding: 16px 24px; background: #181818; border: 1px solid #444; visibility: hidden; }
-      .mode-card-back label { display: flex; align-items: center; gap: 8px; }
+      .mode-card-back { position: relative; display: grid; gap: 12px; align-content: center; padding: 16px 24px; background: #181818; border: 1px solid #444; visibility: hidden; }
+      .mode-card-back label { justify-self: start; display: flex; align-items: center; gap: 8px; }
       .mode-card-back input { accent-color: #22d3ee; }
+      .mode-card-return { position: absolute; top: 16px; right: 24px; color: #22d3ee; pointer-events: none; }
       .mode-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
       .mode-card.flipped .mode-card-front { visibility: hidden; }
-      .mode-card.flipped .mode-card-back { visibility: visible; }
+      .mode-card.flipped .mode-card-back { visibility: visible; cursor: pointer; }
       #sprint-countdown:not([hidden]) { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; background: #0009; color: #22d3ee; font-size: clamp(32px, 8vw, 72px); font-weight: bold; }
       #game-view { position: relative; }
       #elapsed-time, #result-time, #replay-time { font-variant-numeric: tabular-nums; }
@@ -1080,9 +1081,10 @@
           <div class="mode-card" id="sprint-card">
             <button class="mode-choice mode-card-front" id="sprint-card-front" aria-expanded="false" aria-controls="sprint-card-back"><span class="mode-name">Sprint 40L <span aria-hidden="true">→</span></span><span class="mode-description">Clear 40 lines.</span></button>
             <div class="mode-card-back" id="sprint-card-back" inert aria-hidden="true">
+              <span class="mode-card-return" aria-hidden="true">←</span>
               <label><input id="sprint-reset-finesse" type="checkbox" data-preference="resetOnFinesseFault"> Reset on finesse fault</label>
               <label><input id="sprint-sound-finesse" type="checkbox" data-preference="soundOnFinesseFault"> Sound on finesse fault</label>
-              <div class="mode-card-actions"><button id="sprint-back" type="button">Back</button><button class="primary" data-mode="sprint" type="button">Play</button></div>
+              <div class="mode-card-actions"><button class="primary" data-mode="sprint" type="button">Play</button></div>
             </div>
           </div>
           <button class="mode-choice" disabled><span class="mode-name">Blitz</span><span class="mode-description">Coming soon</span></button>
@@ -1090,8 +1092,9 @@
           <div class="mode-card" id="zen-card">
             <button class="mode-choice mode-card-front" id="zen-card-front" aria-expanded="false" aria-controls="zen-card-back"><span class="mode-name">Zen <span aria-hidden="true">→</span></span><span class="mode-description">Endless practice.</span></button>
             <div class="mode-card-back" id="zen-card-back" inert aria-hidden="true">
+              <span class="mode-card-return" aria-hidden="true">←</span>
               <label><input id="zen-sound-finesse" type="checkbox" data-preference="soundOnFinesseFault"> Sound on finesse fault</label>
-              <div class="mode-card-actions"><button id="zen-back" type="button">Back</button><button class="primary" data-mode="zen" type="button">Play</button></div>
+              <div class="mode-card-actions"><button class="primary" data-mode="zen" type="button">Play</button></div>
             </div>
           </div>
           <button class="mode-choice" id="editor-button"><span class="mode-name">Tetorisu Editor <span aria-hidden="true">→</span></span><span class="mode-description">Draw boards and export GIFs.</span></button>
