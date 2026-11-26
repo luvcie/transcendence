@@ -145,6 +145,31 @@ test.each([
   expect(toEmoji(board.cells, board.cols)).toEqual(expected("crop-a-stack"));
 });
 
+test("reads edge blocks in tight and slightly clipped crops", () => {
+  const rows = ["0000700000", "0007770000", "2204425566", "2204425566"];
+  const colors: Record<string, number[]> = {
+    0: [39, 42, 45, 255], 2: [255, 145, 0, 255], 4: [91, 196, 79, 255],
+    5: [0, 187, 210, 255], 6: [40, 102, 214, 255], 7: [175, 70, 191, 255],
+  };
+  const cells = Uint8Array.from(rows.join(""), Number);
+  const height = rows.length * 10;
+  for (const [left, width] of [[0, 100], [6, 98], [-4, 98]]) {
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const id = rows[Math.floor(y / 10)][Math.floor((x + left) / 10)] ?? "0";
+        data.set(colors[id], (y * width + x) * 4);
+      }
+    }
+    const image = { width, height, data };
+    for (const board of [recognizeBoard(image), recognizeBoard(image, { bounds: { x: 0, y: 0, width, height } })]) {
+      expect(board.rows).toBe(rows.length);
+      expect(Math.abs(board.bounds.x + left)).toBeLessThan(1);
+      expect(board.cells).toEqual(cells);
+    }
+  }
+});
+
 test("saturated cyan near the blue hue boundary is confident", () => {
   const width = 100, height = 20;
   const data = new Uint8ClampedArray(width * height * 4);
@@ -160,4 +185,22 @@ test("an image shorter than one cell has no board", () => {
   const board = recognizeBoard({ width: 20, height: 1, data: new Uint8ClampedArray(80) });
   expect(board.rows).toBe(0);
   expect(board.cells).toHaveLength(0);
+});
+
+test("locates a full grid beside a coloured panel and above a footer", () => {
+  const width = 180, height = 250;
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const inside = x >= 40 && x < 140 && y >= 20 && y < 220;
+      const line = x % 10 === 0 || y % 10 === 0;
+      const block = y >= 200 && x < 70;
+      const panel = (x < 35 && y > 90) || (y > 225 && x > 50);
+      const rgb = inside ? (line ? [90, 90, 90] : block ? [0, 190, 210] : [25, 25, 25])
+        : panel ? [150 + 65 * ((Math.floor(x / 10) + Math.floor(y / 10)) % 2), 45, 75] : [40, 38, 39];
+      data.set([...rgb, 255], (y * width + x) * 4);
+    }
+  }
+  const board = recognizeBoard({ width, height, data });
+  expect([...board.cells].join("")).toBe("5550000000".repeat(2));
 });
