@@ -8,6 +8,7 @@ import { sprintRecordingFor, startSprintRecording } from "./src/sprint-recording
 import { fitCanvas, pixelRatio } from "./src/canvas-resolution";
 import * as domUpdate from "./src/dom-update";
 import { FakeDocument } from "./test-dom";
+import { NetHarness } from "./netplay-harness";
 
 const source = await Bun.file(new URL("./src/main.ts", import.meta.url)).text();
 // Exercise the production functions without starting the app's audio, network or RAF loop.
@@ -101,6 +102,48 @@ test("local touch undo is available in Zen and hidden in Sprint", () => {
   zen.context.solo!.apply(Input.HardDrop, 251);
   zen.refresh();
   expect(zen.context.touchControls.undoCount).toBe(1);
+});
+
+test("online touch undo is only shown to a player in phone portrait practice", () => {
+  const h = harness();
+  const practice = new NetHarness();
+  practice.startMatch({ mode: "practice" });
+  const session = practice.a.session;
+  h.context.online = { session };
+  h.context.coarsePointer.matches = true;
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
+  h.context.phonePortrait.matches = true;
+  h.render();
+  expect(h.context.touchControls.undoCount).toBe(1);
+
+  session.practice("practiceUndo");
+  expect(session.canPlay).toBe(false);
+  h.render();
+  expect(h.context.touchControls.undoCount).toBe(1);
+  practice.runUntil(() => session.canPlay);
+
+  const room = session.room!;
+  session.room = { ...room, phase: "paused" };
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
+
+  session.room = room;
+  session.playerId = "spectator";
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
+  session.playerId = practice.aCheckpoint!.state!.roster[0];
+
+  Object.assign(h.context, { competitivePlayback: {} });
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
+  Object.assign(h.context, { competitivePlayback: null });
+
+  const competitive = new NetHarness();
+  competitive.startMatch();
+  h.context.online = { session: competitive.a.session };
+  h.render();
+  expect(h.context.touchControls.undoCount).toBeNull();
 });
 
 test("touch restart is visible in solo and online practice but hidden in competitive matches", () => {

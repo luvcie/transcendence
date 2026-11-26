@@ -702,10 +702,12 @@ function observeSoloSounds(input?: InputId) {
 }
 
 function render() {
+  const onlineUndo = !!online && !atHome && !playback && !competitivePlayback && phonePortrait.matches && online.session.canUndoPractice;
+  if (online) touchControls.setUndoCount(onlineUndo ? 1 : null);
   if (atHome || competitivePlayback) return;
   setHidden(touchControls.restart, !!playback || (online ? online.session.room?.options.mode !== "practice" : !solo));
   const onlineBlocked = !!online && !online.session.canPlay;
-  if (online && coarsePointer.matches) inputMount.setTouchBlocked(onlineBlocked);
+  if (online && coarsePointer.matches) inputMount.setTouchBlocked(onlineBlocked && !onlineUndo);
   if (online && renderOnlineWaiting(document, online.session)) return;
   if (!display) return;
   const width = display.board.length / ROWS;
@@ -741,7 +743,10 @@ function toggleMenu() {
 const inputMount = mountGameplayInput(window, {
   bindings, pressed, touch: touchControls,
   editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, summary, a, [contenteditable=true], [role=slider]"),
-  blocked: () => countdown.active || abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || activePlayback() !== null || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
+  blocked: action => countdown.active || abandonDialog.open || pauseDialog.open || settingsDialog.open
+    || !!online?.detailsOpen || atHome || activePlayback() !== null
+    || (online ? !(action === "undo" ? online.session.canUndoPractice : online.session.canPlay)
+      : !solo || solo.paused || !!solo.result),
   settingsOpen: () => settingsDialog.open,
   starting: () => display?.starting ?? true,
   menu: toggleMenu,

@@ -8,7 +8,7 @@ export function mountGameplayInput(target: EventTarget & { readonly innerWidth?:
   bindings: Keybinds;
   pressed?: Map<string, Action>;
   editable(target: EventTarget | null): boolean;
-  blocked(): boolean;
+  blocked(action?: "undo"): boolean;
   settingsOpen(): boolean;
   starting(): boolean;
   menu(): void;
@@ -45,7 +45,7 @@ export function mountGameplayInput(target: EventTarget & { readonly innerWidth?:
     if (options.editable(e.target)) return;
     if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "z") {
       e.preventDefault();
-      if (!e.repeat && !e.isComposing && !options.blocked()) options.undo();
+      if (!e.repeat && !e.isComposing && !options.blocked("undo")) options.undo();
       return;
     }
     const action = actionForKey(bindings, e.key);
@@ -92,7 +92,7 @@ export function mountGameplayInput(target: EventTarget & { readonly innerWidth?:
     } else touch.element.removeAttribute("data-blocked");
   };
   if (touch) {
-    const canTouch = () => touch.element.getAttribute("data-blocked") === null && !options.blocked();
+    const canTouch = (action?: "undo") => touch.element.getAttribute("data-blocked") === null && !options.blocked(action);
     const canPlay = () => canTouch() && !options.starting();
     for (const [action, button] of touch.buttons) {
       button.addEventListener("pointerdown", e => {
@@ -117,7 +117,7 @@ export function mountGameplayInput(target: EventTarget & { readonly innerWidth?:
     for (const action of ["undo", "restart"] as const) {
       const button = touch[action];
       const tap = () => {
-        if (!button.hidden && !button.disabled && canTouch() && (action === "restart" || !options.starting())) options[action]();
+        if (!button.hidden && !button.disabled && canTouch(action === "undo" ? action : undefined) && (action === "restart" || !options.starting())) options[action]();
       };
       button.addEventListener("pointerdown", e => {
         if (e.button !== 0) return;
