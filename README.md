@@ -42,7 +42,7 @@ countdown before play starts.
 ## Singleplayer
 
 The logo and Singleplayer navigation open mode selection. No game runs on normal
-entry. Settings are unavailable during an unfinished Sprint. Invitation URLs (`?room=ABC234`)
+entry. Settings can be opened during Sprint and the clock keeps running. Invitation URLs (`?room=ABC234`)
 and reserved online sessions bypass the homepage and restore the online flow;
 invited players still need to ready up themselves.
 

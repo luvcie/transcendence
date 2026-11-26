@@ -133,7 +133,8 @@ Sprint continues running.
 View changes update the navigation and focus the view heading, unless a menu is
 open. Native controls retain their keyboard behavior. Closing a gameplay dialog
 returns focus to the game. Menus and focus loss release online controls without
-pausing the session; Zen pauses, while settings are unavailable during Sprint. CSS sizes boards from the remaining
+pausing the session; Zen pauses, while Sprint keeps running and Settings stay open
+to it. CSS sizes boards from the remaining
 gameplay area, preserving equal duel boards and a larger local board in groups.
 
 See [core rules](../packages/core/RULES.md) for attacks, lock checkpoints and exact
