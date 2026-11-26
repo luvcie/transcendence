@@ -13,6 +13,7 @@ import type { Handling } from "@42tris/core";
 import type { Keybinds } from "./keybinds";
 import type { Singleplayer } from "./singleplayer";
 import type { GameSounds } from "./game-sounds";
+import { createTouchControls } from "./touch-controls";
 import { drawQueue, gameToLines, playBoard, playCells, boardQueue, boardToGame, type PlayRun } from "./editor-play";
 
 const openers = {
@@ -242,6 +243,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   gameplay: { bindings: Keybinds; handling(): Handling; ghost(): boolean; sounds: GameSounds }) {
   const { ownerDocument: document } = root;
   const board = root.querySelector<HTMLElement>("#emoji-board")!;
+  const heading = root.querySelector<HTMLElement>(".emoji-heading")!;
   const palette = root.querySelector<HTMLElement>("#emoji-palette")!;
   const colorsLeft = palette.querySelector<HTMLElement>("#emoji-colors-left")!;
   const colorsRight = palette.querySelector<HTMLElement>("#emoji-colors-right")!;
@@ -300,6 +302,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   type StrokeSource = "pointer" | "touch-pointer" | "touch";
   let stroke: { source: StrokeSource; id: number; value: string; lastCell: number } | null = null;
   let play: PlayRun | null = null;
+  let touchControls: ReturnType<typeof createTouchControls> | undefined;
   let drawn: string[] = [];
 
   for (const label of root.querySelectorAll<HTMLLabelElement>(".emoji-gesture label")) {
@@ -985,13 +988,14 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   function startPlay() {
     drawn = boardLines();
     // the board as shown, mirrored colours included, is what gets played
-    const board = new Uint8Array(cols * 40);
-    boardToGame(drawn, board);
-    const bag = matchBag.checked ? boardQueue(board) : null;
+    const initialBoard = new Uint8Array(cols * 40);
+    boardToGame(drawn, initialBoard);
+    const bag = matchBag.checked ? boardQueue(initialBoard) : null;
     // space must hard drop, not press whatever was clicked
     (document.activeElement as HTMLElement | null)?.blur();
     play = playBoard(drawn, {
       bindings: gameplay.bindings, handling: gameplay.handling(), sounds: gameplay.sounds, queue: bag?.queue ?? [], render: showRun,
+      touch: touchControls ??= createTouchControls(root.querySelector<HTMLElement>("#editor-touch-controls")!),
       stuck: () => stopPlay("No room to spawn a piece on this board."),
       pause: togglePause,
       restart() {
@@ -1003,6 +1007,10 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     status.textContent = !bag ? "Zen on this board. Ctrl+Z undoes a piece, Escape pauses."
       : bag.left.length === 7 ? "Fresh bag."
       : `Bag continues from the board: ${bag.left.length} left (${bag.left.map(id => "_ZLOSIJT"[id]).join(" ")}).`;
+    if (matchMedia("(pointer: coarse) and (max-width: 663px)").matches) {
+      const inset = parseFloat(getComputedStyle(heading).top) || 0;
+      window.scrollBy(0, board.getBoundingClientRect().top - heading.offsetHeight - inset - 8);
+    }
   }
 
   function stopPlay(message?: string) {

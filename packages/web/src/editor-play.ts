@@ -3,8 +3,9 @@ import { emojis, empty, ids } from "./board-emoji";
 import type { GameDisplay } from "./game-display";
 import { mountGameplayInput } from "./gameplay-input";
 import type { GameSounds } from "./game-sounds";
-import type { Action, Keybinds } from "./keybinds";
+import type { Keybinds } from "./keybinds";
 import type { LoadedSkin } from "./skin-loader";
+import type { TouchControls } from "./touch-controls";
 import { Singleplayer } from "./singleplayer";
 import { fitCanvas } from "./canvas-resolution";
 import { drawPiecePreview, previewLayout } from "./tile-renderer";
@@ -154,6 +155,7 @@ export function playBoard(drawn: string[], options: {
   handling: Handling;
   sounds: GameSounds;
   queue: PieceId[];
+  touch: TouchControls;
   render(run: Singleplayer): void;
   stuck(): void;
   pause(): void;
@@ -169,23 +171,25 @@ export function playBoard(drawn: string[], options: {
   let sounded = run.game;
   let frameId = 0;
   let held = false;
-  const pressed = new Map<string, Action>();
+  options.touch.setUndoCount(0);
+  options.touch.restart.hidden = false;
   options.sounds.reset();
   const sync = (input?: InputId) => {
+    options.touch.setUndoCount(run.game.starting ? 0 : run.undoCount);
     followQueue(run.game, options.queue);
     if (sounded !== run.game && sounded.topOut) options.sounds.observe(sounded, sounded, input);
     options.sounds.observe(run.game, run.game, input);
     sounded = run.game;
     if (run.game === game) return;
-    pressed.clear();
+    inputMount.clear();
     const old = game;
     game = run.game;
     if (!old.topOut) return;
     if (!old.undoCount) options.stuck();
     else boardToGame(lines, run.game.board);
   };
-  const unmount = mountGameplayInput(window, {
-    bindings: options.bindings, pressed,
+  const inputMount = mountGameplayInput(window, {
+    bindings: options.bindings, touch: options.touch,
     editable: target => target instanceof HTMLElement &&
       !!target.closest("input:not([type=checkbox], [type=radio]), textarea, select, [contenteditable]"),
     blocked: () => run.paused,
@@ -204,12 +208,14 @@ export function playBoard(drawn: string[], options: {
     },
     lateRelease() {},
   });
+  inputMount.setTouchBlocked(false);
   const render = () => { if (frameId) options.render(run); };
   const settle = (now: number) => {
     const paused = held || document.hidden || !document.hasFocus() || !!document.querySelector("dialog[open]");
     if (paused === run.paused) return;
     run.setPaused(paused, now);
-    pressed.clear();
+    inputMount.setTouchBlocked(paused);
+    inputMount.clear();
   };
   const frame = () => {
     const now = performance.now();
@@ -246,7 +252,7 @@ export function playBoard(drawn: string[], options: {
     stop() {
       cancelAnimationFrame(frameId);
       frameId = 0;
-      unmount();
+      inputMount();
     },
   };
 }

@@ -9,7 +9,7 @@ import {
   type PieceId,
   type InputId,
 } from "@42tris/core";
-import { loadHandling, setupDisplayToggle, setupHandling } from "./settings";
+import { loadHandling, setupDisplayToggle, setupHandling, setupTouchDisplaySettings } from "./settings";
 import { ACTIONS, actionNames, keyLabel, type Action } from "./keybinds";
 import { loadKeybinds, setupKeybinds } from "./keybind-settings";
 import { SkinState } from "./skin-state";
@@ -30,6 +30,7 @@ import { mountGuestName } from "./guest-name";
 import { dismissSettingsOnBackdrop } from "./settings-dialog";
 import { MultiplayerSkinPreference, setupMultiplayerSkinSetting, shareableSkinId } from "./multiplayer-skins";
 import { mountGameplayInput } from "./gameplay-input";
+import { createTouchControls } from "./touch-controls";
 import { mountHoldExit } from "./hold-exit";
 import { renderOnlineWaiting } from "./waiting-view";
 import { snapshotDisplay, type GameDisplay } from "./game-display";
@@ -77,6 +78,8 @@ const comboCount = document.querySelector("#combo-count")!;
 const b2bCount = document.querySelector("#b2b-count")!;
 const surgeCount = document.querySelector("#surge-count")!;
 const finesseCount = document.querySelector("#finesse-count")!;
+const touchControls = createTouchControls(document.querySelector<HTMLElement>("#game-touch-controls")!);
+const coarsePointer = matchMedia("(pointer: coarse)");
 const sprintClock = document.querySelector<HTMLElement>("#sprint-clock")!;
 const elapsedTime = document.querySelector<HTMLElement>("#elapsed-time")!;
 const resultPanel = document.querySelector<HTMLElement>("#sprint-result")!;
@@ -129,6 +132,7 @@ window.addEventListener("pointerdown", unlockSounds);
 window.addEventListener("keydown", unlockSounds);
 let showGhost = setupDisplayToggle("#ghost-preview", "42tris.ghost", enabled => { showGhost = enabled; });
 setFastSkins(setupDisplayToggle("#fast-skins", "42tris.fastSkins", setFastSkins));
+setupTouchDisplaySettings(coarsePointer);
 // Zen is selected per game; old preferences no longer control gameplay.
 try { localStorage.removeItem("42tris.zen"); } catch { /* Storage is optional. */ }
 
@@ -167,7 +171,7 @@ let openingPlayback = false;
 let lastFrameAt: number | null = null;
 setupHandling(handling, value => {
   handling = value;
-  if (!online && !playback) { solo?.setHandling(value, performance.now()); pressed.clear(); }
+  if (!online && !playback) { solo?.setHandling(value, performance.now()); inputMount.clear(); }
 });
 
 const pauseDialog = document.querySelector<HTMLDialogElement>("#pause-dialog")!;
@@ -202,7 +206,7 @@ function releaseSoloControls() {
     if ("up" in binding) solo?.apply(binding.up, performance.now());
     if (restartOnFinesseFault()) break;
   }
-  pressed.clear();
+  inputMount.clear();
 }
 
 function focusView() {
@@ -219,7 +223,7 @@ function pause() {
   syncZenMusic();
   refreshHud();
   if (solo.result) return;
-  pressed.clear();
+  inputMount.clear();
   pauseDialog.showModal();
 }
 
@@ -245,13 +249,11 @@ function openSettings(fromMenu: boolean) {
   if (activePlayback()) { activePlayback()!.pause(); lastFrameAt = null; syncPlaybackControls(); }
   settingsFromMenu = fromMenu;
   if (fromMenu) pauseDialog.close();
-  else if (online) {
-    online.session.release();
-    pressed.clear();
-  } else {
+  else if (online) online.session.release();
+  else {
     solo?.setPaused(true, performance.now());
     refreshHud();
-    pressed.clear();
+    inputMount.clear();
   }
   settingsDialog.showModal();
   syncZenMusic();
@@ -296,11 +298,12 @@ async function launchMode(mode: SingleplayerMode, training = mode === "sprint" &
   atHome = false;
   gameSounds.observe(display, solo.game);
   resultPanel.hidden = true;
+  inputMount.setTouchBlocked(false);
   showView("solo");
   navSettingsButton.disabled = mode === "sprint";
   refreshHud();
   status.textContent = `${SINGLEPLAYER_MODES[mode].name} · ${solo.game.width} wide`;
-  pressed.clear();
+  inputMount.clear();
   if (mode === "zen" && (document.hidden || !document.hasFocus() || settingsDialog.open)) {
     solo.setPaused(true, performance.now());
     if (!settingsDialog.open) pauseDialog.showModal();
@@ -320,6 +323,7 @@ function restartOnFinesseFault(): boolean {
     || !countdown.restartOnFault(solo.game.finesse.faults, () => { void launchMode("sprint", true); }, () => performance.now())) return false;
   countdownOverlay.textContent = "3";
   countdownOverlay.hidden = false;
+  inputMount.releaseTouches();
   return true;
 }
 
@@ -330,7 +334,7 @@ async function abandonSolo(): Promise<boolean> {
   if (solo.mode === "zen") solo.setPaused(true, performance.now());
   else releaseSoloControls();
   syncZenMusic();
-  pressed.clear();
+  inputMount.clear();
   refreshHud();
   if (!solo.active) return true;
   document.querySelector("#abandon-description")!.textContent = `Your ${SINGLEPLAYER_MODES[solo.mode].name} progress will be lost.`;
@@ -356,7 +360,7 @@ function closeMenus() {
   cancelKeyCapture();
   settingsDialog.close();
   pauseDialog.close();
-  pressed.clear();
+  inputMount.clear();
 }
 
 async function enterHome() {
@@ -419,6 +423,8 @@ async function enterOnline() {
   solo = null;
   atHome = false;
   resultPanel.hidden = true;
+  inputMount.setTouchBlocked(true);
+  touchControls.setUndoCount(null);
   display = null;
   showView(online ? onlineView(online.session.room, online.session.connected) : "lobby");
   navSettingsButton.disabled = false;
@@ -430,7 +436,7 @@ async function enterOnline() {
   }
   const root = document.querySelector<HTMLElement>("#online")!;
   online = mountOnline(root, {
-    clearKeys: () => { pressed.clear(); volumeOverlay.hide(); }, handling: () => handling, skins, invite, diagnostics: netDiagnostics, inputLeadMs,
+    clearKeys: () => { inputMount.clear(); volumeOverlay.hide(); }, handling: () => handling, skins, invite, diagnostics: netDiagnostics, inputLeadMs,
     skin: () => shareableSkinId(skins.preferences.active), skinMode: () => multiplayerSkins.mode,
     replay: watchCompetitiveReplay,
     view: view => {
@@ -528,17 +534,13 @@ function handleFocusLoss() {
   if (activePlayback()) {
     activePlayback()!.pause();
     lastFrameAt = null;
-    pressed.clear();
+    inputMount.clear();
     syncPlaybackControls();
     return;
   }
-  if (online) {
-    online.session.release();
-    pressed.clear();
-  } else {
-    if (solo?.mode === "sprint") releaseSoloControls();
-    else pause();
-  }
+  if (online) online.session.release();
+  else if (solo?.mode === "sprint") releaseSoloControls();
+  else pause();
 }
 
 window.addEventListener("blur", handleFocusLoss);
@@ -560,7 +562,7 @@ function stopPlayback(): void {
   replayBar.hidden = true;
   display = solo?.game ?? null;
   lastFrameAt = null;
-  pressed.clear();
+  inputMount.clear();
 }
 
 function backToResults(): void {
@@ -591,7 +593,7 @@ function watchCompetitiveReplay(replay: Awaited<ReturnType<typeof requestCompeti
   status.hidden = false;
   matchReplayHost.hidden = false;
   replayBar.hidden = false;
-  pressed.clear();
+  inputMount.clear();
   lastFrameAt = null;
   syncPlaybackControls();
   replayToggle.focus({ preventScroll: true });
@@ -622,7 +624,7 @@ async function watchSprintReplay(): Promise<void> {
   showView("sprintReplay");
   resultPanel.hidden = true;
   replayBar.hidden = false;
-  pressed.clear();
+  inputMount.clear();
   lastFrameAt = null;
   status.textContent = `40 lines · ${next.outcome === "complete" ? "completed attempt" : "topped out attempt"}`;
   display = snapshotDisplay(playback.state);
@@ -634,6 +636,8 @@ async function watchSprintReplay(): Promise<void> {
 function refreshHud() {
   if (!display) return;
   const sprint = playback !== null || (!online && solo?.mode === "sprint");
+  const undoCount = solo?.undoCount ?? 0;
+  if (!online) touchControls.setUndoCount(!playback && solo?.mode === "zen" ? (display.starting ? 0 : undoCount) : null);
   setHidden(sprintClock, !sprint);
   setText(elapsedTime, formatTime(playback ? playback.elapsedMs : solo?.elapsedMs ?? 0));
   const { lines, combo, chainLength, b2b, surge } = display.stats;
@@ -664,7 +668,7 @@ function refreshHud() {
   setHidden(zenStatus, playback !== null || (!display.zen && (!sprint || !!solo?.started)));
   setText(zenStatus, online ? "Online practice · Ctrl+Z to undo; restart resets your board."
     : sprint ? "Sprint 40L · Make your first move to start the clock."
-    : `Zen · Ctrl+Z to undo (${solo?.undoCount ?? 0} available)`);
+    : `Zen · Ctrl+Z to undo (${undoCount} available)`);
   if (solo?.result && !online && !playback && resultPanel.hidden) {
     holdExit.cancel();
     volumeOverlay.hide();
@@ -676,7 +680,7 @@ function refreshHud() {
     setText(document.querySelector("#result-pieces")!, `${result.stats.pieces} pieces placed`);
     setText(document.querySelector("#result-finesse")!, `Finesse ${finesseSummary(result.finesse)}`);
     setHidden(resultPanel, false);
-    pressed.clear();
+    inputMount.clear();
     if (!document.querySelector("dialog[open]")) document.querySelector<HTMLElement>("#sprint-result-title")!.focus({ preventScroll: true });
   }
   if (!online && solo instanceof SprintRecorder && solo.result) {
@@ -703,7 +707,7 @@ function applyInput(input: InputId) {
   solo?.apply(input, performance.now());
   observeSoloSounds(input);
   if (restartOnFinesseFault()) return;
-  if (solo && display !== solo.game) pressed.clear();
+  if (solo && display !== solo.game) inputMount.clear();
   display = solo?.game ?? null;
   refreshHud();
 }
@@ -727,6 +731,9 @@ function observeSoloSounds(input?: InputId) {
 
 function render() {
   if (atHome || competitivePlayback) return;
+  setHidden(touchControls.restart, !!playback || (online ? online.session.room?.options.mode !== "practice" : !solo));
+  const onlineBlocked = !!online && !online.session.canPlay;
+  if (online && coarsePointer.matches) inputMount.setTouchBlocked(onlineBlocked);
   if (online && renderOnlineWaiting(document, online.session)) return;
   if (!display) return;
   const width = display.board.length / ROWS;
@@ -736,7 +743,7 @@ function render() {
   setAttributeIfChanged(canvas, "aria-label", "42tris playfield");
   const holdCell = fitCanvas(holdCanvas, 5, 3);
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-  setDisabled(holdButton, countdown.active || playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || (!!online && !online.session.canPlay));
+  setDisabled(holdButton, countdown.active || playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || onlineBlocked);
   setAttributeIfChanged(holdCanvas, "aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
   if (display.held !== null) drawPiecePreview(holdCtx, display.held, holdCell, holdCanvas.width, holdCanvas.height, 0, skins.loaded);
 
@@ -759,8 +766,8 @@ function toggleMenu() {
   else if (pauseDialog.open || (!online && solo?.paused)) resume();
 }
 
-const unmountInput = mountGameplayInput(window, {
-  bindings, pressed,
+const inputMount = mountGameplayInput(window, {
+  bindings, pressed, touch: touchControls,
   editable: target => target instanceof HTMLElement && !!target.closest("input, textarea, select, button, summary, a, [contenteditable=true], [role=slider]"),
   blocked: () => countdown.active || abandonDialog.open || pauseDialog.open || settingsDialog.open || !!online?.detailsOpen || atHome || activePlayback() !== null || (online ? !online.session.canPlay : !solo || solo.paused || !!solo.result),
   settingsOpen: () => settingsDialog.open,
@@ -769,7 +776,7 @@ const unmountInput = mountGameplayInput(window, {
   undo() {
     if (activePlayback()) return;
     if (online) online.session.practice("practiceUndo");
-    else if (solo?.undo(performance.now())) { pressed.clear(); display = solo.game; gameSounds.reset(); refreshHud(); }
+    else if (solo?.undo(performance.now())) { inputMount.clear(); display = solo.game; gameSounds.reset(); refreshHud(); }
   },
   restart, input: applyInput, lateRelease: () => online?.session.release(),
 });
@@ -819,7 +826,7 @@ function frame(now: number) {
       observeSoloSounds();
       restartOnFinesseFault();
     }
-    if (display !== solo.game) pressed.clear();
+    if (display !== solo.game) inputMount.clear();
     display = solo.game;
     refreshHud();
   }
@@ -828,7 +835,7 @@ function frame(now: number) {
 }
 
 let frameId = requestAnimationFrame(frame);
-window.addEventListener("pagehide", e => { holdExit.cancel(); modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { holdExit.dispose(); volumeOverlay.dispose(); unmountInput(); replayControls.dispose(); stopPlayback(); } });
+window.addEventListener("pagehide", e => { holdExit.cancel(); modeRequest++; music.release(); soundPlayer.stop(); cancelAnimationFrame(frameId); handleFocusLoss(); online?.session.stop(); if (!e.persisted) { holdExit.dispose(); volumeOverlay.dispose(); inputMount(); replayControls.dispose(); stopPlayback(); } });
 window.addEventListener("pageshow", e => { if (e.persisted) { online?.session.start(); frameId = requestAnimationFrame(frame); } });
 if (entryView === "emoji" || entryView === "minolens") showTool(entryView, false);
 else if (!atHome) enterOnline();

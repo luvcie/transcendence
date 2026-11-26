@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <link rel="icon" type="image/webp" href="/favicon.webp" />
     <title>42tris</title>
     <style>
@@ -110,6 +110,7 @@
       .catalog-search { margin: 16px 0; }
       .catalog-search label { display: block; margin-bottom: 8px; }
       .catalog-search input { width: 100%; background: #111; color: #eee; border: 1px solid #666; padding: 8px; }
+      #display-settings, #display-settings > :not(.touch-setting) { display: contents; }
       .catalog-group { border-top: 1px solid #383838; }
       .catalog-group > summary { padding: 14px 0; cursor: pointer; font-size: 14px; }
       .catalog-group > summary span { margin-left: 8px; color: #aaa; font-size: 12px; }
@@ -257,6 +258,7 @@
       .emoji-tools .emoji-blocks h2 { grid-column: 1 / -1; margin-bottom: 0; }
       .emoji-tools #emoji-palette { gap: 4px; margin: 0; }
       #emoji-palette > div, #emoji-board-scroll { display: contents; }
+      #emoji-view.playing #emoji-board-scroll { display: block; width: min(100%, 356px); }
       #emoji-board {
         --editor-width: min(100%, 356px);
         --editor-padding: 8px;
@@ -529,12 +531,12 @@
       .replay-status, .replay-actions { display: flex; align-items: center; gap: 8px 12px; }
       .replay-status { justify-content: space-between; flex-wrap: wrap; }
       .replay-actions { flex-wrap: wrap; }
-      #replay-bar button, #replay-bar select { min-height: 40px; }
+      #replay-bar button, #replay-bar select, #restart-symbol { min-height: 40px; }
       #replay-bar button { padding: 8px 12px; }
       #replay-toggle { min-width: 80px; }
       #replay-exit { margin-left: auto; }
       #replay-bar label { display: flex; align-items: center; gap: 8px; color: #aaa; font-size: 12px; }
-      #replay-bar select { background: #111; color: #eee; border: 1px solid #666; padding: 6px 8px; }
+      #replay-bar select, #restart-symbol { background: #111; color: #eee; border: 1px solid #666; padding: 6px 8px; }
       #replay-time { color: #22d3ee; font-size: 13px; }
       #replay-state { color: #aaa; font-size: 12px; }
       .replay-timeline { display: flex; align-items: center; min-width: 0; height: 20px; }
@@ -555,6 +557,113 @@
         #home-view { padding: 24px 0; }
         .mode-choice { padding: 18px; gap: 8px; }
       }
+      @media (max-width: 959px), (pointer: coarse) {
+        #emoji-view.playing #emoji-board { margin-inline: auto; }
+      }
+      .touch-controls, .touch-setting { display: none; }
+      @media (pointer: coarse) {
+        .touch-setting { display: block; }
+        main {
+          --page-gutter: 24px;
+          --touch-cluster-size: clamp(130px, 42.5vw, 180px);
+          --phone-touch-gap: 8px;
+          --touch-board-reserve: 185px;
+          padding-block: env(safe-area-inset-top) max(16px, env(safe-area-inset-bottom));
+          padding-left: max(var(--page-gutter), env(safe-area-inset-left));
+          padding-right: max(var(--page-gutter), env(safe-area-inset-right));
+        }
+        main:is([data-view=solo], .match-active:not([data-replay])) { height: auto; min-height: 100dvh; }
+        main:is([data-view=solo], .match-active:not([data-replay])) #game-view {
+          container-type: inline-size; min-height: 0; flex: none;
+          --board: min(300px, calc((100cqw - 24px) / max(2, 1 + var(--board-ratio))),
+            max(120px, calc((100svh - var(--touch-cluster-size) - var(--touch-board-reserve) - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 2)));
+        }
+        main[data-view=solo] .game-footer { width: min(100%, 624px); }
+        main:is([data-view=solo], .match-active) .game-feedback { display: grid; }
+        main:is([data-view=solo], .match-active) #clear-result { min-height: 1lh; }
+        #hold-button, .game-footer details, main[data-view=solo] #zen-status { display: none; }
+        main:is([data-view=solo], .match-active:not([data-replay])) #game-view > .touch-controls,
+        #emoji-view.playing .touch-controls {
+          position: relative; display: flex; justify-content: space-between; gap: var(--phone-touch-gap);
+          width: min(100%, 420px); margin: 12px auto 0;
+        }
+        body:has(dialog[open]) .touch-controls,
+        main.match-active:not([data-view=playing]) #game-view > .touch-controls,
+        #game-view:has(#sprint-result:not([hidden]), #sprint-countdown:not([hidden])) > .touch-controls,
+        .touch-controls[data-blocked] { visibility: hidden; pointer-events: none; }
+        .touch-cluster {
+          display: grid; grid-template: repeat(10, 1fr) / repeat(10, 1fr);
+          width: min(calc((100% - var(--phone-touch-gap)) / 2), var(--touch-cluster-size)); aspect-ratio: 1;
+          user-select: none; -webkit-user-select: none;
+        }
+        .touch-cluster, .touch-action { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+        .touch-controls button {
+          position: relative; display: grid; place-items: center; min-width: 0; min-height: 0; padding: 0;
+          color: #fff; border: 1px solid rgb(255 255 255 / .42); border-radius: 50%;
+          background: rgb(255 255 255 / .06); touch-action: none;
+        }
+        .touch-controls button::before {
+          content: ""; position: absolute; inset: 2px; border: 1px solid rgb(255 255 255 / .34);
+          border-radius: inherit; pointer-events: none;
+        }
+        .touch-cluster button:nth-child(1) { grid-area: 1 / 4 / span 4 / span 4; }
+        .touch-cluster button:nth-child(2) { grid-area: 4 / 1 / span 4 / span 4; }
+        .touch-cluster button:nth-child(3) { grid-area: 4 / 7 / span 4 / span 4; }
+        .touch-cluster button:nth-child(4) { grid-area: 7 / 4 / span 4 / span 4; }
+        .touch-controls > .touch-action {
+          position: absolute; left: 50%; transform: translateX(-50%); width: 40px; height: 40px;
+        }
+        .touch-undo { top: 0; }
+        .touch-restart { bottom: 0; }
+        .touch-restart .restart-arrow, :root[data-restart-symbol=arrow] .touch-restart text { display: none; }
+        :root[data-restart-symbol=arrow] .touch-restart .restart-arrow { display: inline; }
+        .touch-controls :is(.pressed, .touch-action:active:not(:disabled)) { background: #fff2; }
+        .touch-controls svg { width: 53%; opacity: .52; pointer-events: none; }
+        .touch-controls :is(.pressed, .touch-action:active:not(:disabled)) svg { opacity: .87; }
+        #emoji-view.playing #emoji-board-scroll { margin-inline: auto; }
+        #emoji-view.playing #emoji-board {
+          --editor-width: clamp(140px, (100svh - var(--editor-play-reserve, 295px) - var(--editor-play-insets, 0px)) / 2, 300px);
+          container-type: inline-size;
+        }
+        #emoji-view.playing:not(.skin-look) .emoji-cell { font-size: 8.8cqw; }
+
+        @media (max-width: 700px) {
+          main { --page-gutter: 12px; }
+          main:is([data-view=emoji], [data-view=minolens]) { --page-gutter: 16px; }
+        }
+        @media (max-width: 480px) {
+          main { --touch-board-reserve: 165px; }
+          main[data-view] .app-header { gap: 6px; min-height: 48px; padding: 0; flex-wrap: nowrap; }
+          main[data-view] .app-header .brand { flex: none; font-size: 18px; padding-inline: 0; }
+          main[data-view] .app-header nav { order: 0; flex: 1; min-width: 0; gap: 4px; }
+          main[data-view] .app-header button { min-height: 40px; padding: 6px 3px; }
+          .app-header nav button { font-size: clamp(11px, 3.3vw, 13px); white-space: nowrap; }
+          main[data-view] #nav-settings-button {
+            display: grid; place-items: center; flex: none; width: 40px; margin-left: 0; padding: 0; font-size: 20px;
+          }
+          #nav-settings-button .settings-label { display: none; }
+          .match-active[data-layout=duel] .match-stage {
+            --board: min(240px, calc((100cqw - 28px) / (2 + 2 * var(--board-ratio))), calc((100cqh - 90px) / 2));
+          }
+          #emoji-view.playing { --editor-play-reserve: calc(var(--touch-cluster-size) + 88px); }
+          @media (max-width: 400px) {
+            .match-active #zen-status { display: none; }
+            .match-active #online .room-bar .actions { gap: 4px; }
+            .match-active #online .room-bar button { font-size: 12px; padding-inline: 2px; }
+            .match-active .garbage-meter { right: 100%; width: 4px; }
+          }
+          @media (max-width: 380px) {
+            #emoji-view.playing { --editor-play-reserve: calc(var(--touch-cluster-size) + 120px); }
+          }
+          @media (max-width: 360px) {
+            .match-active .preview-panel p { font-size: 11px; padding-inline: 2px; }
+          }
+        }
+        @media (max-width: 663px) {
+          #emoji-view.playing { --editor-play-insets: calc(env(safe-area-inset-top) + env(safe-area-inset-bottom)); }
+          #emoji-view.playing .emoji-heading { top: env(safe-area-inset-top); }
+        }
+      }
       #match-replay-host { overflow-y: auto; flex: 1; min-height: 0; }
       .match-replay { min-width: 0; width: 100%; }
       .match-replay-grid { display: grid; justify-content: center; align-items: start; padding: 0 12px 12px; }
@@ -574,7 +683,7 @@
           <button id="solo-button" aria-current="page">Singleplayer</button>
           <button id="online-button" aria-current="false">Multiplayer</button>
         </nav>
-        <button id="nav-settings-button"><span aria-hidden="true">⚙</span> Settings</button>
+        <button id="nav-settings-button" aria-label="Settings"><span aria-hidden="true">⚙</span> <span class="settings-label">Settings</span></button>
       </header>
       <div class="view-heading"><h1 id="view-title" tabindex="-1">Choose your game</h1><p id="status"></p><span id="guest-name-editor" hidden><button type="button" data-edit-name aria-label="Edit guest name"><span data-current-name></span> <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></button><form data-edit-form hidden><input name="name" aria-label="Guest name" maxlength="24" required autocomplete="nickname"><button type="submit">Save</button></form> <span>(you)</span></span></div>
       <section id="home-view" hidden aria-labelledby="home-title">
@@ -686,6 +795,7 @@
               <canvas class="emoji-side" id="emoji-hold" width="150" height="90" aria-label="Hold empty"></canvas>
               <canvas class="emoji-side" id="emoji-next" width="150" height="450" aria-label="Next pieces"></canvas>
             </div>
+            <div id="editor-touch-controls" class="touch-controls"></div>
           </div>
         </div>
       </section>
@@ -772,6 +882,7 @@
       <p id="zen-status" class="hint" hidden></p>
       </div><details><summary>Key controls</summary><p id="controls" class="controls"></p></details>
       </footer>
+      <div id="game-touch-controls" class="touch-controls"></div>
       <div id="volume-overlay" role="group" aria-label="Gameplay volume" hidden>
         <div id="volume-overlay-sfx" class="volume-channel" data-volume-channel="sfx" role="slider" tabindex="0" aria-label="Sound effects volume" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="200" aria-valuenow="50">
           <span class="volume-title" aria-hidden="true">SFX</span><div class="volume-bar" aria-hidden="true"></div>
@@ -818,10 +929,28 @@
       </div>
       <section id="settings-general" role="tabpanel" aria-labelledby="tab-general" tabindex="0">
       <h2>Display</h2>
-      <label><input id="ghost-preview" type="checkbox" checked aria-describedby="ghost-help"> Ghost piece</label>
-      <p id="ghost-help" class="hint">Show a translucent piece where a hard drop would land.</p>
-      <label><input id="fast-skins" type="checkbox" aria-describedby="fast-skins-help"> Fast skins</label>
-      <p id="fast-skins-help" class="hint">Draw skins at a lower resolution for better performance on slow computers.</p>
+      <div class="catalog-search touch-setting">
+        <label for="display-search">Search display settings</label>
+        <input id="display-search" type="search" aria-controls="display-settings">
+      </div>
+      <div id="display-settings">
+        <div class="touch-setting" data-search="Restart button symbol touch arrow letter R">
+          <label for="restart-symbol">Restart button symbol</label>
+          <select id="restart-symbol">
+            <option value="r">R</option>
+            <option value="arrow">Arrow</option>
+          </select>
+        </div>
+        <div data-search="Ghost piece translucent hard drop">
+          <label><input id="ghost-preview" type="checkbox" checked aria-describedby="ghost-help"> Ghost piece</label>
+          <p id="ghost-help" class="hint">Show a translucent piece where a hard drop would land.</p>
+        </div>
+        <div data-search="Fast skins lower resolution performance">
+          <label><input id="fast-skins" type="checkbox" aria-describedby="fast-skins-help"> Fast skins</label>
+          <p id="fast-skins-help" class="hint">Draw skins at a lower resolution for better performance on slow computers.</p>
+        </div>
+      </div>
+      <p id="display-empty" class="hint" role="status" hidden>No display settings match.</p>
       <p id="display-note" class="hint" role="status">Display settings are saved on this device.</p>
       <h2>Handling</h2>
       <p class="hint">1 F = 16.67 ms. Tune to 0.01 F, or type a value such as 4.8.</p>

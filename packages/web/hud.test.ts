@@ -29,11 +29,18 @@ function harness(mode: "zen" | "sprint" = "sprint") {
     holdButton: "hold-button", status: "status", countdownOverlay: "sprint-countdown",
   };
   const solo = new Singleplayer(mode, 108, 0);
+  const pressed = new Map();
   const context = {
     ...domUpdate, document, solo: solo as Singleplayer | SprintRecorder | null, display: solo.game,
     playback: null as SprintPlayback | null, online: null as Record<string, unknown> | null,
     openingPlayback: false, SINGLEPLAYER_MODES, snapshotDisplay, formatTime, finesseSummary, Piece, ROWS, LETTERS: "_ZLOSIJT", SprintRecorder, sprintRecordingFor,
-    pressed: new Map(), holdExit: { cancel() {} }, volumeOverlay: { hide() {} },
+    pressed, inputMount: { clear: () => pressed.clear(), setTouchBlocked() {} },
+    touchControls: {
+      undoCount: null as number | null, setUndoCount(count: number | null) { this.undoCount = count; },
+      restart: Object.assign(node("touch-restart"), { hidden: true }),
+    },
+    coarsePointer: { matches: false },
+    holdExit: { cancel() {} }, volumeOverlay: { hide() {} },
     atHome: false, competitivePlayback: null, countdown: { active: false, label: () => null },
     holdCtx: node("hold-preview").context, nextCtx: node("next-preview").context,
     ctx: node("board").context, skins: { loaded: undefined }, showGhost: true,
@@ -79,6 +86,32 @@ test("unchanged HUD and preview values perform no writes, including after extern
   expect(h.node("line-count").textContent).toBe("0 / 40");
   expect(h.node("b2b-count").getAttribute("title")).toBe("Clear a Quad, spin or all clear to start B2B.");
   expect(h.node("sprint-clock").hidden).toBe(false);
+});
+
+test("local touch undo is available in Zen and hidden in Sprint", () => {
+  const sprint = harness("sprint");
+  sprint.refresh();
+  expect(sprint.context.touchControls.undoCount).toBeNull();
+  const zen = harness("zen");
+  zen.refresh();
+  expect(zen.context.touchControls.undoCount).toBe(0);
+  zen.context.solo!.tick(250);
+  zen.context.solo!.apply(Input.HardDrop, 251);
+  zen.refresh();
+  expect(zen.context.touchControls.undoCount).toBe(1);
+});
+
+test("touch restart is visible in solo and online practice but hidden in competitive matches", () => {
+  const h = harness();
+  h.render();
+  expect(h.context.touchControls.restart.hidden).toBe(false);
+  const options = { mode: "competitive" };
+  h.context.online = { session: { room: { options }, canPlay: true } };
+  h.render();
+  expect(h.context.touchControls.restart.hidden).toBe(true);
+  options.mode = "practice";
+  h.render();
+  expect(h.context.touchControls.restart.hidden).toBe(false);
 });
 
 test("mutable clear statistics, B2B tooltip, surge and attack labels update immediately", () => {
@@ -180,7 +213,7 @@ test("multiplayer frame displays checkpoint statistics, score, top-out and waiti
   const h = harness("zen");
   const state = h.context.display.saveState();
   const session = {
-    name: "Player", playerId: "p", room: { phase: "playing" }, canPlay: true,
+    name: "Player", playerId: "p", room: { phase: "playing", options: { mode: "practice" } }, canPlay: true,
     prediction: { gameState: () => state },
     checkpoint: { state: { roster: ["p"], scores: [1], players: [{ game: state }] } },
   };

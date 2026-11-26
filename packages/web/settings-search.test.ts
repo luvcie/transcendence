@@ -92,3 +92,18 @@ test("nested categories count skins, reveal matching branches, and restore each 
   expect(counts()).toEqual(["4", "1", "1", "2"]);
   expect(empty.hidden).toBe(true);
 });
+
+test("display settings can be searched without catalog groups", () => {
+  const document = new FakeDocument();
+  const input = document.createElement(), list = document.createElement(), empty = document.createElement();
+  const restart = Object.assign(document.createElement(), { dataset: { search: "Restart button symbol arrow" } });
+  const ghost = Object.assign(document.createElement(), { dataset: { search: "Ghost piece" } });
+  list.append(ghost, restart);
+  setupSettingsSearch(input as unknown as HTMLInputElement, list as unknown as HTMLElement, empty as unknown as HTMLElement);
+
+  input.value = "restart button";
+  input.dispatchEvent(new Event("input"));
+  expect(ghost.hidden).toBe(true);
+  expect(restart.hidden).toBe(false);
+  expect(empty.hidden).toBe(true);
+});

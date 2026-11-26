@@ -1,26 +1,56 @@
 import { DEFAULT_HANDLING, FRAME_MS, HANDLING_MAX, validateHandling, type Handling } from "@42tris/core";
+import { setupSettingsSearch } from "./settings-search";
 
 const storageKey = "42tris.handling";
+
+function loadDisplaySetting(key: string, note: HTMLElement) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    note.textContent = "Saved display settings could not be loaded. Using defaults.";
+  }
+}
+
+function saveDisplaySetting(key: string, value: string, note: HTMLElement) {
+  try {
+    localStorage.setItem(key, value);
+    note.textContent = "Display settings saved on this device.";
+  } catch {
+    note.textContent = "Display settings apply for this session; browser storage is unavailable.";
+  }
+}
 
 export function setupDisplayToggle(id: string, key: string, onChange: (enabled: boolean) => void): boolean {
   const toggle = document.querySelector<HTMLInputElement>(id)!;
   const note = document.querySelector<HTMLParagraphElement>("#display-note")!;
-  try {
-    const saved = localStorage.getItem(key);
-    toggle.checked = toggle.defaultChecked ? saved !== "false" : saved === "true";
-  } catch {
-    note.textContent = "Saved display settings could not be loaded. Using defaults.";
-  }
+  const saved = loadDisplaySetting(key, note);
+  if (saved !== undefined) toggle.checked = toggle.defaultChecked ? saved !== "false" : saved === "true";
   toggle.addEventListener("change", () => {
     onChange(toggle.checked);
-    try {
-      localStorage.setItem(key, String(toggle.checked));
-      note.textContent = "Display settings saved on this device.";
-    } catch {
-      note.textContent = "Display settings apply for this session; browser storage is unavailable.";
-    }
+    saveDisplaySetting(key, String(toggle.checked), note);
   });
   return toggle.checked;
+}
+
+export function setupTouchDisplaySettings(coarsePointer: MediaQueryList): void {
+  const key = "42tris.touchRestartSymbol";
+  const select = document.querySelector<HTMLSelectElement>("#restart-symbol")!;
+  const note = document.querySelector<HTMLElement>("#display-note")!;
+  select.value = loadDisplaySetting(key, note) === "arrow" ? "arrow" : "r";
+  document.documentElement.dataset.restartSymbol = select.value;
+  select.addEventListener("change", () => {
+    document.documentElement.dataset.restartSymbol = select.value;
+    saveDisplaySetting(key, select.value, note);
+  });
+
+  const input = document.querySelector<HTMLInputElement>("#display-search")!;
+  const filter = setupSettingsSearch(input, document.querySelector<HTMLElement>("#display-settings")!,
+    document.querySelector<HTMLElement>("#display-empty")!);
+  coarsePointer.addEventListener("change", () => {
+    if (coarsePointer.matches) return;
+    input.value = "";
+    filter();
+  });
 }
 
 export function loadHandling(): Handling {

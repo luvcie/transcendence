@@ -16,7 +16,13 @@ export function createSettingsGroup(list: HTMLElement, label: string, open: bool
 export function setupSettingsSearch(input: HTMLInputElement, list: HTMLElement, empty: HTMLElement) {
   function filter() {
     const query = input.value.trim().toLowerCase();
-    function filterGroup(group: HTMLDetailsElement): [number, number] {
+    function filterItem(item: HTMLElement): [number, number] {
+      const { search } = item.dataset;
+      if (search !== undefined) {
+        item.hidden = !search.toLowerCase().includes(query);
+        return [item.hidden ? 0 : 1, 1];
+      }
+      const group = item as HTMLDetailsElement;
       const [heading, options] = group.children;
       if (query && group.dataset.searchOpen === undefined) group.dataset.searchOpen = String(group.open);
       if (!query && group.dataset.searchOpen !== undefined) {
@@ -25,16 +31,9 @@ export function setupSettingsSearch(input: HTMLInputElement, list: HTMLElement, 
       }
       let matches = 0, total = 0;
       for (const child of options.children) {
-        const item = child as HTMLElement;
-        if (item.dataset.search !== undefined) {
-          item.hidden = !item.dataset.search.toLowerCase().includes(query);
-          if (!item.hidden) matches++;
-          total++;
-        } else {
-          const [childMatches, childTotal] = filterGroup(item as HTMLDetailsElement);
-          matches += childMatches;
-          total += childTotal;
-        }
+        const [childMatches, childTotal] = filterItem(child as HTMLElement);
+        matches += childMatches;
+        total += childTotal;
       }
       heading.children[0].textContent = query ? `${matches}/${total}` : String(total);
       group.hidden = matches === 0;
@@ -42,7 +41,7 @@ export function setupSettingsSearch(input: HTMLInputElement, list: HTMLElement, 
       return [matches, total];
     }
     let visible = 0;
-    for (const group of list.children) visible += filterGroup(group as HTMLDetailsElement)[0];
+    for (const child of list.children) visible += filterItem(child as HTMLElement)[0];
     empty.hidden = visible !== 0;
   }
   input.addEventListener("input", filter);
