@@ -142,6 +142,51 @@ restoration, and [match rules](../packages/match/RULES.md) for scheduling, garba
 practice semantics, transport behavior and compatibility limits. The implementation
 and existing package tests are the authority when these documents disagree.
 
+## Frontend framework and database
+
+The UI around the game moves to Svelte 5 on Vite, without SvelteKit, since Elysia stays
+the only server. The migration is incremental. Svelte owns new screens (account, profile,
+leaderboard) from the start, and current screens move over one per PR. The game views,
+the editor and Minolens stay vanilla TypeScript for now; nothing prevents porting
+their surrounding UI later.
+
+Existing classes (Game, Session, SoundPlayer, SkinState) remain the source of truth and
+are not rewritten for the framework. Importing one into a component does not make its
+mutations reactive. A screen that needs live state gets a small adapter, written
+only where a component reads it. The adapter subscribes through the class's own events
+or callbacks (`createSubscriber` from `svelte/reactivity` fits event sources) and exposes
+just what that screen shows, without copying gameplay or network state. Each DOM element
+has one owner: a Svelte island mounts into its own container, and vanilla code never
+touches nodes inside it. `main.ts` and the other view modules look up their elements
+by id in `index.html` at load time, which is why current screens are ported one at a
+time and not all at once.
+
+The first framework PR ships one small working Svelte screen with `svelte-check` and a
+test, not an empty mount. `tsc` does not read `.svelte` files and `bun test` needs setup
+to compile them. That PR settles both.
+
+Tailwind CSS v4 without preflight is the proposed styling for new components, confirmed
+in that PR. Existing gameplay CSS stays as it is. Its rules are unlayered and outrank
+utilities in cascade layers, and `index.html` has bare `button`, `h1`, `h2`, `dialog` and
+`input` rules. A new Svelte button would pick up the old button look and ignore
+utilities such as padding. The framework PR has to either scope those legacy rules to
+the legacy page or import the utilities layer with `important`.
+
+Accounts and stats use SQLite through Drizzle ORM and `bun:sqlite`, in a new
+`packages/db`, with Drizzle pinned to an exact version. Auth uses an HttpOnly session
+cookie backed by a sessions table, and the WebSocket upgrade checks the Origin. Match
+results are stored from server-verified matches, never from client claims. The server
+stays without durable storage until `packages/db` lands.
+
+A volume keeps the database file across restarts and deploys, but a Fly volume belongs
+to one machine and is not copied to other machines or regions. There are two deploy
+targets today: Fly (`fly.toml`, region `cdg`, configured for one running machine) and the manual Antideploy
+workflow, and their persistence has not been checked. Before real accounts go live the
+team picks one authoritative backend that owns the database, and the other target
+either points at it or stays a separate deployment with its own accounts. The planned
+`docker compose` setup will use a named volume. Schema and migrations in `packages/db` do not
+depend on this choice.
+
 ## Singleplayer modes and Sprint timing
 
 `web/src/singleplayer.ts` owns the selected mode, Game configuration, local clock

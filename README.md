@@ -7,6 +7,9 @@ server-authoritative multiplayer with competitive sets and online practice.
 The monorepo uses Bun workspaces, Elysia for HTTP and WebSockets, Eden for the typed
 client, and Vite with a Canvas 2D frontend.
 
+Accounts, stats and a Svelte 5 frontend are planned. The decisions and the migration plan are in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Packages
 
 | Package | Responsibility |
