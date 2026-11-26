@@ -12,9 +12,16 @@ import { connectionMask, drawTile, skinFrame } from "./tile-renderer";
 import type { Handling } from "@42tris/core";
 import type { Keybinds } from "./keybinds";
 import type { Singleplayer } from "./singleplayer";
+import { bindGameStats } from "./game-display";
+import { setText } from "./dom-update";
 import type { GameSounds } from "./game-sounds";
 import { createTouchControls } from "./touch-controls";
 import { drawQueue, gameToLines, playBoard, playCells, boardQueue, boardToGame, type PlayRun } from "./editor-play";
+
+export function touchStartsInBoard({ left, top, right, bottom }: Pick<DOMRectReadOnly, "left" | "top" | "right" | "bottom">,
+  x: number, y: number) {
+  return x >= left && x < right && y >= top && y < bottom;
+}
 
 const openers = {
   "TKI": [
@@ -243,6 +250,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   gameplay: { bindings: Keybinds; handling(): Handling; ghost(): boolean; sounds: GameSounds }) {
   const { ownerDocument: document } = root;
   const board = root.querySelector<HTMLElement>("#emoji-board")!;
+  const boardScroll = root.querySelector<HTMLElement>("#emoji-board-scroll")!;
   const heading = root.querySelector<HTMLElement>(".emoji-heading")!;
   const palette = root.querySelector<HTMLElement>("#emoji-palette")!;
   const colorsLeft = palette.querySelector<HTMLElement>("#emoji-colors-left")!;
@@ -282,6 +290,15 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   const mirror = root.querySelector<HTMLButtonElement>("#emoji-mirror")!;
   const copyHalf = root.querySelector<HTMLButtonElement>("#emoji-copy-half")!;
   const playButton = root.querySelector<HTMLButtonElement>("#emoji-play")!;
+  const playHud = root.querySelector<HTMLElement>("#editor-play-hud")!;
+  const feedback = root.ownerDocument.querySelector("#game-view .game-feedback")!.cloneNode(true) as HTMLElement;
+  feedback.querySelector("#sprint-clock")!.remove();
+  feedback.querySelector("#zen-status")!.remove();
+  for (const element of feedback.querySelectorAll("[id]")) element.id = `editor-${element.id}`;
+  playHud.append(feedback);
+  const renderPlayStats = bindGameStats(feedback, "editor-");
+  const phonePortrait = matchMedia("(pointer: coarse) and (max-width: 663px) and (orientation: portrait)");
+  const portraitEdit = matchMedia("(width < 540px) and (orientation: portrait) and (pointer: coarse)");
   const keep = root.querySelector<HTMLButtonElement>("#emoji-keep")!;
   const stopButton = root.querySelector<HTMLButtonElement>("#emoji-stop")!;
   const matchBag = root.querySelector<HTMLInputElement>("#emoji-match-bag")!;
@@ -303,7 +320,18 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
   let stroke: { source: StrokeSource; id: number; value: string; lastCell: number } | null = null;
   let play: PlayRun | null = null;
   let touchControls: ReturnType<typeof createTouchControls> | undefined;
+  let editScrollY: number | undefined;
   let drawn: string[] = [];
+
+  let statusTimer: number | undefined;
+  function expireStatus() {
+    window.clearTimeout(statusTimer);
+    if (portraitEdit.matches && !play && status.textContent) {
+      statusTimer = window.setTimeout(() => { status.textContent = ""; }, Math.max(4500, status.textContent.length * 60));
+    }
+  }
+  new MutationObserver(expireStatus).observe(status, { childList: true });
+  portraitEdit.addEventListener("change", expireStatus);
 
   for (const label of root.querySelectorAll<HTMLLabelElement>(".emoji-gesture label")) {
     const mode = label.querySelector<HTMLInputElement>("input")!;
@@ -432,6 +460,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     cell.addEventListener("pointerdown", event => {
       if (event.button !== 0 || !event.isPrimary || stroke) return;
       if (event.pointerType === "touch") {
+        if (!play && phonePortrait.matches && !touchStartsInBoard(board.getBoundingClientRect(), event.clientX, event.clientY)) return;
         startStroke(index, "touch-pointer", event.pointerId);
         return;
       }
@@ -809,7 +838,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
 
   copy.addEventListener("click", () => copyRows(0, copy));
   copyHalf.addEventListener("click", () => copyRows(rows / 2, copyHalf));
-  function pasteBoard(text: string) {
+  function pasteBoard(text: string, reveal: boolean) {
     const parsed = parseBoardText(text);
     if (typeof parsed === "string") {
       status.textContent = parsed;
@@ -824,22 +853,25 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
       renderSplits();
     } else setBoard(parsed, false);
     status.textContent = "Board pasted.";
+    if (reveal && portraitEdit.matches) boardScroll.scrollIntoView({ block: "end" });
     return true;
   }
   root.addEventListener("paste", event => {
     if (root.hidden || play || !(event.target instanceof HTMLElement) ||
       event.target.closest("input, select, textarea, [contenteditable]")) return;
-    if (pasteBoard(event.clipboardData?.getData("text") ?? "")) event.preventDefault();
+    if (pasteBoard(event.clipboardData?.getData("text") ?? "", true)) event.preventDefault();
   });
   root.querySelector("#emoji-paste")!.addEventListener("click", async () => {
     const original = sequence, originalStep = step;
     let text: string;
     try { text = await navigator.clipboard.readText(); }
     catch {
-      status.textContent = "Could not read the clipboard. Use the paste shortcut in the editor.";
+      status.textContent = phonePortrait.matches
+        ? "Could not read the clipboard. Allow clipboard access for this site in your browser, then tap Paste board again."
+        : "Could not read the clipboard. Use the paste shortcut in the editor.";
       return;
     }
-    if (!root.hidden && !play && sequence === original && step === originalStep) pasteBoard(text);
+    if (!root.hidden && !play && sequence === original && step === originalStep) pasteBoard(text, true);
   });
   copySeq.addEventListener("click", () => copyMessage(0, copySeq));
   // names repeat across categories, so a repeat gets its category (or id) added to stay unique
@@ -960,9 +992,10 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
       stopPlay();
       return;
     }
+    renderPlayStats(run.game);
     const { cells: values, ghosts } = playCells(run.game, gameplay.ghost());
     values.forEach((value, index) => {
-      if (cells[index].textContent !== value) cells[index].textContent = value;
+      setText(cells[index], value);
       cells[index].classList.toggle("ghost", ghosts.has(index));
     });
     const look = emojiMode.checked ? "emoji" : skin;
@@ -973,19 +1006,39 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
 
   function syncPlay() {
     root.classList.toggle("playing", !!play);
+    root.classList.toggle("play-paused", !!play?.paused);
+    playHud.hidden = !play;
     playButton.textContent = !play ? "Play" : play.paused ? "Resume" : "Pause";
     stopButton.hidden = keep.hidden = !play;
     matchBag.parentElement!.hidden = !!play;
   }
+
+  function scrollPlayToTop() {
+    if (play && !root.hidden && phonePortrait.matches) window.scrollTo(0, 0);
+  }
+
+  function revealFocusedSkin() {
+    if (document.activeElement === skinInput) skinInput.scrollIntoView({ block: "nearest" });
+  }
+
+  phonePortrait.addEventListener("change", () => {
+    scrollPlayToTop();
+    revealFocusedSkin();
+  });
+  window.visualViewport?.addEventListener("resize", () => {
+    if (phonePortrait.matches) revealFocusedSkin();
+  });
 
   function togglePause() {
     if (!play) return;
     play.setPaused(!play.paused);
     status.textContent = play.paused ? "Paused. You can still paint the board." : "Playing.";
     syncPlay();
+    if (!play.paused) scrollPlayToTop();
   }
 
   function startPlay() {
+    const scrollY = window.scrollY;
     drawn = boardLines();
     // the board as shown, mirrored colours included, is what gets played
     const initialBoard = new Uint8Array(cols * 40);
@@ -999,7 +1052,7 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
       stuck: () => stopPlay("No room to spawn a piece on this board."),
       pause: togglePause,
       restart() {
-        stopPlay();
+        stopPlay(undefined, true);
         startPlay();
       },
     });
@@ -1007,13 +1060,16 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     status.textContent = !bag ? "Zen on this board. Ctrl+Z undoes a piece, Escape pauses."
       : bag.left.length === 7 ? "Fresh bag."
       : `Bag continues from the board: ${bag.left.length} left (${bag.left.map(id => "_ZLOSIJT"[id]).join(" ")}).`;
-    if (matchMedia("(pointer: coarse) and (max-width: 663px)").matches) {
+    if (phonePortrait.matches) {
+      editScrollY ??= scrollY;
+      scrollPlayToTop();
+    } else if (matchMedia("(pointer: coarse) and (max-width: 663px)").matches) {
       const inset = parseFloat(getComputedStyle(heading).top) || 0;
       window.scrollBy(0, board.getBoundingClientRect().top - heading.offsetHeight - inset - 8);
     }
   }
 
-  function stopPlay(message?: string) {
+  function stopPlay(message?: string, restarting = false) {
     const run = play?.run;
     if (!play) return run;
     play.stop();
@@ -1024,6 +1080,10 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
       paint(index, value);
     });
     if (message) status.textContent = message;
+    if (!restarting && editScrollY !== undefined) {
+      if (!root.hidden) window.scrollTo(0, editScrollY);
+      editScrollY = undefined;
+    }
     return run;
   }
 
@@ -1056,5 +1116,5 @@ export function mountEmojiEditor(root: HTMLElement, skins: SkinState,
     status.textContent = `Position kept as step ${step + 1}.`;
   });
 
-  return pasteBoard;
+  return (text: string) => pasteBoard(text, false);
 }

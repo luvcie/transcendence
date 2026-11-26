@@ -58,11 +58,38 @@
       #board { min-width: 0; }
       #hold-button { width: 100%; margin-top: 8px; }
       #controls { max-width: 540px; }
-      #game-stats { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; }
-      #game-stats div { display: flex; gap: 8px; }
-      #game-stats dt { color: #aaa; }
-      #game-stats dd { margin: 0; }
-      #clear-result { color: #22d3ee; }
+      .game-stats { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; }
+      .game-stats div { display: flex; gap: 8px; }
+      .game-stats dt { color: #aaa; }
+      .game-stats dd { margin: 0; }
+      .game-stats { align-items: center; }
+      .game-stats .b2b-stat { --b2b-size: 48px; align-items: center; gap: 4px; white-space: nowrap; }
+      .b2b-stat dt { font-size: .85em; font-weight: bold; letter-spacing: .08em; }
+      .b2b-value {
+        display: inline-grid; place-items: center; position: relative; isolation: isolate;
+        width: var(--b2b-size); height: var(--b2b-size);
+        font-size: min(1em, calc(var(--b2b-size) / 3.2));
+      }
+      .b2b-value::before, .surge-icon {
+        position: absolute; inset: 0; z-index: -1;
+        --surge-scale: calc(.82 + .18 * var(--surge-growth));
+        transform: scale(var(--surge-scale));
+      }
+      .b2b-value[data-charged]:has(.surge-icon[hidden])::before {
+        content: ""; inset: 10% 4%;
+        border: 1px solid var(--surge-color); border-radius: 4px;
+        background: #171717;
+      }
+      .b2b-value[data-charged] .b2b-count {
+        font-size: min(calc(var(--b2b-size) * .47), calc(var(--b2b-size) * 1.35 / var(--b2b-digits)));
+        font-weight: bold; line-height: 1; color: #fff;
+      }
+      .b2b-value[data-charged] .surge-icon:not([hidden]) + .b2b-count {
+        -webkit-text-stroke: 2px #111; paint-order: stroke fill;
+      }
+      .b2b-value:not([data-charged]) > :is(.surge-icon, .visually-hidden) { display: none; }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+      .clear-result { color: #22d3ee; }
       h2 { font-size: 16px; margin-top: 28px; }
       .keybind-row { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #383838; }
       .keybind-slot { display: flex; min-width: 0; }
@@ -156,7 +183,9 @@
       [data-round-time] { font-size: 12px; color: #aaa; font-variant-numeric: tabular-nums; }
       .room-bar .actions { margin: 0; gap: 8px; }
       .room-bar button { padding: 8px 12px; }
+      .phone-match-info { display: none; }
       .round-summary { padding: 12px 16px; border: 1px solid #22d3ee; border-top: 0; background: #152226; }
+      .round-summary-actions { display: contents; }
       [data-result] { font-size: 16px; margin: 0 0 10px; }
       [data-scores] { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; padding: 0; list-style: none; }
       [data-scores] li { overflow-wrap: anywhere; }
@@ -232,8 +261,7 @@
       .app-header .brand:hover { color: #22d3ee; }
       #home-title:focus, #emoji-title:focus, #minolens-title:focus, #sprint-result-title:focus { outline: none; }
       main[data-view=solo] .game-footer { margin-top: 8px; }
-      main[data-view=solo] #game-stats { gap: 4px 16px; }
-      main[data-view=solo] .game-feedback { gap: 4px 16px; }
+      :is(main[data-view=solo] .game-footer, #editor-play-hud) :is(.game-stats, .game-feedback) { gap: 4px 16px; }
       main[data-view=solo] .game-footer summary { padding: 4px 0; }
       #home-view, #emoji-view, #minolens-view { width: min(800px, 100%); margin: 0 auto; }
       #home-view { padding: 64px 0 32px; }
@@ -257,8 +285,9 @@
       .emoji-blocks { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; }
       .emoji-tools .emoji-blocks h2 { grid-column: 1 / -1; margin-bottom: 0; }
       .emoji-tools #emoji-palette { gap: 4px; margin: 0; }
-      #emoji-palette > div, #emoji-board-scroll { display: contents; }
+      #emoji-palette > div, #emoji-board-scroll, .emoji-play-exit { display: contents; }
       #emoji-view.playing #emoji-board-scroll { display: block; width: min(100%, 356px); }
+      #editor-play-hud { width: 100%; margin: 8px 0 0; }
       #emoji-board {
         --editor-width: min(100%, 356px);
         --editor-padding: 8px;
@@ -266,14 +295,18 @@
         position: relative; display: grid; grid-template-columns: repeat(10, minmax(0, 1fr));
         width: var(--editor-width); padding: var(--editor-padding); border-radius: 12px; background: #2a2d2e; touch-action: none; user-select: none;
         width: min(calc(round(nearest, var(--editor-width) - 2 * var(--editor-padding), var(--editor-grid-step)) + 2 * var(--editor-padding)),
-          calc(round(down, 100% - 2 * var(--editor-padding), var(--editor-grid-step)) + 2 * var(--editor-padding)));
+          calc(round(down, 100% - 2 * (var(--editor-padding) + var(--editor-preview-space, 0px)), var(--editor-grid-step)) + 2 * var(--editor-padding)));
       }
       .emoji-cell, .emoji-color, #emoji-mirror { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
       #emoji-board canvas { display: none; position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
       .emoji-tools { transition: transform .3s ease; }
       #emoji-board .emoji-side { display: block; inset: 8px auto auto; width: 60px; width: round(nearest, 60px, calc(5 * var(--device-pixel, 1px))); height: auto; opacity: 0; transition: transform .3s ease, opacity .3s ease; }
-      #emoji-board #emoji-hold { right: calc(100% + 12px); transform: translateX(72px); }
-      #emoji-board #emoji-next { left: calc(100% + 12px); transform: translateX(-72px); }
+      #emoji-board :is(#emoji-hold, #emoji-hold-label) { right: calc(100% + var(--editor-preview-gap, 12px)); }
+      #emoji-board :is(#emoji-next, #emoji-next-label) { left: calc(100% + var(--editor-preview-gap, 12px)); }
+      #emoji-board #emoji-hold { transform: translateX(72px); }
+      #emoji-board #emoji-next { transform: translateX(-72px); }
+      #emoji-board .emoji-side-label { display: none; }
+      #emoji-view.playing { padding-bottom: 16px; }
       #emoji-view.playing .emoji-tools { transform: translateX(60px); }
       #emoji-view.playing :is(#emoji-copy, #emoji-copy-half, .emoji-import, #emoji-seq, .emoji-openers, .emoji-custom) { display: none; }
       #emoji-view.playing #emoji-board .emoji-side { opacity: 1; transform: none; }
@@ -291,6 +324,7 @@
       .emoji-tools .emoji-color { --swatch-size: 16px; width: 28px; min-height: 34px; padding: 0; font-size: 19px; line-height: 1; }
       #emoji-mirror { width: 44px; height: 44px; padding: 0; font-size: 20px; line-height: 1; }
       #emoji-mirror[aria-pressed=true], .emoji-color[aria-pressed=true] { border-color: #22d3ee; background-color: #163036; }
+      .emoji-status-wrap { display: contents; }
       #emoji-status { min-height: 1.6em; }
       #emoji-view { overflow-anchor: none; }
       #emoji-custom:empty { display: none; }
@@ -498,6 +532,50 @@
         .emoji-openers { grid-area: openers; }
         #emoji-status { grid-area: status; margin: 0; }
       }
+      @media (width < 540px) and (orientation: portrait) and (pointer: coarse) {
+        #emoji-view:not(.playing) { --emoji-palette-inset: calc(56px + env(safe-area-inset-bottom)); }
+        #emoji-view:not(.playing) .emoji-layout {
+          grid-template-areas: "title" "import" "board" "palette" "actions" "look" "play" "openers" "custom" "seq";
+        }
+        #emoji-view:not(.playing) .emoji-heading {
+          top: env(safe-area-inset-top); z-index: 3; box-shadow: 0 1px 0 #383838;
+        }
+        #emoji-view:not(.playing) .emoji-heading::before {
+          content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top);
+          background: #111; pointer-events: none;
+        }
+        #emoji-view:not(.playing) #emoji-title { font-size: clamp(12px, 10vw - 18px, 20px); }
+        #emoji-view:not(.playing) .emoji-status-wrap {
+          display: block; grid-area: import; align-self: end; height: 0;
+          position: sticky; top: calc(env(safe-area-inset-top) + 52px); z-index: 4; pointer-events: none;
+        }
+        #emoji-view:not(.playing) #emoji-status {
+          position: absolute; top: 0; inset-inline: 0;
+          width: max-content; max-width: 100%; margin-inline: auto;
+          min-height: 0; padding: 4px 8px; border: 1px solid #383838; border-radius: 4px;
+          background: #181818; overflow-wrap: anywhere; pointer-events: none;
+        }
+        #emoji-view:not(.playing) #emoji-status:empty { opacity: 0; }
+        #emoji-view:not(.playing) #emoji-board-scroll {
+          padding-inline: 6px; scroll-margin-bottom: calc(var(--emoji-palette-inset) + 8px);
+        }
+        #emoji-view:not(.playing) #emoji-board {
+          --editor-width: clamp(180px, (100svh - 68px - env(safe-area-inset-top) - var(--emoji-palette-inset)) / 2, 100%);
+        }
+        #emoji-view:not(.playing) .emoji-blocks {
+          position: sticky; bottom: 0; z-index: 2; background: #111;
+          padding-block: 6px calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -1px 0 #383838;
+        }
+        #emoji-view:not(.playing) #emoji-palette-title { display: none; }
+        #emoji-view:not(.playing) #emoji-palette { flex-wrap: nowrap; }
+        #emoji-view:not(.playing) #emoji-palette > div { display: contents; }
+        #emoji-view:not(.playing) .emoji-color {
+          --swatch-size: min(24px, 6vw); flex: 1 1 0; min-width: 0; max-width: 40px; min-height: 44px;
+        }
+        #emoji-view:not(.playing) .emoji-actions button { padding-inline: 6px; }
+        #emoji-view:not(.playing) #emoji-skin { width: min(14em, 38vw); }
+        #emoji-view:not(.playing) :is(.emoji-look, #emoji-seq .actions:has(#emoji-gif-block)) { column-gap: 20px; }
+      }
       @media (540px <= width <= 663px) {
         .emoji-layout {
           grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -510,11 +588,6 @@
         #emoji-colors-left { grid-area: colors-left; }
         #emoji-colors-right { grid-area: colors-right; }
         #emoji-mirror { grid-area: colors-right; align-self: end; justify-self: center; }
-      }
-      /* hold and queue sit outside the 800px view, below this they overflow (scrollbar included) */
-      @media (max-width: 959px) {
-        #emoji-board .emoji-side { display: none; }
-        #emoji-view.playing .emoji-tools { transform: none; }
       }
       .mode-card { display: grid; }
       .mode-card > * { grid-area: 1 / 1; }
@@ -560,6 +633,23 @@
       @media (max-width: 959px), (pointer: coarse) {
         #emoji-view.playing #emoji-board { margin-inline: auto; }
       }
+      @media (max-width: 959px) {
+        #emoji-board .emoji-side { display: none; }
+        #emoji-view.playing .emoji-tools { transform: none; }
+        #emoji-view.playing { --editor-preview-gap: 6px; }
+        #emoji-view.playing #emoji-board-scroll {
+          --editor-preview-width: round(nearest, clamp(40px, 9vw, 60px), calc(5 * var(--device-pixel, 1px)));
+          --editor-preview-space: calc(var(--editor-preview-width) + var(--editor-preview-gap));
+          width: 100%; max-width: calc(356px + 2 * var(--editor-preview-space));
+          flex: 1 1 320px; min-width: 0;
+        }
+        #emoji-view.playing #emoji-board :is(.emoji-side, .emoji-side-label) { display: block; width: var(--editor-preview-width); }
+        #emoji-view.playing #emoji-board .emoji-side { top: 18px; outline: 1px solid #383838; transition: none; }
+        #emoji-view.playing #emoji-board .emoji-side-label {
+          position: absolute; top: 2px; font-size: 10px; letter-spacing: 0; text-align: center;
+        }
+        #emoji-view.playing #editor-touch-controls { max-width: 356px; }
+      }
       .touch-controls, .touch-setting { display: none; }
       @media (pointer: coarse) {
         .touch-setting { display: block; }
@@ -581,6 +671,12 @@
         main[data-view=solo] .game-footer { width: min(100%, 624px); }
         main:is([data-view=solo], .match-active) .game-feedback { display: grid; }
         main:is([data-view=solo], .match-active) #clear-result { min-height: 1lh; }
+        .game-stats .b2b-stat { --b2b-size: 34px; }
+        @media (orientation: landscape) and (min-width: 701px) {
+          main[data-view=solo]:not(.match-active) .game-feedback {
+            grid-template-columns: auto minmax(0, 1fr); align-items: center;
+          }
+        }
         #hold-button, .game-footer details, main[data-view=solo] #zen-status { display: none; }
         main:is([data-view=solo], .match-active:not([data-replay])) #game-view > .touch-controls,
         #emoji-view.playing .touch-controls {
@@ -662,6 +758,282 @@
         @media (max-width: 663px) {
           #emoji-view.playing { --editor-play-insets: calc(env(safe-area-inset-top) + env(safe-area-inset-bottom)); }
           #emoji-view.playing .emoji-heading { top: env(safe-area-inset-top); }
+          @media (orientation: portrait) {
+            main { --phone-board-bleed: 6px; }
+            body:has(main[data-view=solo], main.match-active #online:not([hidden]), #emoji-view.playing:not([hidden])) { min-height: 100dvh; }
+            main[data-view=solo]:not(.match-active) { height: 100dvh; min-height: 0; }
+            :is(main[data-view=solo]:not(.match-active), main.match-active:has(#online:not([hidden]))) #game-view {
+              display: grid; flex: 1; container-type: size;
+              margin-inline: calc(-1 * var(--phone-board-bleed));
+              grid-template-areas: "." "board" "." "touch";
+              grid-template-rows: minmax(var(--phone-board-gap), 1fr) auto minmax(var(--phone-board-gap), 2fr) auto;
+            }
+            main[data-view=solo]:not(.match-active) #game-view {
+              --phone-board-gap: 5px;
+              --solo-side-min: 45px;
+              --solo-gutter-left: calc(max(var(--page-gutter), env(safe-area-inset-left)) - var(--phone-board-bleed));
+              --solo-gutter-right: calc(max(var(--page-gutter), env(safe-area-inset-right)) - var(--phone-board-bleed));
+              --phone-touch-limit: calc((var(--phone-touch-width) - 24px) / 2);
+              --solo-touch-size: clamp(150px, 27svh, 190px);
+              --phone-touch-width: min(420px, 100cqw);
+              --phone-touch-reserve: min(var(--solo-touch-size), var(--phone-touch-limit));
+              --solo-height: calc(100cqh - (100dvh - 100svh) - 2 * var(--phone-board-gap));
+              --board: round(down, min(300px, (100cqw - 2 * (var(--solo-side-min) + var(--phone-board-gap))) / var(--board-ratio),
+                (var(--solo-height) - var(--phone-touch-reserve)) / 2), calc(10 * var(--device-pixel, 1px)));
+              --solo-board-width: calc(var(--board) * var(--board-ratio));
+              --solo-side: calc((100cqw - var(--solo-board-width)) / 2);
+              --solo-preview: clamp(44px, var(--solo-side) - var(--phone-board-gap), 64px);
+            }
+            main[data-view=solo]:not(.match-active) :is(.match-stage, .game-footer) {
+              grid-area: board; min-width: 0; width: auto;
+              margin-inline: calc(-1 * var(--solo-gutter-left)) calc(-1 * var(--solo-gutter-right));
+            }
+            main[data-view=solo]:not(.match-active) :is(.playfield, .game-footer) {
+              gap: var(--phone-board-gap) 0;
+              grid-template-columns: calc(var(--solo-side) + var(--solo-gutter-left))
+                var(--solo-board-width) calc(var(--solo-side) + var(--solo-gutter-right));
+            }
+            main[data-view=solo]:not(.match-active) .playfield { width: 100%; }
+            main[data-view=solo]:not(.match-active) .preview-panel > :is(p, canvas) {
+              width: var(--solo-preview); margin-inline: auto; text-align: center;
+            }
+            main[data-view=solo]:not(.match-active) .preview-panel > canvas {
+              width: round(nearest, var(--solo-preview), calc(var(--canvas-columns, 5) * var(--device-pixel, 1px)));
+            }
+            main[data-view=solo] #game-view > #game-touch-controls {
+              grid-area: touch; margin: 0 auto;
+              height: min(var(--solo-touch-size), (var(--phone-touch-width) - var(--phone-touch-gap)) / 2,
+                var(--solo-height) - 2 * var(--board));
+            }
+            :is(main[data-view=solo]:not(.match-active) .game-footer, main.match-active:has(:where(#online:not([hidden]))) .game-footer, #editor-play-hud) {
+              height: calc(2 * var(--board)); margin-block: 0; display: grid; pointer-events: none;
+              grid-template-rows: calc(26px + var(--solo-preview) * .6) repeat(2, auto) 1fr auto auto;
+              font-size: clamp(9px, var(--solo-preview) / 5.6, 12px); line-height: 1.25; text-align: center;
+              overflow-wrap: anywhere;
+            }
+            :is(main[data-view=solo], main.match-active:has(:where(#online:not([hidden]))), #editor-play-hud) :is(.game-feedback, .game-stats) { display: contents; }
+            :is(main[data-view=solo]:not(.match-active) .game-footer, main.match-active:has(:where(#online:not([hidden]))) .game-footer, #editor-play-hud) :is(.game-stats > div, .clear-result) { padding-inline: 2px; }
+            :is(main[data-view=solo]:not(.match-active) .game-footer, #editor-play-hud) :is(.finesse-stat dd, .clear-result) { text-wrap: balance; }
+            :is(main[data-view=solo], main.match-active:has(:where(#online:not([hidden]))), #editor-play-hud) .game-stats div { flex-direction: column; gap: 0; grid-column: 1; align-self: end; margin-top: 4px; }
+            :is(main[data-view=solo], main.match-active:has(:where(#online:not([hidden]))), #editor-play-hud) .game-stats dt { font-size: .85em; text-transform: uppercase; }
+            main[data-view=solo] #sprint-clock { grid-row: 5; }
+            :is(main[data-view=solo], #editor-play-hud) .lines-stat { grid-row: 6; }
+            :is(main[data-view=solo], #editor-play-hud) .game-stats :is(.combo-stat, .finesse-stat) { grid-column: 3; }
+            :is(main[data-view=solo], main.match-active:has(:where(#online:not([hidden]))), #editor-play-hud) .game-stats .combo-stat { grid-row: 5; }
+            :is(main[data-view=solo], main.match-active:has(:where(#online:not([hidden]))), #editor-play-hud) .game-stats .b2b-stat {
+              --b2b-size: clamp(36px, var(--solo-preview) * .8, 42px);
+              grid-row: 2; align-self: start; gap: 2px;
+            }
+            :is(main[data-view=solo], main.match-active:has(:where(#online:not([hidden]))), #editor-play-hud) .game-stats .finesse-stat { grid-row: 6; }
+            :is(main[data-view=solo]:not(.match-active) .game-footer, main.match-active:has(:where(#online:not([hidden]))) .game-footer, #editor-play-hud) .clear-result {
+              grid-column: 1; grid-row: 4; align-self: end; min-height: 0; margin: 0;
+              font-size: inherit; line-height: inherit; word-spacing: -.14em;
+            }
+            :is(main[data-view=solo] #game-touch-controls, main.match-active:has(:where(#online:not([hidden]))) #game-touch-controls, #emoji-view.playing #editor-touch-controls) { container-type: size; }
+            :is(main[data-view=solo] #game-touch-controls, main.match-active:has(:where(#online:not([hidden]))) #game-touch-controls, #emoji-view.playing #editor-touch-controls) .touch-cluster {
+              width: min((100% - var(--phone-touch-gap)) / 2, 100cqh);
+              align-self: end;
+            }
+            main.match-active:has(#online:not([hidden])) {
+              --phone-board-gap: 4px;
+              --match-bottom: max(4px, env(safe-area-inset-bottom));
+              --phone-touch-width: min(420px, 100vw - max(var(--page-gutter), env(safe-area-inset-left))
+                - max(var(--page-gutter), env(safe-area-inset-right)) + 2 * var(--phone-board-bleed));
+              --phone-touch-reserve: min(clamp(150px, 27svh, 190px), (var(--phone-touch-width) - var(--phone-touch-gap)) / 2);
+              position: relative; height: 100dvh; min-height: 0; padding-bottom: var(--match-bottom);
+
+              & :is(.app-header, .room-identity, .room-wide, #zen-status, .lines-stat, .opponent-label),
+              & #online > :is(.connection-status, .connection-actions),
+              & .room-bar .actions > :not([data-details], [data-leave]) { display: none; }
+              & #online { position: static; }
+              & #online .room-bar {
+                height: 32px; padding: 0; justify-content: space-between; flex-wrap: nowrap; gap: 4px;
+                font-size: 11px; white-space: nowrap;
+              }
+              & #online .room-bar .actions { width: auto; flex: none; gap: 8px; }
+              & #online .room-bar button { position: relative; padding: 0 5px; height: 28px; font-size: inherit; }
+              & #online .room-bar button::after { content: ""; position: absolute; z-index: 1; inset: -5px -1px -9px; }
+              & .phone-match-info { display: revert; }
+              & .room-bar > .phone-match-info { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+              & .room-bar > .phone-match-info > :not(:first-child)::before { content: "·"; margin: 0 .45em; color: #888; }
+              @media (max-width: 359px) {
+                & .room-bar > .phone-match-info > [data-short-code] { display: none; }
+                & .room-bar > .phone-match-info > [data-short-round]::before { content: none; }
+              }
+              & .phone-room-details { margin-top: 8px; }
+              & .phone-room-details .actions { gap: 6px; margin-top: 6px; }
+              & .phone-room-details p { overflow-wrap: anywhere; }
+              & #online .round-summary {
+                position: absolute; z-index: 1; bottom: var(--match-bottom);
+                left: calc(max(var(--page-gutter), env(safe-area-inset-left)) - var(--phone-board-bleed));
+                right: calc(max(var(--page-gutter), env(safe-area-inset-right)) - var(--phone-board-bleed));
+                width: var(--phone-touch-width); height: var(--phone-touch-reserve);
+                margin-inline: auto; padding: 8px;
+                display: grid; grid-template-columns: minmax(0, 1fr) auto;
+                grid-template-rows: auto minmax(0, 1fr); column-gap: 8px;
+                border-top: 1px solid #22d3ee; overflow-wrap: anywhere;
+              }
+              & .round-summary [data-result] { display: none; }
+              & [data-phone-result] { margin: 0; font-size: 13px; }
+              & .round-summary-actions { display: grid; grid-column: 2; grid-row: 1; gap: 4px; }
+              & .round-summary-details {
+                grid-column: 1 / -1; grid-row: 2; padding-top: 4px; overflow: auto; overscroll-behavior: contain;
+              }
+              & [data-replay-status] { grid-column: 1 / -1; }
+              & :is([data-next-round], [data-round-times]) { margin: 0 0 4px; font-size: 12px; color: #aaa; }
+              & :is([data-next-round], [data-round-times]):empty { display: none; }
+              & [data-scores] { font-size: 11px; gap: 3px 8px; }
+              & .round-summary button { min-height: 32px; padding: 5px 8px; font-size: 12px; }
+
+              & #game-view { margin-block: 0; }
+              & :is(.match-stage, .game-footer) {
+                --match-left: clamp(40px, 12cqw, 46px);
+                --match-right: clamp(58px, 17cqw, 72px);
+                --match-meter: 7px;
+                --board: round(down, min(300px,
+                  (100cqw - var(--match-left) - var(--match-meter) - var(--phone-board-gap) - var(--match-right)) / var(--board-ratio),
+                  (100cqh - (100dvh - 100svh) - var(--phone-touch-reserve) - 2 * var(--phone-board-gap)) / 2),
+                  calc(10 * var(--device-pixel, 1px)));
+                --solo-preview: var(--match-left);
+                --match-next: min(60px, var(--match-right), var(--board) / 3.6);
+                grid-area: board; width: 100%; max-width: none; min-width: 0; margin: 0;
+                grid-template-columns: calc(var(--match-left) + var(--match-meter))
+                  calc(var(--board) * var(--board-ratio)) calc(var(--match-right) + var(--phone-board-gap));
+                justify-content: center;
+              }
+              & .match-stage {
+                display: grid; gap: 0;
+                grid-template-rows: auto 1fr;
+                grid-template-areas: "hold field next" ". field opponents";
+              }
+              & .playfield { display: contents; }
+              & .playfield > .board-frame { grid-area: field; }
+              & :is(#board, .opponent-field canvas) { aspect-ratio: var(--board-ratio) / 2; }
+              & .playfield > .preview-panel > p { padding: 2px; text-align: center; font-size: 11px; }
+              & .playfield > .preview-panel:first-child { grid-area: hold; margin-right: var(--match-meter); }
+              & .playfield > .preview-panel:last-child {
+                grid-area: next; width: var(--match-next); margin-left: var(--phone-board-gap); justify-self: center;
+              }
+              & [data-local-meter] { right: 100%; width: 6px; }
+              & .game-footer {
+                --match-side-space: calc((100cqw - var(--board) * var(--board-ratio)
+                  - var(--match-left) - var(--match-right) - var(--match-meter) - var(--phone-board-gap)) / 2);
+                column-gap: 0; font-size: 10px;
+              }
+              & .game-footer :is(.b2b-stat, .combo-stat, .finesse-stat, .clear-result) {
+                margin-left: calc(var(--phone-board-bleed) - max(var(--page-gutter), env(safe-area-inset-left)) - var(--match-side-space));
+              }
+              & .game-footer .finesse-stat dd { white-space: nowrap; }
+              & #game-view #clear-result { min-height: 0; }
+              & #game-view > #game-touch-controls {
+                grid-area: touch; height: var(--phone-touch-reserve); margin: 0 auto;
+              }
+              & [data-match-status]:not([hidden]) {
+                position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+                background: #0009; color: #22d3ee; font-size: clamp(12px, 4vw, 20px); font-weight: bold;
+              }
+              &[data-view=countdown] [data-match-status]:not([hidden]) { font-size: 48px; }
+
+              & .match-stage > [data-opponents] {
+                grid-area: opponents; grid-template-columns: minmax(0, 1fr);
+                padding-left: var(--phone-board-gap); gap: 0; margin-top: 7px;
+              }
+              & .opponent { display: grid; justify-items: center; gap: 3px; position: relative; }
+              & .opponent:not([data-focused]), & .opponent .preview-panel { display: none; }
+              & .opponent-field {
+                grid-row: 2; width: 100%; grid-template-columns: minmax(0, min(100% - 1px,
+                  (2 * var(--board) - 3 * var(--match-next) - 132px) * var(--board-ratio) / 2));
+                justify-content: center; padding-left: 3px;
+              }
+              & .opponent .garbage-meter { right: 100%; width: 3px; border-width: 0; }
+              & .opponent :is(.opponent-phone-name, .opponent-phone-score) {
+                width: 100%; min-width: 0; margin: 0; text-align: center; font-size: 10px; line-height: 1.2;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+              }
+              & .opponent-phone-name { grid-row: 1; }
+              & .opponent-phone-score { color: #aaa; }
+              & .opponent[data-unavailable] .opponent-phone-score { color: #ef9a9a; }
+              & [data-opponent-cycle]:not([hidden]) {
+                grid-area: opponents; align-self: start; justify-self: end; margin-top: 5px; z-index: 1;
+                position: relative; font-size: 10px; padding: 1px 2px; min-width: 32px;
+              }
+              & [data-opponent-cycle]::before { content: "›" / ""; margin-right: 2px; }
+              & [data-opponent-cycle]::after { content: ""; position: absolute; top: 0; right: 0; width: 40px; height: 32px; }
+              &[data-layout=group] .opponent-phone-name { text-align: left; padding-right: 34px; }
+            }
+            main[data-view=emoji]:has(#emoji-view.playing) {
+              --editor-play-inset: max(6px, env(safe-area-inset-left), env(safe-area-inset-right));
+              --editor-play-bottom: calc(max(12px, env(safe-area-inset-bottom)) + 1px); /* allow for fractional grid tracks */
+              padding-inline: var(--editor-play-inset); padding-bottom: var(--editor-play-bottom);
+            }
+            main[data-view=emoji]:has(#emoji-view.playing) .app-header,
+            #emoji-view.playing :is(.emoji-heading, #emoji-palette-title) { display: none; }
+            #emoji-view.playing {
+              --editor-play-gap: 5px;
+              --editor-preview-gap: 5px;
+              --editor-play-overhead: calc(40px + 3 * var(--editor-play-gap)
+                + var(--editor-play-bottom) + env(safe-area-inset-top));
+              --phone-touch-width: min(420px, 100vw - 2 * var(--editor-play-inset));
+              --phone-touch-limit: calc((var(--phone-touch-width) - var(--phone-touch-gap)) / 2);
+              --phone-touch-reserve: min(clamp(151px, 24.5svh + 21px, 177px), var(--phone-touch-limit));
+              --editor-play-board: round(down, min(var(--phone-touch-width) - 2 * (45px + var(--editor-preview-gap) + 1px),
+                (100svh - var(--editor-play-overhead) - var(--phone-touch-reserve)) / 2), calc(10 * var(--device-pixel, 1px)));
+              --editor-play-touch-height: max(var(--phone-touch-reserve), 100svh - var(--editor-play-overhead) - 2 * var(--editor-play-board));
+              padding: var(--editor-play-gap) 0 0;
+            }
+            #emoji-view.playing .emoji-layout {
+              width: var(--phone-touch-width);
+              grid-template-columns: minmax(0, 1fr) var(--editor-play-board) minmax(0, 1fr);
+              grid-template-rows: 40px auto var(--editor-play-touch-height);
+              grid-template-areas: "palette palette palette" "actions board mirror" "controls controls controls";
+              gap: var(--editor-play-gap) 0;
+            }
+            #emoji-view.playing :is(.emoji-blocks, #emoji-palette > div) { display: contents; }
+            #emoji-view.playing #emoji-palette {
+              display: flex; grid-area: palette; justify-content: center; flex-wrap: nowrap;
+              margin-right: 70px;
+            }
+            #emoji-view.playing .emoji-color {
+              --swatch-size: min(28px, (var(--phone-touch-width) - 102px) / 9 - 6px);
+              flex: 1 1 0; min-width: 0; max-width: 40px;
+            }
+            #emoji-view.playing #emoji-board-scroll {
+              --editor-preview-width: round(down, min(65px,
+                (var(--phone-touch-width) - var(--editor-play-board)) / 2 - var(--editor-preview-gap) - 1px,
+                (2 * var(--editor-play-board) - 18px - 44px - 65px - var(--editor-play-gap)) / 3), calc(5 * var(--device-pixel, 1px)));
+              display: contents;
+            }
+            #emoji-view.playing #emoji-board {
+              --editor-preview-gap: calc((var(--phone-touch-width) - var(--editor-play-board) - 2 * var(--editor-preview-width)) / 4);
+              grid-area: board; width: var(--editor-play-board);
+            }
+            #emoji-view.playing #emoji-mirror { grid-area: mirror; }
+            #emoji-view.playing :is(.emoji-actions, #emoji-mirror) { align-self: end; justify-self: center; }
+            #emoji-view.playing #emoji-clear { min-width: 44px; padding-inline: 3px; }
+            #editor-play-hud {
+              --solo-preview: var(--editor-preview-width);
+              grid-area: 2 / 1 / 3 / -1;
+              grid-template-columns: minmax(0, 1fr) var(--editor-play-board) minmax(0, 1fr);
+              row-gap: var(--editor-play-gap);
+              height: calc(2 * var(--editor-play-board) - 44px - var(--editor-play-gap));
+            }
+            #emoji-view.playing #editor-touch-controls {
+              grid-area: controls; align-self: end; margin-top: 0; max-width: none;
+              height: min(var(--phone-touch-limit), var(--editor-play-touch-height));
+            }
+            #emoji-view.playing .emoji-play { display: contents; }
+            #emoji-view.playing #emoji-play { grid-area: palette; justify-self: end; width: 64px; padding-inline: 0; }
+            #emoji-view.playing:not(.play-paused) :is(.emoji-play-exit, .emoji-look) { display: none; }
+            #emoji-view.playing :is(.emoji-play-exit, .emoji-look) {
+              display: flex; grid-area: controls; align-self: center; justify-content: center;
+            }
+            #emoji-view.playing .emoji-play-exit { gap: 6px; translate: 0 -25px; }
+            #emoji-view.playing .emoji-look { translate: 0 25px; }
+            #emoji-view.playing #emoji-skin { width: min(14em, 40vw); }
+            #emoji-view.playing #emoji-status {
+              position: absolute; width: 1px; height: 1px; min-height: 0; overflow: hidden; clip-path: inset(50%);
+            }
+          }
         }
       }
       #match-replay-host { overflow-y: auto; flex: 1; min-height: 0; }
@@ -729,8 +1101,10 @@
             </div>
             <div class="actions emoji-seq emoji-play">
               <button class="primary" id="emoji-play" type="button">Play</button>
-              <button id="emoji-stop" type="button" hidden>Stop</button>
-              <button id="emoji-keep" type="button" hidden>Keep position</button>
+              <div class="emoji-play-exit">
+                <button id="emoji-stop" type="button" hidden>Stop</button>
+                <button id="emoji-keep" type="button" hidden>Keep position</button>
+              </div>
               <label><input id="emoji-match-bag" type="checkbox" checked> Match bag to board</label>
             </div>
             <div class="actions emoji-actions">
@@ -788,13 +1162,16 @@
                 <button id="emoji-delete" type="button" hidden>Delete</button>
               </div>
             </div>
-            <p class="hint" id="emoji-status" role="status"></p>
+            <div class="emoji-status-wrap"><p class="hint" id="emoji-status" role="status"></p></div>
           </div>
           <div id="emoji-board-scroll">
             <div id="emoji-board" role="group" aria-label="Emoji board" aria-description="Use arrow keys to move and Space to paint or erase a cell.">
-              <canvas class="emoji-side" id="emoji-hold" width="150" height="90" aria-label="Hold empty"></canvas>
+              <span class="emoji-side-label menu-label" id="emoji-hold-label" aria-hidden="true">Hold</span>
+              <canvas class="emoji-side" id="emoji-hold" width="150" height="90" aria-label="Hold"></canvas>
+              <span class="emoji-side-label menu-label" id="emoji-next-label" aria-hidden="true">Next</span>
               <canvas class="emoji-side" id="emoji-next" width="150" height="450" aria-label="Next pieces"></canvas>
             </div>
+            <footer id="editor-play-hud" class="game-footer" hidden></footer>
             <div id="editor-touch-controls" class="touch-controls"></div>
           </div>
         </div>
@@ -863,22 +1240,26 @@
           <canvas id="hold-preview" width="150" height="90" aria-label="Hold empty"></canvas>
           <button id="hold-button">Hold</button>
         </aside>
-        <div class="board-frame"><div data-local-meter class="garbage-meter" hidden role="meter" aria-label="Your incoming garbage lines" aria-valuemin="0" aria-valuemax="40" aria-valuenow="0"><div class="garbage-fill"></div></div><canvas id="board" width="300" height="600" aria-label="42tris playfield"></canvas><div id="sprint-countdown" hidden aria-live="polite"></div></div>
+        <div class="board-frame"><div data-local-meter class="garbage-meter" hidden role="meter" aria-label="Your incoming garbage lines" aria-valuemin="0" aria-valuemax="40" aria-valuenow="0"><div class="garbage-fill"></div></div><canvas id="board" width="300" height="600" aria-label="42tris playfield"></canvas><div id="sprint-countdown" hidden aria-live="polite"></div><div class="phone-match-info" data-match-status hidden role="status"></div></div>
         <aside class="preview-panel">
           <p>Next</p>
           <canvas id="next-preview" width="150" height="450" aria-label="Next pieces"></canvas>
         </aside>
-      </div><div data-opponents></div></div>
+      </div><div data-opponents></div><button class="phone-match-info" data-opponent-cycle aria-label="Next opponent" hidden></button></div>
       <footer class="game-footer"><div class="game-feedback">
-      <dl id="game-stats" aria-label="Game statistics">
+      <dl id="game-stats" class="game-stats" aria-label="Game statistics">
         <div id="sprint-clock" hidden><dt>Sprint</dt><dd id="elapsed-time">0:00.000</dd></div>
-        <div><dt>Lines</dt><dd id="line-count">0</dd></div>
-        <div><dt>Combo</dt><dd id="combo-count">0</dd></div>
-        <div><dt>B2B</dt><dd id="b2b-count">—</dd></div>
-        <div><dt>Surge</dt><dd id="surge-count">0</dd></div>
-        <div><dt>Finesse</dt><dd id="finesse-count">— · 0 faults</dd></div>
+        <div class="lines-stat"><dt>Lines</dt><dd id="line-count">0</dd></div>
+        <div class="combo-stat"><dt>Combo</dt><dd id="combo-count">0</dd></div>
+        <div class="b2b-stat"><dt>B2B</dt>
+          <dd class="b2b-value" id="b2b-value">
+            <span class="surge-icon" id="surge-icon" aria-hidden="true" hidden></span>
+            <span class="b2b-count" id="b2b-count">—</span><span class="visually-hidden">, Surge charged</span>
+          </dd>
+        </div>
+        <div class="finesse-stat"><dt>Finesse</dt><dd id="finesse-count">— · 0 faults</dd></div>
       </dl>
-      <p id="clear-result" role="status"></p>
+      <p class="clear-result" id="clear-result" role="status"></p>
       <p id="zen-status" class="hint" hidden></p>
       </div><details><summary>Key controls</summary><p id="controls" class="controls"></p></details>
       </footer>

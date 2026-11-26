@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { Input, Piece, ROWS } from "@42tris/core";
 import { SprintRecorder } from "@42tris/replay";
 import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary } from "./src/singleplayer";
-import { snapshotDisplay } from "./src/game-display";
+import { bindGameStats, snapshotDisplay } from "./src/game-display";
 import { SprintPlayback } from "./src/sprint-playback";
 import { sprintRecordingFor, startSprintRecording } from "./src/sprint-recording";
 import { fitCanvas, pixelRatio } from "./src/canvas-resolution";
@@ -22,8 +22,7 @@ function harness(mode: "zen" | "sprint" = "sprint") {
   let writes = 0;
   const node = (id: string) => document.querySelector(`#${id}`);
   const names = {
-    sprintClock: "sprint-clock", elapsedTime: "elapsed-time", lineCount: "line-count", comboCount: "combo-count",
-    b2bCount: "b2b-count", surgeCount: "surge-count", finesseCount: "finesse-count", clearResult: "clear-result",
+    sprintClock: "sprint-clock", elapsedTime: "elapsed-time",
     zenStatus: "zen-status", resultPanel: "sprint-result", watchReplayButton: "watch-replay-button",
     navSettingsButton: "nav-settings-button", canvas: "board", holdCanvas: "hold-preview", nextCanvas: "next-preview",
     holdButton: "hold-button", status: "status", countdownOverlay: "sprint-countdown",
@@ -33,13 +32,14 @@ function harness(mode: "zen" | "sprint" = "sprint") {
   const context = {
     ...domUpdate, document, solo: solo as Singleplayer | SprintRecorder | null, display: solo.game,
     playback: null as SprintPlayback | null, online: null as Record<string, unknown> | null,
-    openingPlayback: false, SINGLEPLAYER_MODES, snapshotDisplay, formatTime, finesseSummary, Piece, ROWS, LETTERS: "_ZLOSIJT", SprintRecorder, sprintRecordingFor,
+    openingPlayback: false, SINGLEPLAYER_MODES, snapshotDisplay, formatTime, finesseSummary, ROWS, LETTERS: "_ZLOSIJT", SprintRecorder, sprintRecordingFor,
+    renderStats: bindGameStats(document as unknown as Document),
     pressed, inputMount: { clear: () => pressed.clear(), setTouchBlocked() {} },
     touchControls: {
       undoCount: null as number | null, setUndoCount(count: number | null) { this.undoCount = count; },
       restart: Object.assign(node("touch-restart"), { hidden: true }),
     },
-    coarsePointer: { matches: false },
+    coarsePointer: { matches: false }, phonePortrait: { matches: false },
     holdExit: { cancel() {} }, volumeOverlay: { hide() {} },
     atHome: false, competitivePlayback: null, countdown: { active: false, label: () => null },
     holdCtx: node("hold-preview").context, nextCtx: node("next-preview").context,
@@ -65,6 +65,8 @@ function harness(mode: "zen" | "sprint" = "sprint") {
     }
     const setAttribute = element.setAttribute.bind(element);
     element.setAttribute = (name, value) => { writes++; setAttribute(name, value); };
+    const removeAttribute = element.removeAttribute.bind(element);
+    element.removeAttribute = name => { writes++; removeAttribute(name); };
   }
   const refresh = appFunction("refreshHud", "\nfunction applyInput", context);
   const render = appFunction("render", "\nfunction toggleMenu", context);
@@ -114,30 +116,47 @@ test("touch restart is visible in solo and online practice but hidden in competi
   expect(h.context.touchControls.restart.hidden).toBe(false);
 });
 
-test("mutable clear statistics, B2B tooltip, surge and attack labels update immediately", () => {
+test("mutable clear statistics, the B2B value and its Surge art, and attack labels update immediately", () => {
   const h = harness();
   h.refresh();
   const game = { ...snapshotDisplay(h.context.display.saveState()), stats: { ...h.context.display.stats } };
   Object.assign(h.context, { display: game });
-  Object.assign(game, { stats: { ...game.stats, lines: 4, combo: 2, chainLength: 1, b2b: 0, surge: 6 } });
+  Object.assign(game, { stats: { ...game.stats, lines: 4, combo: 2, chainLength: 1, b2b: 0, surge: 0 } });
   h.refresh();
   expect(h.node("line-count").textContent).toBe("4 / 40");
   expect(h.node("combo-count").textContent).toBe("2");
   expect(h.node("b2b-count").textContent).toBe("Ready");
   expect(h.node("b2b-count").getAttribute("title")).toBe("Chain started. The next qualifying clear earns the B2B bonus.");
+  expect(h.node("b2b-value").getAttribute("data-charged")).toBeNull();
   Object.assign(game, { stats: { ...game.stats, chainLength: 3, b2b: 2 } });
   Object.assign(game, { lastClear: { rows: [38, 39], spin: "mini", piece: Piece.T, allClear: true, attacks: [{ lines: 3 }, { lines: 2 }] } });
   h.refresh();
-  expect(h.node("b2b-count").textContent).toBe("2");
+  expect(h.node("b2b-count").textContent).toBe("×2");
   expect(h.node("b2b-count").getAttribute("title")).toBe("2 back-to-back clears.");
-  expect(h.node("surge-count").textContent).toBe("6");
+  expect(h.node("b2b-value").getAttribute("data-charged")).toBeNull();
   expect(h.node("clear-result").textContent).toBe("T-spin mini Double · All clear · Attack 5");
+  for (const [b2b, tint] of [
+    [4, "#00ffcc"], [5, "#00ff99"], [8, "#00ff00"], [12, "#ffff00"], [16, "#ffc600"],
+    [24, "#ff5500"], [30, "#ff0000"], [32, "#ff0011"], [48, "#ff0099"], [60, "#ff00ff"],
+    [77, "#933eff"], [100, "#0091ff"], [123, "#44c4f3"], [150, "#94ffe4"],
+    [250, "#ffdd87"], [500, "#ffffff"], [501, "#ffffff"],
+  ] as const) {
+    Object.assign(game.stats, { chainLength: b2b + 1, b2b, surge: b2b });
+    h.refresh();
+    expect(h.node("b2b-count").textContent).toBe(String(b2b));
+    expect(h.node("b2b-value").getAttribute("data-charged")).toBe("");
+    expect(h.node("b2b-value").getAttribute("style")).toContain(`--b2b-digits: ${String(b2b).length}`);
+    expect(h.node("b2b-value").getAttribute("style")).toContain(`--surge-color: ${tint};`);
+    const before = h.writes(); h.refresh(); expect(h.writes()).toBe(before);
+  }
   Object.assign(game, { lastClear: null });
   Object.assign(game, { stats: { ...game.stats, combo: -1, chainLength: 0, b2b: 0, surge: 0 } });
   h.refresh();
   expect(h.node("combo-count").textContent).toBe("0");
   expect(h.node("clear-result").textContent).toBe("");
   expect(h.node("b2b-count").textContent).toBe("—");
+  expect(h.node("b2b-value").getAttribute("data-charged")).toBeNull();
+  expect(h.node("b2b-value").getAttribute("style")).toBeNull();
 });
 
 test("Sprint timer retains millisecond updates and finesse changes after placements", () => {
@@ -225,6 +244,7 @@ test("multiplayer frame displays checkpoint statistics, score, top-out and waiti
   replacement.tick(250);
   replacement.apply(Input.HardDrop, 251);
   const next = replacement.saveState();
+  next.lastResult = { ...next.lastResult!, stats: { ...next.lastResult!.stats, chainLength: 6, b2b: 5, surge: 5 } };
   session.prediction.gameState = () => next;
   session.checkpoint.state.players[0].game = next;
   session.checkpoint.state.scores[0] = 3;
@@ -232,7 +252,12 @@ test("multiplayer frame displays checkpoint statistics, score, top-out and waiti
   h.frame(116);
   expect(h.node("status").textContent).toBe("Player (you) · 3 points · Top out");
   expect(h.node("finesse-count").textContent).toBe(finesseSummary(snapshotDisplay(next).finesse));
+  expect(h.node("b2b-count").textContent).toBe("5");
+  expect(h.node("b2b-value").getAttribute("data-charged")).toBe("");
   expect(h.node("hold-button").disabled).toBe(true);
+  h.context.phonePortrait.matches = true;
+  h.frame(120);
+  expect(h.node("finesse-count").textContent).toBe("100.0%");
   const before = h.writes(); h.frame(124); expect(h.writes()).toBe(before);
   session.room.phase = "waiting"; h.frame(132);
   expect(h.node("status").hidden).toBe(true);

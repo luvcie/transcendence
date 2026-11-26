@@ -5,7 +5,6 @@ import type { requestCompetitiveReplay } from "./replay-request";
 import {
   ROWS,
   Input,
-  Piece,
   type PieceId,
   type InputId,
 } from "@42tris/core";
@@ -33,7 +32,7 @@ import { mountGameplayInput } from "./gameplay-input";
 import { createTouchControls } from "./touch-controls";
 import { mountHoldExit } from "./hold-exit";
 import { renderOnlineWaiting } from "./waiting-view";
-import { snapshotDisplay, type GameDisplay } from "./game-display";
+import { bindGameStats, snapshotDisplay, type GameDisplay } from "./game-display";
 import { initialView, mountAppView, onlineView, toolPaths, type ToolView } from "./app-view";
 import { Singleplayer, SINGLEPLAYER_MODES, formatTime, finesseSummary, type SingleplayerMode } from "./singleplayer";
 import { SprintRecorder } from "@42tris/replay";
@@ -73,20 +72,16 @@ const holdCtx = holdCanvas.getContext("2d")!;
 const nextCanvas = document.querySelector<HTMLCanvasElement>("#next-preview")!;
 const nextCtx = nextCanvas.getContext("2d")!;
 const holdButton = document.querySelector<HTMLButtonElement>("#hold-button")!;
-const lineCount = document.querySelector("#line-count")!;
-const comboCount = document.querySelector("#combo-count")!;
-const b2bCount = document.querySelector("#b2b-count")!;
-const surgeCount = document.querySelector("#surge-count")!;
-const finesseCount = document.querySelector("#finesse-count")!;
 const touchControls = createTouchControls(document.querySelector<HTMLElement>("#game-touch-controls")!);
 const coarsePointer = matchMedia("(pointer: coarse)");
+const phonePortrait = matchMedia("(pointer: coarse) and (max-width: 663px) and (orientation: portrait)");
+const renderStats = bindGameStats(document);
 const sprintClock = document.querySelector<HTMLElement>("#sprint-clock")!;
 const elapsedTime = document.querySelector<HTMLElement>("#elapsed-time")!;
 const resultPanel = document.querySelector<HTMLElement>("#sprint-result")!;
 const watchReplayButton = document.querySelector<HTMLButtonElement>("#watch-replay-button")!;
 const replayBar = document.querySelector<HTMLElement>("#replay-bar")!;
 const replayToggle = document.querySelector<HTMLButtonElement>("#replay-toggle")!;
-const clearResult = document.querySelector("#clear-result")!;
 const zenStatus = document.querySelector<HTMLParagraphElement>("#zen-status")!;
 const LETTERS = "_ZLOSIJT";
 const pressed = new Map<string, Action>();
@@ -438,7 +433,7 @@ async function enterOnline() {
   online = mountOnline(root, {
     clearKeys: () => { inputMount.clear(); volumeOverlay.hide(); }, handling: () => handling, skins, invite, diagnostics: netDiagnostics, inputLeadMs,
     skin: () => shareableSkinId(skins.preferences.active), skinMode: () => multiplayerSkins.mode,
-    replay: watchCompetitiveReplay,
+    replay: watchCompetitiveReplay, settings: () => openSettings(false),
     view: view => {
       if (view !== "playing") volumeOverlay.hide();
       if (!atHome && !competitivePlayback) showView(view);
@@ -640,31 +635,7 @@ function refreshHud() {
   if (!online) touchControls.setUndoCount(!playback && solo?.mode === "zen" ? (display.starting ? 0 : undoCount) : null);
   setHidden(sprintClock, !sprint);
   setText(elapsedTime, formatTime(playback ? playback.elapsedMs : solo?.elapsedMs ?? 0));
-  const { lines, combo, chainLength, b2b, surge } = display.stats;
-  setText(lineCount, sprint ? `${lines} / 40` : String(lines));
-  setText(comboCount, String(Math.max(0, combo)));
-  setText(b2bCount, chainLength === 0 ? "—" : b2b === 0 ? "Ready" : String(b2b));
-  setAttributeIfChanged(b2bCount, "title", chainLength === 0
-    ? "Clear a Quad, spin or all clear to start B2B."
-    : b2b === 0 ? "Chain started. The next qualifying clear earns the B2B bonus." : `${b2b} back-to-back clears.`);
-  setText(surgeCount, String(surge));
-  setText(finesseCount, finesseSummary(display.finesse));
-  const result = display.lastClear;
-  const labels: string[] = [];
-  if (result) {
-    const clear = ["", "Single", "Double", "Triple", "Quad"][result.rows.length];
-    let spin = "";
-    if (result.spin !== "none") {
-      spin = `${LETTERS[result.piece]}-spin`;
-      if (result.piece === Piece.T && result.spin === "mini") spin += " mini";
-    }
-    const placement = [spin, clear].filter(Boolean).join(" ");
-    if (placement) labels.push(placement);
-    if (result.allClear) labels.push("All clear");
-    const attack = result.attacks.reduce((sum, packet) => sum + packet.lines, 0);
-    if (attack) labels.push(`Attack ${attack}`);
-  }
-  setText(clearResult, labels.join(" · "));
+  renderStats(display, sprint, !!online && phonePortrait.matches);
   setHidden(zenStatus, playback !== null || (!display.zen && (!sprint || !!solo?.started)));
   setText(zenStatus, online ? "Online practice · Ctrl+Z to undo; restart resets your board."
     : sprint ? "Sprint 40L · Make your first move to start the clock."

@@ -1,9 +1,11 @@
 import { expect, test } from "bun:test";
 import { GARBAGE, Input } from "@42tris/core";
-import { bagLeft, boardQueue, boardToGame, followQueue, gameToLines, mirrorBoard, mirrorPiece, paintGame, playCells } from "./src/editor-play";
+import { bagLeft, boardQueue, boardToGame, drawQueue, followQueue, gameToLines, mirrorBoard, mirrorPiece, paintGame, playCells } from "./src/editor-play";
+import { emojis } from "./src/board-emoji";
 import { mirrorRows } from "./src/emoji-editor";
 import { editorSkin } from "./src/emoji-editor";
 import { Singleplayer } from "./src/singleplayer";
+import { FakeDocument } from "./test-dom";
 
 const row = (emoji: string) => emoji.repeat(10);
 const blank = Array(20).fill(row("⬛"));
@@ -137,4 +139,17 @@ test("a zen run deals the board queue through hold and keeps it through undo", (
   run.undo(++now);
   followQueue(run.game, queue);
   expect(run.game.piece).toBe(dealt[7]);
+});
+
+test("editor previews draw the held piece and the advanced queue after hold", () => {
+  const document = new FakeDocument();
+  const hold = document.createElement(), next = document.createElement();
+  const run = new Singleplayer("zen", 108, 0);
+  run.tick(1000);
+  const piece = run.game.piece;
+  run.apply(Input.Hold, 1001);
+  drawQueue(hold.context as unknown as CanvasRenderingContext2D, [run.game.held!], "emoji", 1);
+  drawQueue(next.context as unknown as CanvasRenderingContext2D, run.game.previews, "emoji", 5);
+  expect(hold.calls).toEqual(["clear", ...Array(4).fill(emojis[piece])]);
+  expect(next.calls).toEqual(["clear", ...Array.from(run.game.previews).flatMap(id => Array(4).fill(emojis[id]))]);
 });

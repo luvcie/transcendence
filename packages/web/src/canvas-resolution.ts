@@ -25,6 +25,7 @@ if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
 
 export function onResolutionChange(redraw: () => void) {
   listeners.add(redraw);
+  return () => { listeners.delete(redraw); };
 }
 
 export function setFastSkins(enabled: boolean) {
