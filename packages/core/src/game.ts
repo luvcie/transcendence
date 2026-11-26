@@ -61,6 +61,7 @@ export class Game {
   private finesseInputs = 0;
   private finesseInherited = false;
   private zenEnabled = false;
+  private unlimitedHold: boolean;
   private history: ReturnType<Game["capture"]>[] = [];
   private turn: ReturnType<Game["capture"]> | null = null;
 
@@ -108,7 +109,8 @@ export class Game {
   private inSettlement = false;
 
   constructor(seed: number, gravityMs = 500, previewCount = 5, handling: Handling = DEFAULT_HANDLING, readyMs = 0,
-    settlement: SettlePlacement | null = null, lockProfile: LockProfile = PRACTICE_LOCK, width = COLS) {
+    settlement: SettlePlacement | null = null, lockProfile: LockProfile = PRACTICE_LOCK, width = COLS,
+    { unlimitedHold = false }: { unlimitedHold?: boolean } = {}) {
     validateBoardWidth(width);
     this.width = width;
     this.board = createBoard(width);
@@ -116,9 +118,10 @@ export class Game {
     this.lockProfile = lockProfile;
     validateHandling(handling);
     if (!Number.isFinite(gravityMs) || gravityMs <= 0 || !Number.isSafeInteger(previewCount) || previewCount < 1
-      || !Number.isFinite(readyMs) || readyMs < 0) throw new RangeError("Invalid game configuration");
+      || !Number.isFinite(readyMs) || readyMs < 0 || typeof unlimitedHold !== "boolean") throw new RangeError("Invalid game configuration");
     if (settlement !== null && typeof settlement !== "function") throw new TypeError("Invalid settlement callback");
     this.settlement = settlement;
+    this.unlimitedHold = unlimitedHold;
     this.handling = { ...handling };
     this.bag = new Bag(seed);
     this.gravityMs = gravityMs;
@@ -135,6 +138,7 @@ export class Game {
   get lastClear(): LockResult | null { return this.lastResult; }
   get zen(): boolean { return this.zenEnabled; }
   get undoCount(): number { return this.history.length; }
+  get holdLocked(): boolean { return this.holdUsed && !this.unlimitedHold; }
 
   saveState(): GameState {
     this.requireOutsideSettlement();
@@ -143,9 +147,11 @@ export class Game {
       version: GAME_STATE_VERSION, rulesVersion: RULES_VERSION,
       board: copyBoardEdges(this.board, [...this.board]), previews: [...this.previews],
       bag: { rng: bag.rng, pieces: [...bag.pieces], index: bag.index },
-      config: { width: this.width, gravityMs: this.gravityMs, lockProfile: this.lockProfile, handling: {
-        das: this.handling.das, arr: this.handling.arr, sddas: this.handling.sddas, sdarr: this.handling.sdarr,
-      } },
+      config: {
+        width: this.width, gravityMs: this.gravityMs, lockProfile: this.lockProfile,
+        ...(this.unlimitedHold && { unlimitedHold: true }),
+        handling: { das: this.handling.das, arr: this.handling.arr, sddas: this.handling.sddas, sdarr: this.handling.sdarr },
+      },
       state: {
         piece: this.piece, rot: this.rot, x: this.x, y: this.y, dealt: this.dealt,
         topOut: this.topOut, held: this.held, holdUsed: this.holdUsed,
@@ -189,6 +195,7 @@ export class Game {
     this.softAt = s.state.softAt ?? Infinity;
     this.gravityMs = s.config.gravityMs;
     this.lockProfile = s.config.lockProfile;
+    this.unlimitedHold = s.config.unlimitedHold ?? false;
     this.handling = s.config.handling;
     this.lastResult = s.lastResult;
     this.events = s.events;
@@ -322,7 +329,7 @@ export class Game {
   }
 
   private hold(): void {
-    if (this.holdUsed) return;
+    if (this.holdLocked) return;
     const next = this.held;
     this.held = this.piece;
     this.spawn(next ?? this.takeNext());

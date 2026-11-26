@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { Game, Input } from "./game";
 import { COLS, place } from "./board";
 import { MINOS, SPAWN_Y, spawnX } from "./pieces";
+import { Singleplayer } from "./singleplayer";
 
 test("first hold stores the piece and consumes one preview", () => {
   const g = new Game(108);
@@ -17,7 +18,7 @@ test("first hold stores the piece and consumes one preview", () => {
   expect([...g.board].filter(Boolean)).toHaveLength(0);
 });
 
-test("hold cannot be used again until the piece locks", () => {
+test("by default hold cannot be used again until the piece locks", () => {
   const g = new Game(108);
   g.apply(Input.Hold, 0);
   const current = g.piece;
@@ -26,11 +27,65 @@ test("hold cannot be used again until the piece locks", () => {
   expect(g.piece).toBe(current);
   expect(g.held).toBe(held);
   expect(g.dealt).toBe(2);
+  expect(g.holdLocked).toBe(true);
+  expect(g.saveState().config).not.toHaveProperty("unlimitedHold");
   g.apply(Input.HardDrop, 0);
   expect(g.holdUsed).toBe(false);
   g.apply(Input.Hold, 0);
   expect(g.piece).toBe(held);
   expect(g.holdUsed).toBe(true);
+});
+
+test("unlimited hold swaps repeatedly without consuming more previews or affecting finesse", () => {
+  const g = new Game(108, 500, 5, undefined, 0, null, undefined, COLS, { unlimitedHold: true });
+  const first = g.piece;
+  const [next, ...previews] = g.previews;
+  g.apply(Input.Hold, 0);
+  expect([g.piece, g.held]).toEqual([next, first]);
+  expect([...g.previews].slice(0, -1)).toEqual(previews);
+  expect(g.dealt).toBe(2);
+
+  const snapshot = JSON.parse(JSON.stringify(g.saveState()));
+  const restored = Game.fromState(snapshot, null);
+  expect(restored.saveState()).toEqual(snapshot);
+  for (const game of [g, restored]) {
+    const queue = game.previews.slice();
+    for (let i = 0; i < 8; i++) {
+      game.apply(Input.Hold, 0);
+      expect([game.piece, game.held]).toEqual(i % 2 === 0 ? [first, next] : [next, first]);
+      expect(game.holdLocked).toBe(false);
+      expect(game.dealt).toBe(2);
+      expect(game.previews).toEqual(queue);
+    }
+    expect(game.stats.pieces).toBe(0);
+    game.apply(Input.HardDrop, 0);
+  }
+  const limited = new Game(108);
+  limited.apply(Input.Hold, 0);
+  limited.apply(Input.HardDrop, 0);
+  expect(g.finesse).toEqual(limited.finesse);
+  expect(restored.saveState()).toEqual(g.saveState());
+});
+
+test("local Zen undo restores hold and queue while keeping unlimited swaps", () => {
+  const run = new Singleplayer("zen", 108, 0);
+  run.tick(250);
+  const { game } = run;
+  run.apply(Input.Hold, 250);
+  run.apply(Input.HardDrop, 250);
+  const { piece, held, dealt } = game;
+  const queue = game.previews.slice();
+  run.apply(Input.Hold, 250);
+  run.apply(Input.Hold, 250);
+  run.apply(Input.HardDrop, 250);
+
+  expect(run.undo(250)).toBe(true);
+  expect([game.piece, game.held, game.dealt]).toEqual([piece, held, dealt]);
+  expect(game.previews).toEqual(queue);
+  run.apply(Input.Hold, 250);
+  expect([game.piece, game.held]).toEqual([held, piece]);
+  run.apply(Input.Hold, 250);
+  expect([game.piece, game.held]).toEqual([piece, held]);
 });
 
 test("swapping hold resets position, rotation and gravity without consuming previews", () => {

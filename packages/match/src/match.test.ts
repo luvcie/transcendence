@@ -36,6 +36,14 @@ test("held movement at frame 99 round-trips a pending core frame boundary", () =
   expect(restored.saveState()).toEqual(match.saveState());
 });
 
+test("match checkpoints reject the unlimited hold option in both modes", () => {
+  for (const mode of ["competitive", "practice"] as const) {
+    const state = new Match({ ...options, mode }).saveState();
+    state.players[0].game.config.unlimitedHold = true;
+    expect(() => Match.fromState(state)).toThrow(RangeError);
+  }
+});
+
 test("fractional reset does not auto-lock before an input exactly 30 frames later", () => {
   for (const key of [Input.HardDrop, Input.LeftUp]) {
     const state = new Match(options).saveState();

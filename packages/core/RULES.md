@@ -45,9 +45,11 @@ Default gravity is 500ms per cell with five previews. Spawn uses rotation 0 at
 `y = 18`, with `x = 4` for O and `x = 3` otherwise on a 10-wide board. Other widths shift the spawn by `floor((width - 10) / 2)`. Spawn collision or garbage
 overflow causes top-out; merely occupying hidden rows does not.
 
-Hold is available once per placement. An empty hold consumes the next preview;
-swapping an occupied hold does not. Either operation resets the active piece's
-orientation and per-piece timers. Hard drop moves to the surface and locks
+Hold is available once per placement. The `unlimitedHold` game option, set by
+local Zen and Tetorisu editor Play, allows any number of swaps before locking.
+An empty hold consumes the next preview; swapping an occupied hold does not.
+Either operation resets the active piece's orientation and per-piece timers.
+Hard drop moves to the surface and locks
 immediately. A positive descent invalidates spin eligibility; a zero-distance
 hard drop preserves it. Failed moves and rotations preserve eligibility.
 Rotation tries the natural position first, then the ordered SRS+ kick table,
@@ -125,7 +127,9 @@ processed phase and lock duration in frames.
 Versions 1 through 4 are rejected; no implicit migration changes their continuation rules. It stores
 held controls, deadlines, accumulators, opening time, pause/top-out flags, last
 result, pending events and sequence. `stats` is derived from the saved last result,
-or the initial counters when no result exists. Inactive infinite deadlines use
+or the initial counters when no result exists. `config.unlimitedHold` is saved
+only when true; an absent field means one hold per placement. Sprint and match
+snapshots keep the same format. Inactive infinite deadlines use
 `null`. Charged ARR=0 also uses `null`; direction and held flags distinguish it.
 
 `lastNow` is the last simulation boundary. `observedNow` is the latest external

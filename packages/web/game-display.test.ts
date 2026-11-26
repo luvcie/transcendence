@@ -57,6 +57,9 @@ test("display flags and initial statistics do not require a lock result or undo 
   expect(display.paused).toBe(true);
   expect(display.topOut).toBe(true);
   expect(display.holdUsed).toBe(true);
+  expect(display.holdLocked).toBe(true);
+  snapshot.config.unlimitedHold = true;
+  expect(snapshotDisplay(snapshot).holdLocked).toBe(false);
   expect(display.stats).toBe(INITIAL_STATS);
   expect(display.lastClear).toBeNull();
   expect(display.zen).toBe(false);

@@ -4,8 +4,8 @@ import { finesseAccuracy, type FinesseStats } from "./finesse";
 import type { ClearStats } from "./rules";
 
 export const SINGLEPLAYER_MODES = {
-  zen: { name: "Zen", undo: true, target: null, firstInput: false, width: null, readyMs: 250 },
-  sprint: { name: "Sprint 40L", undo: false, target: 40, firstInput: true, width: 10, readyMs: 0 },
+  zen: { name: "Zen", undo: true, target: null, firstInput: false, width: null, readyMs: 250, unlimitedHold: true },
+  sprint: { name: "Sprint 40L", undo: false, target: 40, firstInput: true, width: 10, readyMs: 0, unlimitedHold: false },
 } as const;
 export type SingleplayerMode = keyof typeof SINGLEPLAYER_MODES;
 
@@ -85,8 +85,9 @@ export class Singleplayer {
   }
 
   private createGame(width: number): Game {
-    const game = new Game(this.seed, 500, 5, this.handling, SINGLEPLAYER_MODES[this.mode].readyMs, null, undefined, width);
-    game.setZen(SINGLEPLAYER_MODES[this.mode].undo);
+    const { readyMs, undo, unlimitedHold } = SINGLEPLAYER_MODES[this.mode];
+    const game = new Game(this.seed, 500, 5, this.handling, readyMs, null, undefined, width, { unlimitedHold });
+    game.setZen(undo);
     game.tick(this.elapsed);
     return game;
   }

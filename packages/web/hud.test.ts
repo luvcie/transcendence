@@ -263,7 +263,11 @@ test("preview labels, width and hold availability follow game state without redu
   expect(h.node("hold-preview").getAttribute("aria-label")).toBe("Hold empty");
   h.context.solo!.apply(Input.Hold, 251); h.render();
   expect(h.node("hold-preview").getAttribute("aria-label")).toBe(`Held piece ${h.context.LETTERS[h.context.display.held!]}`);
-  expect(h.node("hold-button").disabled).toBe(true);
+  expect(h.node("hold-button").disabled).toBe(false);
+  const nextHeld = h.context.display.piece;
+  h.context.solo!.apply(Input.Hold, 252); h.render();
+  expect(h.node("hold-preview").getAttribute("aria-label")).toBe(`Held piece ${h.context.LETTERS[nextHeld]}`);
+  expect(h.node("hold-button").disabled).toBe(false);
   expect(h.node("next-preview").getAttribute("aria-label")).toBe("Next pieces:" + Array.from(h.context.display.previews, p => ` ${h.context.LETTERS[p]}`).join(""));
   h.context.solo = new Singleplayer("zen", 108, 0, undefined, 12);
   h.context.display = h.context.solo.game; h.render();

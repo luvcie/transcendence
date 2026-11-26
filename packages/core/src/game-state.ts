@@ -51,7 +51,7 @@ export interface GameState {
   board: number[];
   previews: number[];
   bag: { rng: number; pieces: number[]; index: number };
-  config: { width: number; gravityMs: number; handling: Handling; lockProfile: LockProfile };
+  config: { width: number; gravityMs: number; handling: Handling; lockProfile: LockProfile; unlimitedHold?: boolean };
   state: GameFields;
   lastResult: LockResult | null;
   events: GameEvent[];
@@ -131,6 +131,8 @@ export function readGameState(value: unknown): GameState {
   requireState(record(value));
   const s = value as GameState;
   requireState(record(s.config));
+  const { unlimitedHold } = s.config;
+  requireState(unlimitedHold === undefined || typeof unlimitedHold === "boolean");
   const width = s.config.width === undefined ? COLS : s.config.width;
   validateBoardWidth(width);
   requireState(s.version === GAME_STATE_VERSION && s.rulesVersion === RULES_VERSION
@@ -189,9 +191,11 @@ export function readGameState(value: unknown): GameState {
   return {
     version: GAME_STATE_VERSION, rulesVersion: RULES_VERSION,
     board: copyBoardEdges(s.board, [...s.board]), previews: [...s.previews], bag: { rng: s.bag.rng, pieces: [...s.bag.pieces], index: s.bag.index },
-    config: { width, gravityMs: s.config.gravityMs, lockProfile: s.config.lockProfile, handling: {
-      das: s.config.handling.das, arr: s.config.handling.arr, sddas: s.config.handling.sddas, sdarr: s.config.handling.sdarr,
-    } },
+    config: {
+      width, gravityMs: s.config.gravityMs, lockProfile: s.config.lockProfile,
+      ...(unlimitedHold && { unlimitedHold }),
+      handling: { das: s.config.handling.das, arr: s.config.handling.arr, sddas: s.config.handling.sddas, sdarr: s.config.handling.sdarr },
+    },
     state, lastResult: s.lastResult === null ? null : copyLock(s.lastResult), events: s.events.map(copyEvent),
     zenEnabled: s.zenEnabled, settlementRequired: s.settlementRequired,
   };

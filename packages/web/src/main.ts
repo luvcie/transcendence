@@ -717,7 +717,7 @@ function render() {
   setAttributeIfChanged(canvas, "aria-label", "42tris playfield");
   const holdCell = fitCanvas(holdCanvas, 5, 3);
   holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
-  setDisabled(holdButton, countdown.active || playback !== null || display.holdUsed || display.paused || display.topOut || display.starting || !!solo?.result || onlineBlocked);
+  setDisabled(holdButton, countdown.active || playback !== null || display.holdLocked || display.paused || display.topOut || display.starting || !!solo?.result || onlineBlocked);
   setAttributeIfChanged(holdCanvas, "aria-label", display.held === null ? "Hold empty" : `Held piece ${LETTERS[display.held]}`);
   if (display.held !== null) drawPiecePreview(holdCtx, display.held, holdCell, holdCanvas.width, holdCanvas.height, 0, skins.loaded);
 

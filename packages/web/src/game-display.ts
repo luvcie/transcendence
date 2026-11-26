@@ -13,6 +13,7 @@ export interface GameDisplay {
   readonly paused: boolean;
   readonly held: PieceId | null;
   readonly holdUsed: boolean;
+  readonly holdLocked: boolean;
   readonly stats: Readonly<ClearStats>;
   readonly finesse: FinesseStats;
   readonly lastClear: LockResult | null;
@@ -25,7 +26,7 @@ export function snapshotDisplay(snapshot: GameState): GameDisplay {
     board: copyBoardEdges(snapshot.board, Uint8Array.from(snapshot.board)), previews: snapshot.previews,
     piece: state.piece, rot: state.rot, x: state.x, y: state.y,
     starting: state.readyMs > 0, topOut: state.topOut, paused: state.paused,
-    held: state.held, holdUsed: state.holdUsed,
+    held: state.held, holdUsed: state.holdUsed, holdLocked: state.holdUsed && !snapshot.config.unlimitedHold,
     stats: snapshot.lastResult?.stats ?? INITIAL_STATS, finesse: snapshot.lastResult?.finesse ?? INITIAL_FINESSE,
     lastClear: snapshot.lastResult, zen: snapshot.zenEnabled,
   };
